@@ -2,11 +2,14 @@
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
 #include "viewer.h"
 
+#include <KFormat>
+#include <KLocalizedString>
 #include <KWindowSystem>
 
 #include <QCoreApplication>
 #include <QDBusConnection>
 #include <QLoggingCategory>
+#include <QtConcurrentRun>
 
 Q_LOGGING_CATEGORY(lcViewer, "kwiklook.viewer", QtInfoMsg)
 
@@ -88,6 +91,46 @@ bool Viewer::isOpen() const
     return m_open;
 }
 
+QString Viewer::view() const
+{
+    return m_view;
+}
+
+QString Viewer::mimeType() const
+{
+    return m_info.mimeType;
+}
+
+QString Viewer::iconName() const
+{
+    return m_info.iconName;
+}
+
+bool Viewer::fileExists() const
+{
+    return m_info.exists;
+}
+
+QString Viewer::details() const
+{
+    if (!m_info.known) {
+        return QString();
+    }
+    if (!m_info.exists) {
+        return i18n("This file no longer exists.");
+    }
+    QStringList parts{m_info.typeName};
+    if (m_info.size >= 0) {
+        parts << KFormat().formatByteSize(double(m_info.size));
+    }
+    if (m_info.modified.isValid()) {
+        parts << i18nc("@info file modification time, e.g. “Modified yesterday at 14:03”", "Modified %1",
+                       KFormat().formatRelativeDateTime(m_info.modified, QLocale::ShortFormat));
+    }
+    parts.removeAll(QString());
+    return parts.join(u" · ");
+}
+
 void Viewer::Open(const QStringList &urls, int index, const QString &sessionId, const QString &activationToken)
 {
     QList<QUrl> parsed;
@@ -151,6 +194,25 @@ void Viewer::setCurrent(int index)
     m_index = index;
     Q_EMIT currentChanged();
     Q_EMIT CurrentChanged(m_sessionId, currentUrl().toString(), m_index);
+    readFileInfo();
+}
+
+void Viewer::readFileInfo()
+{
+    const int generation = ++m_generation;
+    m_info = FileInfo();
+    Q_EMIT fileInfoChanged();
+    auto *watcher = new QFutureWatcher<FileInfo>(this);
+    connect(watcher, &QFutureWatcher<FileInfo>::finished, this, [this, watcher, generation] {
+        watcher->deleteLater();
+        if (generation != m_generation) {
+            return; // another file became current meanwhile
+        }
+        m_info = watcher->result();
+        m_view = viewFor(m_info);
+        Q_EMIT fileInfoChanged();
+    });
+    watcher->setFuture(QtConcurrent::run(&FileInfo::read, currentUrl()));
 }
 
 void Viewer::showWindow(const QString &activationToken)

@@ -32,6 +32,7 @@ find_package(Qt6 ${QT_MIN_VERSION} REQUIRED COMPONENTS
     QuickControls2 # selecting KDE's style
     Qml
     DBus
+    Concurrent
 )
 
 find_package(KF6 ${KF_MIN_VERSION} REQUIRED COMPONENTS

@@ -1,0 +1,290 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 KDEGlance contributors
+// SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
+// Based on KDEGlance's Dolphin integration test (https://github.com/AlexGraveler/KDEGlance).
+
+// The Dolphin hook inside a stand-in Dolphin: this process plays Dolphin (mock
+// view classes, applicationName "dolphin"), loads the real hook plugin, and
+// plays the viewer too (a FakeViewer on the bus that records the calls and
+// sends the viewer's signals). Runs on a private session bus (run-with-bus.sh).
+
+#include "dbusnames.h"
+#include "mockdolphin.h"
+
+#include <KOverlayIconPlugin>
+
+#include <QApplication>
+#include <QDBusConnection>
+#include <QDBusConnectionInterface>
+#include <QDBusMessage>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QPluginLoader>
+#include <QTemporaryDir>
+#include <QTest>
+#include <QTextEdit>
+
+#include <sys/stat.h>
+
+using namespace Qt::StringLiterals;
+
+// Records what the hook asks the viewer to do.
+class FakeViewer : public QObject
+{
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "io.github.strandzen.KwikLook.Viewer")
+public:
+    struct Call {
+        QString method;
+        QStringList urls;
+        int index = -1;
+        QString session;
+    };
+    QList<Call> calls;
+
+    // Its own connection, like a separate viewer process.
+    static QDBusConnection bus()
+    {
+        return QDBusConnection::connectToBus(QDBusConnection::SessionBus, u"fake-viewer"_s);
+    }
+
+    void emitSignal(const QString &name, const QVariantList &args)
+    {
+        QDBusMessage m = QDBusMessage::createSignal(QLatin1String(KwikLookDBus::ViewerPath), QLatin1String(KwikLookDBus::ViewerInterface), name);
+        m.setArguments(args);
+        bus().send(m);
+    }
+
+public Q_SLOTS:
+    Q_SCRIPTABLE void Open(const QStringList &urls, int index, const QString &sessionId, const QString &activationToken)
+    {
+        Q_UNUSED(activationToken)
+        calls.append({u"Open"_s, urls, index, sessionId});
+    }
+    Q_SCRIPTABLE void Close()
+    {
+        calls.append({u"Close"_s, {}, -1, {}});
+    }
+};
+
+class TstDolphinHook : public QObject
+{
+    Q_OBJECT
+private:
+    QTemporaryDir m_dir;
+    std::unique_ptr<DolphinMainWindow> m_window;
+    DolphinView *m_view = nullptr;
+    QObject *m_bridge = nullptr;
+    FakeViewer m_viewer;
+
+    QUrl url(const QString &name) const
+    {
+        return QUrl::fromLocalFile(m_dir.filePath(name));
+    }
+    KFileItem fileItem(const QString &name, bool dir = false) const
+    {
+        return KFileItem(url(name), QString(), dir ? S_IFDIR : S_IFREG);
+    }
+    QJsonObject bridgeState()
+    {
+        QString state;
+        QMetaObject::invokeMethod(m_bridge, "State", Qt::DirectConnection, Q_RETURN_ARG(QString, state));
+        return QJsonDocument::fromJson(state.toUtf8()).object();
+    }
+    QString session()
+    {
+        return bridgeState().value(u"session"_s).toString();
+    }
+    void focusView(DolphinView *view)
+    {
+        m_window->activateWindow();
+        view->container()->setFocus();
+        QTRY_COMPARE(QApplication::focusWidget(), view->container());
+    }
+    void pressSpace(DolphinView *view)
+    {
+        focusView(view);
+        QTest::keyClick(view->container(), Qt::Key_Space);
+    }
+    // The next call the hook sends to the viewer.
+    FakeViewer::Call nextCall()
+    {
+        const qsizetype before = m_viewer.calls.size();
+        if (!QTest::qWaitFor([&] {
+                return m_viewer.calls.size() > before;
+            }, 3000)) {
+            return {};
+        }
+        return m_viewer.calls.last();
+    }
+    void closeFromViewer()
+    {
+        m_viewer.emitSignal(u"Closed"_s, {session()});
+        QTRY_VERIFY(session().isEmpty());
+    }
+
+private Q_SLOTS:
+    void initTestCase()
+    {
+        // Must look like Dolphin before the hook is loaded.
+        QCoreApplication::setApplicationName(u"dolphin"_s);
+        auto bus = FakeViewer::bus();
+        QVERIFY(bus.isConnected());
+        QVERIFY(bus.registerObject(QLatin1String(KwikLookDBus::ViewerPath), &m_viewer, QDBusConnection::ExportScriptableSlots));
+        QVERIFY(bus.registerService(QLatin1String(KwikLookDBus::Service)));
+
+        QPluginLoader loader(QStringLiteral(KWIKLOOK_HOOK_PLUGIN));
+        QObject *hook = loader.instance();
+        QVERIFY2(hook, qPrintable(loader.errorString()));
+        QVERIFY(qobject_cast<KOverlayIconPlugin *>(hook));
+        const auto children = qApp->children();
+        for (QObject *c : children) {
+            if (c->inherits("Bridge")) {
+                m_bridge = c;
+            }
+        }
+        QVERIFY(m_bridge && m_bridge->inherits("Bridge"));
+
+        m_window = std::make_unique<DolphinMainWindow>(2);
+        m_view = m_window->view(0);
+        // Dolphin's order (folders first, then descending by name here): the
+        // preview must follow it, not the alphabet.
+        const KFileItemList items{fileItem(u"folder"_s, true), fileItem(u"z1.png"_s), fileItem(u"y2.png"_s), fileItem(u"x3.png"_s), fileItem(u"w4.png"_s)};
+        m_view->model()->setItems(items);
+        m_window->view(1)->model()->setItems(items);
+        m_window->show();
+        QVERIFY(QTest::qWaitForWindowExposed(m_window.get()));
+    }
+
+    void hookFoundDolphinInternals()
+    {
+        const QJsonObject s = bridgeState();
+        QVERIFY(s.value(u"modelAccess"_s).toBool());
+        QVERIFY(s.value(u"selectionAccess"_s).toBool());
+    }
+
+    void spaceOpensSelectedFileInDolphinOrder()
+    {
+        m_view->selectOnly(2); // y2.png
+        m_view->container()->keysReceived.clear();
+        pressSpace(m_view);
+        const FakeViewer::Call call = nextCall();
+        QCOMPARE(call.method, u"Open"_s);
+        QCOMPARE(call.urls,
+                 (QStringList{url(u"z1.png"_s).toString(), url(u"y2.png"_s).toString(), url(u"x3.png"_s).toString(), url(u"w4.png"_s).toString()}));
+        QCOMPARE(call.index, 1);
+        QVERIFY(!call.session.isEmpty());
+        QCOMPARE(session(), call.session);
+        QVERIFY(!m_view->container()->keysReceived.contains(Qt::Key_Space)); // Dolphin never saw it
+    }
+
+    void viewerNavigationMovesDolphinsSelection()
+    {
+        KItemListSelectionManager *sel = m_view->container()->selectionManager();
+        m_viewer.emitSignal(u"CurrentChanged"_s, {session(), url(u"x3.png"_s).toString(), 2});
+        QTRY_VERIFY(sel->currentItem() == 3 && sel->selection() == QSet<int>{3});
+        QCOMPARE(sel->anchor(), 3); // Shift+arrow in Dolphin extends from here
+        QCOMPARE(m_view->container()->listView()->lastScrolled, 3);
+        // The other (split) view is not touched.
+        QCOMPARE(m_window->view(1)->container()->selectionManager()->changes, 0);
+        // Another session's signals are ignored.
+        m_viewer.emitSignal(u"CurrentChanged"_s, {u"someone-else"_s, url(u"w4.png"_s).toString(), 3});
+        QTest::qWait(200);
+        QCOMPARE(sel->currentItem(), 3);
+    }
+
+    void closingGivesFocusBack()
+    {
+        m_window->view(1)->container()->setFocus();
+        closeFromViewer();
+        QTRY_VERIFY(m_view->container()->hasFocus());
+        QCOMPARE(m_view->container()->selectionManager()->selection(), QSet<int>{3});
+    }
+
+    void spaceAgainClosesWhenDolphinKeptFocus()
+    {
+        pressSpace(m_view);
+        QCOMPARE(nextCall().method, u"Open"_s);
+        pressSpace(m_view);
+        QCOMPARE(nextCall().method, u"Close"_s);
+        closeFromViewer();
+    }
+
+    void previewFollowsDolphinsSelection()
+    {
+        m_view->selectOnly(1);
+        pressSpace(m_view);
+        QCOMPARE(nextCall().index, 0);
+        m_view->selectOnly(3); // x3.png: Dolphin kept the focus, the user moved on
+        const FakeViewer::Call call = nextCall();
+        QCOMPARE(call.method, u"Open"_s);
+        QCOMPARE(call.index, 2);
+        QCOMPARE(call.session, session());
+        // Our own selection changes cause no call back (no ping-pong).
+        const qsizetype before = m_viewer.calls.size();
+        m_viewer.emitSignal(u"CurrentChanged"_s, {session(), url(u"w4.png"_s).toString(), 3});
+        QTRY_COMPARE(m_view->container()->selectionManager()->currentItem(), 4);
+        QTest::qWait(200);
+        QCOMPARE(m_viewer.calls.size(), before);
+        closeFromViewer();
+    }
+
+    void folderKeepsDolphinBehaviour()
+    {
+        m_view->selectOnly(0);
+        m_view->container()->keysReceived.clear();
+        const qsizetype before = m_viewer.calls.size();
+        pressSpace(m_view);
+        QTest::qWait(200);
+        QVERIFY(m_view->container()->keysReceived.contains(Qt::Key_Space));
+        QCOMPARE(m_viewer.calls.size(), before);
+    }
+
+    void typeAheadAndSelectionModeKeepSpace()
+    {
+        m_view->selectOnly(1);
+        KItemListController *c = m_view->container()->controller();
+        for (bool *flag : {&c->typeAheadActive, &c->selectionModeActive}) {
+            *flag = true;
+            m_view->container()->keysReceived.clear();
+            const qsizetype before = m_viewer.calls.size();
+            pressSpace(m_view);
+            QTest::qWait(200);
+            QVERIFY(m_view->container()->keysReceived.contains(Qt::Key_Space));
+            QCOMPARE(m_viewer.calls.size(), before);
+            *flag = false;
+        }
+    }
+
+    void textInputKeepsSpace()
+    {
+        auto *editor = new QTextEdit(m_view->container()->viewport()); // like the inline rename editor
+        editor->show();
+        editor->setFocus();
+        QTRY_COMPARE(QApplication::focusWidget(), editor);
+        const qsizetype before = m_viewer.calls.size();
+        QTest::keyClick(editor, Qt::Key_Space);
+        QCOMPARE(editor->toPlainText(), u" "_s);
+        QTest::qWait(200);
+        QCOMPARE(m_viewer.calls.size(), before);
+        delete editor;
+    }
+
+    void viewerGoneEndsTheSession()
+    {
+        // The viewer crashes with a preview open: no Closed arrives.
+        m_view->selectOnly(1);
+        pressSpace(m_view);
+        QCOMPARE(nextCall().method, u"Open"_s);
+        auto bus = FakeViewer::bus();
+        QVERIFY(bus.unregisterService(QLatin1String(KwikLookDBus::Service)));
+        QTRY_VERIFY(session().isEmpty());
+        QVERIFY(bus.registerService(QLatin1String(KwikLookDBus::Service)));
+        pressSpace(m_view);
+        QCOMPARE(nextCall().method, u"Open"_s); // not Close
+        closeFromViewer();
+    }
+};
+
+QTEST_MAIN(TstDolphinHook)
+#include "tst_dolphinhook.moc"

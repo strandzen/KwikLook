@@ -66,18 +66,11 @@ Kirigami.ApplicationWindow {
                 window: root
             }
 
-            // Placeholder until step 4 (a viewer per file type).
-            Item {
+            // The view Viewer picked for the current file's type (a QML file next to this one).
+            Loader {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-
-                Kirigami.PlaceholderMessage {
-                    anchors.centerIn: parent
-                    width: parent.width - Kirigami.Units.gridUnit * 4
-                    icon.name: "document-preview"
-                    text: Viewer.fileName
-                    explanation: Viewer.count > 1 ? i18n("File %1 of %2", Viewer.currentIndex + 1, Viewer.count) : ""
-                }
+                source: Viewer.view ? Qt.resolvedUrl(Viewer.view + ".qml") : ""
             }
         }
     }

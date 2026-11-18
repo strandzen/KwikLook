@@ -25,3 +25,23 @@ ecm_add_test(tst_breezestyle.cpp
     LINK_LIBRARIES Qt6::Test kwiklook_core
     NAME_PREFIX "kwiklook-"
 )
+
+# File details (type, size, date) and which view previews a file.
+ecm_add_test(tst_fileinfo.cpp
+    TEST_NAME tst_fileinfo
+    LINK_LIBRARIES Qt6::Test kwiklook_core
+    NAME_PREFIX "kwiklook-"
+)
+
+# The Dolphin hook inside a stand-in Dolphin (KDEGlance's mock of Dolphin's view
+# classes), talking to a stand-in viewer on a private bus.
+add_library(mockdolphinprivate SHARED dolphin/mockdolphin.cpp)
+target_link_libraries(mockdolphinprivate PUBLIC Qt6::Widgets KF6::KIOCore)
+# Exported like libdolphinprivate: the hook looks the functions up by name.
+set_target_properties(mockdolphinprivate PROPERTIES CXX_VISIBILITY_PRESET default VISIBILITY_INLINES_HIDDEN OFF)
+add_executable(tst_dolphinhook dolphin/tst_dolphinhook.cpp)
+target_include_directories(tst_dolphinhook PRIVATE ${CMAKE_SOURCE_DIR}/src/core dolphin)
+target_link_libraries(tst_dolphinhook PRIVATE mockdolphinprivate Qt6::Test Qt6::DBus KF6::KIOCore)
+target_compile_definitions(tst_dolphinhook PRIVATE KWIKLOOK_HOOK_PLUGIN="$<TARGET_FILE:kwiklook_dolphinhook>")
+add_dependencies(tst_dolphinhook kwiklook_dolphinhook)
+add_test(NAME kwiklook-tst_dolphinhook COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run-with-bus.sh $<TARGET_FILE:tst_dolphinhook>)

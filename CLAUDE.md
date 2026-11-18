@@ -131,8 +131,9 @@ Packaging: <where packages live and what to update>.
 |------|----------|
 | `src/core/` | Pure C++ logic, no Qt Quick |
 | `src/gui/` | Qt Quick backend classes (models, windows) |
+| `src/dolphin/` | The Dolphin hook plugin (runs inside Dolphin; Qt Widgets, no QML) |
 | `qml/` | All QML files (top level, wired in with `qt_add_qml_module`) |
-| `tests/` | Unit tests (`tst_*.cpp`), QML smoke tests |
+| `tests/` | Unit tests (`tst_*.cpp`), QML smoke tests; `tests/dolphin/` the hook against KDEGlance's mock Dolphin; `run-with-bus.sh` runs a test on a private bus |
 | `data/` | Desktop file, metainfo, icons, notifyrc, D-Bus service files |
 | `po/` | `Messages.sh` and the `.pot`; reviewed translations in `po/<lang>/` |
 | `comp/` | Reference projects (read-only, gitignored) |
@@ -141,6 +142,7 @@ Packaging: <where packages live and what to update>.
 ## Architecture
 
 **Targets:** `kwiklook` (the app), `kwiklook_qml` (static QML module `kwiklook`: C++ types + `qml/`),
+`kwiklook_dolphinhook` (plugin Dolphin loads into its own process, `kf6/overlayicon`),
 `kwiklook-spike` (experiments, never installed), tests in `tests/`.
 
 **One background process.** `kwiklook` owns `io.github.strandzen.KwikLook` on the session bus and
@@ -161,15 +163,18 @@ keeps running when its window closes, so the next preview opens instantly.
 
 | Class | Files | Role |
 |---|---|---|
-| `Viewer` | `src/gui/viewer.*` | File list, current file, the preview window; the D-Bus object; QML singleton `Viewer` |
+| `Viewer` | `src/gui/viewer.*` | File list, current file and its details (`view`, `mimeType`, `details`, read off the main thread with a generation counter), the preview window; the D-Bus object; QML singleton `Viewer` |
 | `WindowFrame` | `src/gui/windowframe.*` | QML element: compositor shadow (`KWindowShadow`) for the frameless window, corner radius and outline flag; watches breezerc (`KDirWatch`), recreates the shadow on each new surface |
 | `BreezeStyle` | `src/core/breezestyle.*` | Reads breezerc `[Common]` (absolute path only); the fitted shadow layers per size |
 | `FileMenus` | `src/gui/filemenus.*` | QML element: “Open with…” (`KFileItemActions::associatedApplications` + KIO's dialog) and Share (`Purpose::Menu`) as QMenus below a button |
 | `renderShadow()` | `src/core/shadowimage.*` | Shadow nine-patch image + tile rects from layers, radius, colour |
+| `FileInfo`, `viewFor()` | `src/core/fileinfo.*` | A file's type (by content), icon, size, date (`read()` may block: Viewer runs it with QtConcurrent); `viewFor()` picks the QML view for a type |
+| `ThumbnailProvider` | `src/gui/thumbnailprovider.*` | `image://thumbnail/<mime>/<url>` from `KIO::PreviewJob` (job on the main thread); 1×1 transparent image = no thumbnail |
 
 | QML file | Role |
 |---|---|
-| `qml/Main.qml` | The preview window: frameless, content clipped to the corner radius (`MultiEffect` mask), Breeze outline, keys; placeholder content until step 4 |
+| `qml/Main.qml` | The preview window: frameless, content clipped to the corner radius (`MultiEffect` mask), Breeze outline, keys; a `Loader` showing `Viewer.view` |
+| `qml/FallbackView.qml` | Any file: thumbnail or type icon, name, one dimmed line (type · size · date) |
 | `qml/TitleBar.qml` | The only bar: ← →, file name (centred), Share, Open with…, close; a standard toolbar (Kirigami header size); Header colours; drag moves the window |
 | `qml/ResizeHandles.qml` | Edge and corner strips calling `startSystemResize()` (frameless windows get no KWin borders) |
 
@@ -179,6 +184,18 @@ Dolphin hook / kwiklook <files> / dbus-send
                                                   ├─ CurrentChanged(session, url, index)
                                                   └─ Closed(session)
 ```
+
+**Dolphin hook** (`src/dolphin/`, based on KDEGlance's; ported files keep its SPDX line). Dolphin
+loads every `kf6/overlayicon` plugin; ours adds no icons and only creates a `Bridge` once per
+Dolphin process. `DolphinAccess` reads the view's files in display order and the selection, and
+selects a file, through libdolphinprivate functions looked up by mangled name (`dlsym`), checked
+on load. Without them, Space previews the selected file alone. Space is taken only when the focus
+is in a file view with a file selected and Dolphin is not in type-ahead or selection mode. The
+bridge starts the viewer when Dolphin starts (`StartServiceByName`), asks for a Wayland activation
+token, then calls `Open` with a session ID `<bus name>/<n>`; `CurrentChanged` moves Dolphin's
+selection, `Closed` gives the focus back. Diagnostics on Dolphin's bus name at `/KwikLookBridge`:
+`State()` (JSON), `TriggerFocusedView()` (what Space does). `KWIKLOOK_DISABLE_DOLPHIN_HOOK=1 dolphin`
+turns it off.
 
 ---
 
@@ -248,9 +265,11 @@ Dolphin hook / kwiklook <files> / dbus-send
 5. Space or Esc closes the preview; `kwiklook <file>` again opens it at once (viewer still running).
 6. System Settings → Window Decorations → Breeze: change shadow size, outline or rounded corners; an open preview follows within a moment.
 7. `kwiklook --quit` stops the background viewer.
-8. The bar's buttons are normal toolbar size, easy to hit.
-9. Open with…: lists the file's apps; one opens the file and the preview closes; “Other Application…” shows KDE's chooser.
-10. Share: KDE's share menu opens below the button; sharing to a device or by mail works.
+8. Dolphin (after installing, or `QT_PLUGIN_PATH=build/dev/plugins dolphin` with no other Dolphin running): Space on a file opens the preview, ← → move Dolphin's selection along, Space/Esc closes and Dolphin has the focus again. Space still works in the location bar, while renaming, in type-ahead search and in selection mode; on a folder it does what Dolphin does.
+9. The bar's buttons are normal toolbar size, easy to hit.
+10. Open with…: lists the file's apps; one opens the file and the preview closes; “Other Application…” shows KDE's chooser.
+11. A picture, a text file, a folder and an unknown file each show a thumbnail or icon with type, size and date.
+12. Share: KDE's share menu opens below the button; sharing to a device or by mail works.
 
 ---
 
@@ -308,4 +327,8 @@ General Qt / KF6 / Kirigami ones first; add project-specific rows below them.
 | **`qdbuscpp2xml -S -M`** | Also lists non-scriptable signals (a property's NOTIFY). Write the interface XML by hand and compare with the live introspection |
 | **D-Bus activation in a nested session** | `dbus-run-session` starts before KWin, so activated services get no `WAYLAND_DISPLAY` and abort. Run `dbus-update-activation-environment WAYLAND_DISPLAY …` first; give the bus a `--config-file` with an extra `<servicedir>` holding a service file that points at the build binary |
 | **QMenu from a QML window (Wayland)** | Call `ensurePolished()`, then `winId()` and `windowHandle()->setTransientParent(item->window())`, then `popup()`. Creating the native window before polishing loses Breeze's translucency (black, square menu corners); without a transient parent the popup fails. Popups need real input: they can't be opened in the nested session |
+| **`dbus-send` without `--print-reply`** | Sends a *signal* (its default `--type`), not a method call: the service ignores it. Use `--print-reply` (or `--type=method_call`), `busctl call` or `gdbus call` |
+| **Async D-Bus calls to your own connection** | `asyncCall()` to a service registered on the same `QDBusConnection` never arrives. In tests, give a stand-in service its own connection (`QDBusConnection::connectToBus(..., name)`) |
+| **Mock of a shared library under KDE compiler settings** | ECM builds with `-fvisibility=hidden`: a mock meant to be found by `dlsym` (or linked) needs `CXX_VISIBILITY_PRESET default` |
+| **Testing the Dolphin hook in a nested session** | `QT_PLUGIN_PATH=<build>/plugins dolphin --new-window --select <file>`; no keyboard there, so call `TriggerFocusedView` on `org.kde.dolphin-<pid>` `/KwikLookBridge` |
 | **`pkill -f` in test scripts** | Matches any command line containing the text, including the shell running the test. Stop processes by the PIDs you started |

@@ -2,6 +2,10 @@
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
 #pragma once
 
+#include "dbusnames.h"
+#include "fileinfo.h"
+
+#include <QFutureWatcher>
 #include <QList>
 #include <QObject>
 #include <QPointer>
@@ -30,11 +34,18 @@ class Viewer : public QObject
     Q_PROPERTY(QString fileName READ fileName NOTIFY currentChanged)
     Q_PROPERTY(int currentIndex READ currentIndex NOTIFY currentChanged)
     Q_PROPERTY(int count READ count NOTIFY currentChanged)
+    // About the current file, filled in shortly after it becomes current (read off the
+    // main thread); empty until then.
+    Q_PROPERTY(QString view READ view NOTIFY fileInfoChanged) // QML file that shows it
+    Q_PROPERTY(QString mimeType READ mimeType NOTIFY fileInfoChanged)
+    Q_PROPERTY(QString iconName READ iconName NOTIFY fileInfoChanged)
+    Q_PROPERTY(bool fileExists READ fileExists NOTIFY fileInfoChanged)
+    Q_PROPERTY(QString details READ details NOTIFY fileInfoChanged) // type · size · date
 
 public:
-    static constexpr auto ServiceName = "io.github.strandzen.KwikLook";
-    static constexpr auto ObjectPath = "/Viewer";
-    static constexpr auto InterfaceName = "io.github.strandzen.KwikLook.Viewer";
+    static constexpr auto ServiceName = KwikLookDBus::Service;
+    static constexpr auto ObjectPath = KwikLookDBus::ViewerPath;
+    static constexpr auto InterfaceName = KwikLookDBus::ViewerInterface;
 
     // No default argument on purpose: a default-constructible QML_SINGLETON is
     // built by the engine itself and create() is never called (see CLAUDE.md).
@@ -54,6 +65,11 @@ public:
     int currentIndex() const;
     int count() const;
     bool isOpen() const;
+    QString view() const;
+    QString mimeType() const;
+    QString iconName() const;
+    bool fileExists() const;
+    QString details() const;
 
 public Q_SLOTS:
     // Shows `urls[index]` (local paths or URLs), with the others reachable by Next/Previous.
@@ -69,15 +85,20 @@ Q_SIGNALS:
     Q_SCRIPTABLE void CurrentChanged(const QString &sessionId, const QString &url, int index);
     Q_SCRIPTABLE void Closed(const QString &sessionId);
     void currentChanged();
+    void fileInfoChanged();
 
 private:
     void setCurrent(int index);
     void showWindow(const QString &activationToken);
     void markClosed();
+    void readFileInfo();
 
     QList<QUrl> m_urls;
     int m_index = -1;
     QString m_sessionId;
     bool m_open = false;
     QPointer<QWindow> m_window;
+    FileInfo m_info;
+    QString m_view; // kept while the next file's details load, so the view doesn't flicker
+    int m_generation = 0; // drops details read for a file that's no longer current
 };

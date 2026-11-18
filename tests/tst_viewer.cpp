@@ -3,7 +3,9 @@
 // The viewer's state and signals, without a window or a bus.
 #include "gui/viewer.h"
 
+#include <QFile>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QTest>
 
 using namespace Qt::StringLiterals;
@@ -100,6 +102,35 @@ private Q_SLOTS:
         v.Open({u"/tmp/a"_s}, 0, u"s2"_s, QString());
         QCOMPARE(changed.size(), 2);
         QCOMPARE(changed.at(1).at(0).toString(), u"s2"_s);
+    }
+
+    void fileDetailsArriveForTheCurrentFile()
+    {
+        QTemporaryDir dir;
+        const QString txt = dir.filePath(u"a.txt"_s);
+        const QString html = dir.filePath(u"b.html"_s);
+        for (const QString &path : {txt, html}) {
+            QFile f(path);
+            QVERIFY(f.open(QIODevice::WriteOnly));
+            f.write("hello");
+        }
+        Viewer v(nullptr);
+        v.Open({txt, html}, 0, QString(), QString());
+        QCOMPARE(v.mimeType(), QString()); // not read yet
+        v.Next(); // before a.txt's details arrive: those must be dropped
+        QTRY_COMPARE(v.mimeType(), u"text/html"_s);
+        QCOMPARE(v.view(), u"FallbackView"_s);
+        QVERIFY(v.details().contains(u"5 B"_s));
+        QTest::qWait(50);
+        QCOMPARE(v.mimeType(), u"text/html"_s);
+    }
+
+    void missingFileSaysSo()
+    {
+        Viewer v(nullptr);
+        v.Open({u"/nonexistent/kwiklook-test.txt"_s}, 0, QString(), QString());
+        QTRY_VERIFY(!v.details().isEmpty());
+        QCOMPARE(v.view(), u"FallbackView"_s);
     }
 };
 
