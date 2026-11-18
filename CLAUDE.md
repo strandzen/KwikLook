@@ -137,13 +137,11 @@ Packaging: <where packages live and what to update>.
 | `data/` | Desktop file, metainfo, icons, notifyrc, D-Bus service files |
 | `po/` | `Messages.sh` and the `.pot`; reviewed translations in `po/<lang>/` |
 | `comp/` | Reference projects (read-only, gitignored) |
-| `spikes/` | Throwaway experiment programs (`kwiklook-spike`), never installed; see [spikes/README.md](spikes/README.md) |
 
 ## Architecture
 
 **Targets:** `kwiklook` (the app), `kwiklook_qml` (static QML module `kwiklook`: C++ types + `qml/`),
-`kwiklook_dolphinhook` (plugin Dolphin loads into its own process, `kf6/overlayicon`),
-`kwiklook-spike` (experiments, never installed), tests in `tests/`.
+`kwiklook_dolphinhook` (plugin Dolphin loads into its own process, `kf6/overlayicon`), tests in `tests/`.
 
 **One background process.** `kwiklook` owns `io.github.strandzen.KwikLook` on the session bus and
 keeps running when its window closes, so the next preview opens instantly.

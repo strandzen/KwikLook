@@ -51,7 +51,7 @@ QList<FileInfo::Detail> readDetails(const QString &path, const QString &mimeType
 }
 } // namespace
 
-FileInfo FileInfo::read(const QUrl &url, bool withDetails)
+FileInfo FileInfo::read(const QUrl &url)
 {
     FileInfo info;
     info.url = url;
@@ -81,7 +81,7 @@ FileInfo FileInfo::read(const QUrl &url, bool withDetails)
     info.typeName = mime.comment();
     info.iconName = mime.iconName();
     info.isText = mime.inherits(u"text/plain"_s);
-    if (withDetails && url.isLocalFile() && info.exists && !info.isDir) {
+    if (url.isLocalFile() && info.exists && !info.isDir) {
         const QString path = url.toLocalFile();
         if (isImage(info.mimeType) && info.mimeType != u"application/pdf"_s) {
             QImageReader reader(path);

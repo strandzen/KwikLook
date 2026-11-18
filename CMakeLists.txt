@@ -52,11 +52,6 @@ find_package(KF6KirigamiAddons 1.0 REQUIRED)
 add_subdirectory(src)
 add_subdirectory(data)
 
-option(KWIKLOOK_BUILD_SPIKES "Build throwaway experiment programs (never installed)" ON)
-if(KWIKLOOK_BUILD_SPIKES)
-    add_subdirectory(spikes)
-endif()
-
 include(CTest)
 if(BUILD_TESTING)
     add_subdirectory(tests)

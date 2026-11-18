@@ -26,7 +26,7 @@ struct FileInfo {
     QFile::Permissions permissions;
     QSize imageSize; // pictures Qt can read; invalid otherwise
     bool isText = false; // plain text, source code, Markdown, ... (type inherits text/plain)
-    QString text; // text files, with withDetails: the start of the file (see TextLimit)
+    QString text; // text files: the start of the file (see TextLimit)
     bool textTruncated = false; // the file is longer than `text`
 
     // What KFileMetaData finds in the file (EXIF, page count, artist, ...), as
@@ -41,9 +41,9 @@ struct FileInfo {
 
     // Local files are checked on disk and their type found from name and content,
     // which reads the file's start: may block, run it off the main thread.
-    // Remote URLs get a type from their name only. With `withDetails`, also reads
-    // the picture size and KFileMetaData's details (slower: parses the file).
-    static FileInfo read(const QUrl &url, bool withDetails = true);
+    // Remote URLs get a type from their name only. Local files also get the picture
+    // size, KFileMetaData's details and the start of text files (parses the file).
+    static FileInfo read(const QUrl &url);
 
     // Text files show at most this much: more makes the preview slow to lay out.
     // Measured 2026-11-18: 1 MB took 0.46 s to lay out and colour, 256 KB 0.11 s.

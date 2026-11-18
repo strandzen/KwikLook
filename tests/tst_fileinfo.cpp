@@ -84,8 +84,6 @@ private Q_SLOTS:
         for (const FileInfo::Detail &d : info.details) {
             QVERIFY2(!d.value.isEmpty(), qPrintable(d.label));
         }
-        // Without details: no parsing.
-        QVERIFY(!FileInfo::read(QUrl::fromLocalFile(path), false).imageSize.isValid());
     }
 
     void textAndPdfViews()
@@ -105,7 +103,7 @@ private Q_SLOTS:
         QVERIFY(pdf.open(QIODevice::WriteOnly));
         pdf.write("%PDF-1.4\n%%EOF\n");
         pdf.close();
-        QCOMPARE(viewFor(FileInfo::read(QUrl::fromLocalFile(pdf.fileName()), false)), u"PdfView"_s);
+        QCOMPARE(viewFor(FileInfo::read(QUrl::fromLocalFile(pdf.fileName()))), u"PdfView"_s);
     }
 
     void longTextIsCutAtALineEnd()
