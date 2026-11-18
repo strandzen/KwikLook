@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
 #include "gui/thumbnailprovider.h"
+#include "kwiklooksettings.h"
 #include "gui/viewer.h"
 #include "version.h"
 
 #include <KAboutData>
 #include <KLocalizedQmlContext>
 #include <KLocalizedString>
+#include <KWindowSystem>
 
 #include <QApplication>
 #include <QCommandLineParser>
@@ -15,7 +17,9 @@
 #include <QDBusMessage>
 #include <QDir>
 #include <QIcon>
+#include <QPointer>
 #include <QQmlApplicationEngine>
+#include <QQmlComponent>
 #include <QQuickStyle>
 #include <QUrl>
 #include <QtQml/qqmlextensionplugin.h>
@@ -71,8 +75,10 @@ int main(int argc, char *argv[])
     parser.addPositionalArgument(u"files"_s, i18n("Files to preview."), u"[files…]"_s);
     const QCommandLineOption serviceOption(u"service"_s, i18n("Run in the background and wait for files to preview."));
     const QCommandLineOption quitOption(u"quit"_s, i18n("Stop the background viewer."));
+    const QCommandLineOption settingsOption(u"settings"_s, i18n("Show the settings window."));
     parser.addOption(serviceOption);
     parser.addOption(quitOption);
+    parser.addOption(settingsOption);
     parser.process(app);
     about.processCommandLine(&parser);
 
@@ -90,6 +96,10 @@ int main(int argc, char *argv[])
     if (running && !parser.isSet(serviceOption)) {
         if (parser.isSet(quitOption)) {
             bus.call(viewerCall(u"Quit"_s));
+        } else if (parser.isSet(settingsOption)) {
+            QDBusMessage msg = viewerCall(u"ShowSettings"_s);
+            msg << token;
+            bus.call(msg);
         } else if (!urls.isEmpty()) {
             QDBusMessage msg = viewerCall(u"Open"_s);
             msg << urls << 0 << QString() << token;
@@ -113,6 +123,11 @@ int main(int argc, char *argv[])
     }
     app.setQuitOnLastWindowClosed(false);
 
+    // Saved settings tell other processes (the Dolphin hook watches the open key).
+    for (KConfigSkeletonItem *item : KwikLookSettings::self()->items()) {
+        item->setWriteFlags(KConfigBase::Notify);
+    }
+
     QQmlApplicationEngine engine;
     KLocalization::setupLocalizedContext(&engine);
     engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
@@ -122,7 +137,27 @@ int main(int argc, char *argv[])
     }
     viewer->setWindow(qobject_cast<QWindow *>(engine.rootObjects().constFirst()));
 
-    if (!urls.isEmpty()) {
+    // The settings window is made on first use and kept (hidden) after that.
+    QPointer<QWindow> settingsWindow;
+    QObject::connect(viewer, &Viewer::settingsRequested, &app, [&engine, &settingsWindow](const QString &activationToken) {
+        if (!settingsWindow) {
+            QQmlComponent component(&engine, "kwiklook", "SettingsWindow");
+            settingsWindow = qobject_cast<QWindow *>(component.create());
+            if (!settingsWindow) {
+                qWarning().noquote() << component.errorString();
+                return;
+            }
+        }
+        settingsWindow->show();
+        if (!activationToken.isEmpty()) {
+            KWindowSystem::setCurrentXdgActivationToken(activationToken);
+        }
+        KWindowSystem::activateWindow(settingsWindow);
+    });
+
+    if (parser.isSet(settingsOption)) {
+        viewer->ShowSettings(token);
+    } else if (!urls.isEmpty()) {
         viewer->Open(urls, 0, QString(), token);
     }
     return app.exec();

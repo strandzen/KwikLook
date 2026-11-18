@@ -6,6 +6,7 @@
 
 #include "dbusnames.h"
 #include "dolphinaccess.h"
+#include "openkey.h"
 
 #include <KWaylandExtras>
 #include <KWindowSystem>
@@ -34,10 +35,6 @@ QPointer<Bridge> s_bridge;
 constexpr int TypeAheadFallbackMs = 1000; // Dolphin's type-ahead timeout
 constexpr auto AppId = "io.github.strandzen.KwikLook"; // the window to activate
 
-bool isSpace(const QKeyEvent *event)
-{
-    return event->key() == Qt::Key_Space && (event->modifiers() & ~Qt::KeypadModifier) == Qt::NoModifier;
-}
 } // namespace
 
 Bridge *Bridge::ensure()
@@ -64,6 +61,16 @@ Bridge::Bridge(QObject *parent)
 {
     qApp->installEventFilter(this);
     connect(qApp, &QCoreApplication::aboutToQuit, this, &Bridge::shutdown);
+
+    // The open key from KwikLook's settings; the settings window saves with Notify.
+    m_config = KSharedConfig::openConfig(QLatin1String(OpenKey::ConfigFile), KConfig::SimpleConfig);
+    readOpenKey();
+    m_configWatcher = KConfigWatcher::create(m_config);
+    connect(m_configWatcher.data(), &KConfigWatcher::configChanged, this, [this](const KConfigGroup &group, const QByteArrayList &names) {
+        if (group.name() == QLatin1String(OpenKey::ConfigGroup) && names.contains(OpenKey::ConfigKey)) {
+            readOpenKey();
+        }
+    });
 
     auto bus = QDBusConnection::sessionBus();
     bus.registerObject(QLatin1String(KwikLookDBus::BridgePath), this, QDBusConnection::ExportScriptableSlots);
@@ -141,6 +148,14 @@ bool Bridge::canHandleKeyIn(QWidget *view) const
     });
 }
 
+void Bridge::readOpenKey()
+{
+    m_config->reparseConfiguration();
+    const QString text = m_config->group(QLatin1String(OpenKey::ConfigGroup)).readEntry(OpenKey::ConfigKey, QString());
+    m_openKey = OpenKey::combination(text);
+    qCDebug(lcBridge) << "open key" << OpenKey::normalized(text);
+}
+
 bool Bridge::eventFilter(QObject *watched, QEvent *event)
 {
     const QEvent::Type type = event->type();
@@ -152,7 +167,7 @@ bool Bridge::eventFilter(QObject *watched, QEvent *event)
         return false; // only the first delivery, to the focus widget
     }
     auto *ke = static_cast<QKeyEvent *>(event);
-    if (!isSpace(ke)) {
+    if (OpenKey::eventCombination(Qt::Key(ke->key()), ke->modifiers()) != m_openKey) {
         // Remember typing, for Dolphins whose type-ahead state can't be read.
         if (type == QEvent::KeyPress && !(ke->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) {
             const QString text = ke->text();
@@ -362,6 +377,7 @@ QString Bridge::State()
         {u"session"_s, m_sessionId},
         {u"sessionViewAlive"_s, !m_sessionView.isNull()},
         {u"dolphinVersion"_s, QCoreApplication::applicationVersion()},
+        {u"openKey"_s, QKeySequence(m_openKey).toString(QKeySequence::PortableText)},
     };
     QWidget *focusView = nullptr;
     o.insert(u"focusInFileView"_s, DolphinAccess::isFileViewFocus(QApplication::focusWidget(), &focusView));

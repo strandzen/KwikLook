@@ -88,6 +88,46 @@ private Q_SLOTS:
         QVERIFY(!FileInfo::read(QUrl::fromLocalFile(path), false).imageSize.isValid());
     }
 
+    void textAndPdfViews()
+    {
+        QTemporaryDir dir;
+        QFile code(dir.filePath(u"main.cpp"_s));
+        QVERIFY(code.open(QIODevice::WriteOnly));
+        code.write("int main() {}\n");
+        code.close();
+        const FileInfo info = FileInfo::read(QUrl::fromLocalFile(code.fileName()));
+        QVERIFY(info.isText);
+        QCOMPARE(info.text, u"int main() {}\n"_s);
+        QVERIFY(!info.textTruncated);
+        QCOMPARE(viewFor(info), u"TextView"_s);
+
+        QFile pdf(dir.filePath(u"doc.pdf"_s));
+        QVERIFY(pdf.open(QIODevice::WriteOnly));
+        pdf.write("%PDF-1.4\n%%EOF\n");
+        pdf.close();
+        QCOMPARE(viewFor(FileInfo::read(QUrl::fromLocalFile(pdf.fileName()), false)), u"PdfView"_s);
+    }
+
+    void longTextIsCutAtALineEnd()
+    {
+        QTemporaryDir dir;
+        const QString path = dir.filePath(u"log.txt"_s);
+        QFile f(path);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("first line\nsecond line\nthird ünïcödé line\n");
+        f.close();
+        bool truncated = false;
+        QCOMPARE(readTextStart(path, 1000, &truncated), u"first line\nsecond line\nthird ünïcödé line\n"_s);
+        QVERIFY(!truncated);
+        QCOMPARE(readTextStart(path, 30, &truncated), u"first line\nsecond line\n"_s);
+        QVERIFY(truncated);
+        // Not UTF-8: read as Latin-1, not dropped.
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("caf\xe9\n");
+        f.close();
+        QCOMPARE(readTextStart(path, 1000, &truncated), u"café\n"_s);
+    }
+
     void otherFilesFallBack()
     {
         QCOMPARE(viewFor(FileInfo()), u"FallbackView"_s);

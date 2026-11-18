@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
 #include "windowframe.h"
 
+#include "kwiklooksettings.h"
 #include "shadowimage.h"
 
 #include <KDirWatch>
@@ -24,6 +25,15 @@ WindowFrame::WindowFrame(QObject *parent)
     connect(KDirWatch::self(), &KDirWatch::dirty, this, &WindowFrame::reloadStyle);
     connect(KDirWatch::self(), &KDirWatch::created, this, &WindowFrame::reloadStyle);
     connect(KDirWatch::self(), &KDirWatch::deleted, this, &WindowFrame::reloadStyle);
+    // KwikLook's own corner radius setting.
+    const auto radiusChanged = [this] {
+        Q_EMIT styleChanged();
+        if (m_window && m_window->handle()) {
+            updateShadow();
+        }
+    };
+    connect(KwikLookSettings::self(), &KwikLookSettings::MatchBreezeCornersChanged, this, radiusChanged);
+    connect(KwikLookSettings::self(), &KwikLookSettings::CornerRadiusChanged, this, radiusChanged);
 }
 
 WindowFrame::~WindowFrame()
@@ -62,7 +72,8 @@ void WindowFrame::setWindow(QWindow *window)
 
 int WindowFrame::radius() const
 {
-    return m_style.cornerRadius();
+    const KwikLookSettings *settings = KwikLookSettings::self();
+    return settings->matchBreezeCorners() ? m_style.cornerRadius() : settings->cornerRadius();
 }
 
 bool WindowFrame::outline() const
@@ -107,7 +118,7 @@ void WindowFrame::updateShadow()
     if (!m_window) {
         return;
     }
-    const ShadowImage shadow = renderShadow(m_style.shadowLayers(), m_style.cornerRadius(), m_style.shadowColor);
+    const ShadowImage shadow = renderShadow(m_style.shadowLayers(), radius(), m_style.shadowColor);
     if (shadow.image.isNull()) {
         return;
     }

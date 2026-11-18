@@ -7,6 +7,7 @@
 #include <KFileMetaData/SimpleExtractionResult>
 
 #include <QFileInfo>
+#include <QStringDecoder>
 #include <QImageReader>
 #include <QMimeDatabase>
 
@@ -79,9 +80,10 @@ FileInfo FileInfo::read(const QUrl &url, bool withDetails)
     info.mimeType = mime.name();
     info.typeName = mime.comment();
     info.iconName = mime.iconName();
+    info.isText = mime.inherits(u"text/plain"_s);
     if (withDetails && url.isLocalFile() && info.exists && !info.isDir) {
         const QString path = url.toLocalFile();
-        if (isImage(info.mimeType)) {
+        if (isImage(info.mimeType) && info.mimeType != u"application/pdf"_s) {
             QImageReader reader(path);
             reader.setAutoTransform(true);
             info.imageSize = reader.size(); // reads the header only
@@ -90,16 +92,54 @@ FileInfo FileInfo::read(const QUrl &url, bool withDetails)
             }
         }
         info.details = readDetails(path, info.mimeType, info.imageSize.isValid());
+        if (info.isText) {
+            info.text = readTextStart(path, TextLimit, &info.textTruncated);
+        }
     }
     return info;
 }
 
+QString readTextStart(const QString &path, qint64 limit, bool *truncated)
+{
+    QFile file(path);
+    *truncated = false;
+    if (!file.open(QIODevice::ReadOnly)) {
+        return QString();
+    }
+    QByteArray data = file.read(limit + 1);
+    if (data.size() > limit) {
+        *truncated = true;
+        data.truncate(limit);
+        // End at a line end (which also keeps a UTF-8 character whole).
+        const qsizetype lineEnd = data.lastIndexOf('\n');
+        if (lineEnd > 0) {
+            data.truncate(lineEnd + 1);
+        }
+    }
+    QStringDecoder utf8(QStringDecoder::Utf8, QStringDecoder::Flag::Stateless);
+    QString text = utf8.decode(data);
+    if (utf8.hasError()) {
+        text = QString::fromLatin1(data);
+    }
+    return text;
+}
+
 QString viewFor(const FileInfo &info)
 {
-    // Text and PDF get their own views in step 7; everything else, and whatever a
+    // Pictures, text and PDF have their own views; everything else, and whatever a
     // view can't open, shows the fallback.
-    if (info.exists && !info.isDir && isImage(info.mimeType)) {
+    if (!info.exists || info.isDir) {
+        return u"FallbackView"_s;
+    }
+    // PDF first: Qt's image reader claims PDFs too (Qt PDF's image plugin).
+    if (info.mimeType == u"application/pdf"_s) {
+        return u"PdfView"_s;
+    }
+    if (isImage(info.mimeType)) {
         return u"ImageView"_s;
+    }
+    if (info.isText) {
+        return u"TextView"_s;
     }
     return u"FallbackView"_s;
 }

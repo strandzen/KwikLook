@@ -30,7 +30,7 @@ Kirigami.ApplicationWindow {
     }
 
     Shortcut {
-        sequences: ["Space", "Escape"]
+        sequences: [KwikLookSettings.openKey, "Escape"] // the key that opened it closes it
         onActivated: Viewer.Close()
     }
     Shortcut {

@@ -126,7 +126,7 @@ private Q_SLOTS:
         QCOMPARE(v.mimeType(), QString()); // not read yet
         v.Next(); // before a.txt's details arrive: those must be dropped
         QTRY_COMPARE(v.mimeType(), u"text/html"_s);
-        QCOMPARE(v.view(), u"FallbackView"_s);
+        QCOMPARE(v.view(), u"TextView"_s);
         QVERIFY(v.details().contains(u"5 B"_s));
         QTest::qWait(50);
         QCOMPARE(v.mimeType(), u"text/html"_s);

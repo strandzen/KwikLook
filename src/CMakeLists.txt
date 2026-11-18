@@ -9,6 +9,9 @@ set(KWIKLOOK_QML_FILES
     ${CMAKE_SOURCE_DIR}/qml/FallbackView.qml
     ${CMAKE_SOURCE_DIR}/qml/ImageView.qml
     ${CMAKE_SOURCE_DIR}/qml/InfoPanel.qml
+    ${CMAKE_SOURCE_DIR}/qml/TextView.qml
+    ${CMAKE_SOURCE_DIR}/qml/PdfView.qml
+    ${CMAKE_SOURCE_DIR}/qml/SettingsWindow.qml
 )
 
 # Pure logic, no Qt Quick: Breeze settings, shadow images, file details.
@@ -40,6 +43,10 @@ qt_add_qml_module(kwiklook_qml
         gui/filemenus.cpp
         gui/thumbnailprovider.h
         gui/thumbnailprovider.cpp
+        gui/linenumbers.h
+        gui/linenumbers.cpp
+        gui/autostart.h
+        gui/autostart.cpp
     RESOURCE_PREFIX "/qt/qml" # Qt searches here by default
     OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/kwiklook"
 )
@@ -57,6 +64,7 @@ target_link_libraries(kwiklook_qml PUBLIC
     KF6::I18nQml
     KF6::WindowSystem
     KF6::I18n
+    KF6::ConfigCore # settings
     Qt6::Concurrent # reading file details off the main thread
     KF6::KIOWidgets # “Open with…”: applications for a file, the “Other Application” dialog
     KF6::Service
@@ -64,6 +72,9 @@ target_link_libraries(kwiklook_qml PUBLIC
     KF6::PurposeWidgets
     Qt6::Widgets # the menus are QMenus, like Dolphin's
 )
+
+# Settings (KConfig XT): the generated KwikLookSettings is also a QML singleton.
+kconfig_add_kcfg_files(kwiklook_qml GENERATE_MOC gui/kwiklooksettings.kcfgc)
 
 # The viewer's D-Bus interface (data/io.github.strandzen.KwikLook.Viewer.xml) is
 # written by hand: qdbuscpp2xml also lists the non-scriptable currentChanged().
@@ -91,6 +102,7 @@ target_link_libraries(kwiklook_dolphinhook PRIVATE
     Qt6::DBus
     KF6::KIOCore # KOverlayIconPlugin, KFileItem
     KF6::WindowSystem # activation token for the preview
+    KF6::ConfigCore # the open key from kwiklookrc, and changes to it
     ${CMAKE_DL_LIBS} # Dolphin's internals, looked up by name
 )
 set_target_properties(kwiklook_dolphinhook PROPERTIES

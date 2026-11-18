@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
 #include "viewer.h"
 
+#include "kwiklooksettings.h"
+
 #include <KConfigGroup>
 #include <KFormat>
 #include <KSharedConfig>
@@ -11,7 +13,9 @@
 #include <QCoreApplication>
 #include <QDBusConnection>
 #include <QDir>
+#include <QGuiApplication>
 #include <QLoggingCategory>
+#include <QTimer>
 #include <QtConcurrentRun>
 
 using namespace Qt::StringLiterals;
@@ -21,6 +25,7 @@ Q_LOGGING_CATEGORY(lcViewer, "kwiklook.viewer", QtInfoMsg)
 namespace
 {
 Viewer *s_instance = nullptr;
+constexpr int FocusLossDelayMs = 150;
 }
 
 namespace
@@ -108,6 +113,22 @@ void Viewer::setWindow(QWindow *window)
                 markClosed();
             }
         });
+        // Close when another application takes the focus. KwikLook's own windows (menus,
+        // the “Open With” dialog, Share dialogs, the settings window) don't count: the
+        // app then still has a focus window.
+        connect(qGuiApp, &QGuiApplication::focusWindowChanged, this, [this](QWindow *focus) {
+            if (!focus && m_open && KwikLookSettings::self()->closeOnFocusLoss()) {
+                // Moving between our own windows can pass through "no focus" briefly.
+                QTimer::singleShot(FocusLossDelayMs, this, &Viewer::closeIfFocusLeft);
+            }
+        });
+    }
+}
+
+void Viewer::closeIfFocusLeft()
+{
+    if (!QGuiApplication::focusWindow() && m_open && KwikLookSettings::self()->closeOnFocusLoss()) {
+        Close();
     }
 }
 
@@ -154,6 +175,19 @@ QString Viewer::iconName() const
 QSize Viewer::imageSize() const
 {
     return m_info.imageSize;
+}
+
+QString Viewer::text() const
+{
+    return m_info.text;
+}
+
+QString Viewer::textNote() const
+{
+    if (!m_info.textTruncated) {
+        return QString();
+    }
+    return i18n("This file is long: showing only its beginning.");
 }
 
 QVariantList Viewer::infoSections() const
@@ -300,6 +334,11 @@ void Viewer::Quit()
 {
     Close();
     QCoreApplication::quit();
+}
+
+void Viewer::ShowSettings(const QString &activationToken)
+{
+    Q_EMIT settingsRequested(activationToken);
 }
 
 void Viewer::setCurrent(int index)

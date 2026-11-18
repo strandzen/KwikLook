@@ -4,10 +4,13 @@
 // Based on KDEGlance's Dolphin hook (https://github.com/AlexGraveler/KDEGlance).
 #pragma once
 
+#include <KConfigWatcher>
 #include <KFileItem>
+#include <KSharedConfig>
 
 #include <QElapsedTimer>
 #include <QHash>
+#include <QKeyCombination>
 #include <QObject>
 #include <QPointer>
 #include <QSet>
@@ -63,6 +66,7 @@ private Q_SLOTS:
     void onSessionSelectionChanged(const KFileItemList &selection);
 
 private:
+    void readOpenKey();
     explicit Bridge(QObject *parent);
 
     bool canHandleKeyIn(QWidget *view) const;
@@ -87,4 +91,7 @@ private:
     QHash<QWidget *, KFileItemList> m_fallbackSelection;
     QSet<QWidget *> m_trackedViews;
     bool m_down = false;
+    KSharedConfig::Ptr m_config; // kwiklookrc
+    KConfigWatcher::Ptr m_configWatcher; // the settings window changed the open key
+    QKeyCombination m_openKey;
 };

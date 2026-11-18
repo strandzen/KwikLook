@@ -25,6 +25,9 @@ struct FileInfo {
     QString group;
     QFile::Permissions permissions;
     QSize imageSize; // pictures Qt can read; invalid otherwise
+    bool isText = false; // plain text, source code, Markdown, ... (type inherits text/plain)
+    QString text; // text files, with withDetails: the start of the file (see TextLimit)
+    bool textTruncated = false; // the file is longer than `text`
 
     // What KFileMetaData finds in the file (EXIF, page count, artist, ...), as
     // translated label and display text, in its order. Width and height are left
@@ -42,8 +45,16 @@ struct FileInfo {
     // the picture size and KFileMetaData's details (slower: parses the file).
     static FileInfo read(const QUrl &url, bool withDetails = true);
 
+    // Text files show at most this much: more makes the preview slow to lay out.
+    // Measured 2026-11-18: 1 MB took 0.46 s to lay out and colour, 256 KB 0.11 s.
+    static constexpr qint64 TextLimit = 256 * 1024;
+
     bool operator==(const FileInfo &) const = default;
 };
+
+// The start of a text file: up to `limit` bytes, cut at a line end; UTF-8, or
+// Latin-1 if it isn't valid UTF-8. `truncated` tells whether there was more.
+QString readTextStart(const QString &path, qint64 limit, bool *truncated);
 
 // The QML file (component name in the kwiklook module) that previews this file.
 QString viewFor(const FileInfo &info);

@@ -10,6 +10,7 @@ $XGETTEXT \
     src/main.cpp \
     src/gui/viewer.cpp \
     src/gui/filemenus.cpp \
+    src/gui/autostart.cpp \
     --keyword=i18n:1 \
     --keyword=i18nc:1c,2 \
     --keyword=i18np:1,2 \
@@ -23,6 +24,8 @@ $XGETTEXT \
     qml/Main.qml \
     qml/TitleBar.qml \
     qml/InfoPanel.qml \
+    qml/TextView.qml \
+    qml/SettingsWindow.qml \
     --keyword=i18n:1 \
     --keyword=i18nc:1c,2 \
     --keyword=i18np:1,2 \

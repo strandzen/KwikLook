@@ -153,22 +153,27 @@ keeps running when its window closes, so the next preview opens instantly.
 | `kwiklook <files>` | Viewer running: hands the files over (`Open`) and exits. Otherwise becomes the viewer |
 | `kwiklook --service` | Becomes the viewer without showing anything; what D-Bus activation runs |
 | `kwiklook --quit` | Asks a running viewer to quit |
+| `kwiklook --settings` | Viewer running: asks it to show the settings window (`ShowSettings`). Otherwise becomes the viewer and shows it |
 
 **D-Bus interface** `io.github.strandzen.KwikLook.Viewer` at `/Viewer`, described in
 `data/io.github.strandzen.KwikLook.Viewer.xml` (hand-written; keep it in step with the
 `Q_SCRIPTABLE` members of `Viewer`). `Open(as urls, i index, s sessionId, s activationToken)`,
-`Close()`, `Next()`, `Previous()`, `Quit()`; signals `CurrentChanged(s sessionId, s url, i index)`,
+`Close()`, `Next()`, `Previous()`, `Quit()`, `ShowSettings(s activationToken)`; signals `CurrentChanged(s sessionId, s url, i index)`,
 `Closed(s sessionId)`. Session IDs are the caller's (one per Dolphin window); a new session's
 `Open` sends `Closed` to the previous one.
 
 | Class | Files | Role |
 |---|---|---|
 | `Viewer` | `src/gui/viewer.*` | File list, current file and its details (`view`, `mimeType`, `details`, `imageSize`, `infoSections` for the panel, read off the main thread with a generation counter), `infoOpen` (kept in `kwiklookstaterc`), the preview window; the D-Bus object; QML singleton `Viewer` |
-| `WindowFrame` | `src/gui/windowframe.*` | QML element: compositor shadow (`KWindowShadow`) for the frameless window, corner radius and outline flag; watches breezerc (`KDirWatch`), recreates the shadow on each new surface |
+| `WindowFrame` | `src/gui/windowframe.*` | QML element: compositor shadow (`KWindowShadow`) for the frameless window, corner radius (Breeze's or the setting's) and outline flag; watches breezerc (`KDirWatch`), recreates the shadow on each new surface |
+| `KwikLookSettings` | `src/gui/kwiklooksettings.kcfg(c)` | KConfig XT, generated; `kwiklookrc` [General]: MatchBreezeCorners, CornerRadius, OpenKey, CloseOnFocusLoss. QML singleton. main.cpp sets the Notify write flag on every item (no kcfg option for it), so the Dolphin hook's `KConfigWatcher` hears about saves |
+| `OpenKey` | `src/core/openkey.h` | The open key choices (Space, Shift+Space, Ctrl+Space) and parsing; shared by the viewer and the Dolphin hook |
+| `Autostart` | `src/gui/autostart.*` | QML element: “Start at login” = `~/.config/autostart/io.github.strandzen.KwikLook.desktop` (`kwiklook --service`); the file is the setting |
 | `BreezeStyle` | `src/core/breezestyle.*` | Reads breezerc `[Common]` (absolute path only); the fitted shadow layers per size |
 | `FileMenus` | `src/gui/filemenus.*` | QML element: “Open with…” (`KFileItemActions::associatedApplications` + KIO's dialog) and Share (`Purpose::Menu`) as QMenus below a button; “Show in Dolphin” (`KIO::highlightInFileManager` with a token), “Copy Path” |
 | `renderShadow()` | `src/core/shadowimage.*` | Shadow nine-patch image + tile rects from layers, radius, colour |
-| `FileInfo`, `viewFor()` | `src/core/fileinfo.*` | A file's type (by content), icon, size, dates, owner, permissions, picture size, KFileMetaData details (`read()` may block: Viewer runs it with QtConcurrent); `viewFor()` picks the QML view for a type (`ImageView` for what QImageReader reads) |
+| `FileInfo`, `viewFor()` | `src/core/fileinfo.*` | A file's type (by content), icon, size, dates, owner, permissions, picture size, KFileMetaData details, the start of text files (`readTextStart()`, 256 KB) (`read()` may block: Viewer runs it with QtConcurrent); `viewFor()` picks the QML view: PDF → `PdfView`, what QImageReader reads → `ImageView`, types inheriting text/plain → `TextView`, else `FallbackView` |
+| `LineNumbers` | `src/gui/linenumbers.*` | QML element: line numbers for a TextArea (block positions from its QTextDocument layout, wrapped lines included, visible part only) |
 | `ThumbnailProvider` | `src/gui/thumbnailprovider.*` | `image://thumbnail/<mime>/<url>` from `KIO::PreviewJob` (job on the main thread); 1×1 transparent image = no thumbnail |
 
 | QML file | Role |
@@ -176,9 +181,12 @@ keeps running when its window closes, so the next preview opens instantly.
 | `qml/Main.qml` | The preview window: frameless, content clipped to the corner radius (`MultiEffect` mask), Breeze outline, keys; a `Loader` showing `Viewer.view` |
 | `qml/FallbackView.qml` | Any file: thumbnail or type icon, name, one dimmed line (type · size · date) |
 | `qml/ImageView.qml` | Pictures: fit the area, never enlarged past real size; decoded at most at screen size; fallback when undecodable |
+| `qml/TextView.qml` | Text and code: read-only TextArea, KSyntaxHighlighting (dark/light theme by background), monospace, wrap, line numbers; note when only the start is shown |
+| `qml/PdfView.qml` | PDFs: `PdfPageImage` pages in a ListView inside KDE's ScrollView, fitted to the width |
 | `qml/InfoPanel.qml` | The (i) panel: sections from `Viewer.infoSections` (File, Details, Permissions), Show in Dolphin, Copy Path |
 | `qml/TitleBar.qml` | The only bar: ← →, file name (centred), (i), Share, Open with…, close; a standard toolbar (Kirigami header size); Header colours; drag moves the window |
 | `qml/ResizeHandles.qml` | Edge and corner strips calling `startSystemResize()` (frameless windows get no KWin borders) |
+| `qml/SettingsWindow.qml` | “KwikLook Settings”: Kirigami Addons form cards, OK / Apply / Cancel (values held in the window until applied); made by main.cpp on the first `ShowSettings` |
 
 ```
 Dolphin hook / kwiklook <files> / dbus-send
@@ -195,8 +203,8 @@ on load. Without them, Space previews the selected file alone. Space is taken on
 is in a file view with a file selected and Dolphin is not in type-ahead or selection mode. The
 bridge starts the viewer when Dolphin starts (`StartServiceByName`), asks for a Wayland activation
 token, then calls `Open` with a session ID `<bus name>/<n>`; `CurrentChanged` moves Dolphin's
-selection, `Closed` gives the focus back. Diagnostics on Dolphin's bus name at `/KwikLookBridge`:
-`State()` (JSON), `TriggerFocusedView()` (what Space does). `KWIKLOOK_DISABLE_DOLPHIN_HOOK=1 dolphin`
+selection, `Closed` gives the focus back. The open key comes from `kwiklookrc` and is re-read when the settings window saves (`KConfigWatcher`). Diagnostics on Dolphin's bus name at `/KwikLookBridge`:
+`State()` (JSON, includes `openKey`), `TriggerFocusedView()` (what Space does). `KWIKLOOK_DISABLE_DOLPHIN_HOOK=1 dolphin`
 turns it off.
 
 ---
@@ -272,7 +280,13 @@ turns it off.
 10. Open with…: lists the file's apps; one opens the file and the preview closes; “Other Application…” shows KDE's chooser.
 11. A picture, a text file, a folder and an unknown file each show a thumbnail or icon with type, size and date.
 12. A large picture fills the preview (no name below it); a small one stays at its real size. (i) opens the panel at the right and the picture shrinks beside it; it stays open for the next file and after a restart. Show in Dolphin opens the folder with the file selected; Copy Path puts the path on the clipboard.
-13. Share: KDE's share menu opens below the button; sharing to a device or by mail works.
+13. A code file and a Markdown file show as coloured text with line numbers; a log over 256 KB shows its start and says so; a PDF shows all pages fitted to the width. ← → and Space still work after clicking into the text.
+14. Share: KDE's share menu opens below the button; sharing to a device or by mail works.
+15. “KwikLook Settings” from the launcher opens the settings window (also while a preview is open, which stays open). Apply is grey until something changes; Cancel drops changes.
+16. Custom corner radius: Apply, and an open preview's corners and shadow follow at once; back to “like Breeze” restores them.
+17. Open key Shift+Space: in Dolphin (already open) Space selects as usual and Shift+Space opens the preview; Shift+Space or Esc closes it.
+18. With “close when you switch” on, clicking Dolphin or another window closes the preview; “Open with… → Other Application…” and Share dialogs don't.
+19. “Start in the background at login” on: the entry shows in System Settings → Autostart; after a new login the viewer is running before Dolphin opens.
 
 ---
 
@@ -337,4 +351,14 @@ General Qt / KF6 / Kirigami ones first; add project-specific rows below them.
 | **“Could not register app ID: App info not found” from the build tree** | Qt registers the app with the desktop portal by its desktop file name; uninstalled, there's no `io.github.strandzen.KwikLook.desktop`, so the portal refuses. Harmless (no portal features used); gone once installed |
 | **`QQuickImageResponse` and the main thread** | Qt creates, cancels and deletes the response on its image loader thread. Don't `moveToThread()` it (crashed on fast switching: SIGSEGV in `deleteLater` on the loader thread). Run main-thread work (KIO jobs) in a separate relay object that sends the result back by queued signal and deletes itself; the response never touches it again |
 | **Reproducing races in the viewer** | The offscreen QML test did not reproduce the thumbnail crash; fast D-Bus Next/Previous in the nested session did (kept as the check: Next/Previous with 0–80 ms pauses over folders, text, binary and pictures) |
+| **Qt's image reader claims PDFs** | With Qt PDF installed, `QImageReader::supportedMimeTypes()` includes `application/pdf`: test for PDF before pictures |
+| **`PdfMultiPageView` rows** | Its column width is the view's width plus the scrollbar plus 2 px: always a horizontal scrollbar and off-centre pages. Use `PdfPageImage` in a ListView instead |
+| **`PdfDocument` with an empty source** | Logs “Cannot open:”. Keep the last source (`Binding { when: …; restoreMode: Binding.RestoreNone }`) instead of clearing it |
+| **An id named like the property it feeds** | `PdfPageImage { document: document }` binds the property to itself (blank pages). Name the id differently (`pdf`) |
+| **Large text in a QML TextArea** | Measured 2026-11-18: 1 MB plain text took 0.2 s to lay out, 0.46 s with KSyntaxHighlighting, on the main thread; 256 KB 0.05 / 0.11 s. Hence the 256 KB limit |
+| **Runtime dependency: Qt PDF** | `QtQuick.Pdf` ships with Qt WebEngine on Arch (`qt6-webengine`); list it in packaging |
+| **KConfig XT and `KConfigWatcher`** | Other processes only hear about a save written with `KConfig::Notify`; the kcfgc has no option for it: call `setWriteFlags(KConfigBase::Notify)` on each item. `kconfig_add_kcfg_files` on a target without `GENERATE_MOC` fails with "moc_….cpp: No such file" |
+| **Nested session reads the real `kwinrc`** | `kwin_wayland` uses the caller's `XDG_CONFIG_HOME`: run it with a scratch config holding a `kwinrc` copy with KWin scripts off (`rememberwindowpositions` resized the settings window to the preview's remembered size, and applies the scale) |
+| **No log output from a nested-session app** | Without a terminal Qt logs to the journal; set `QT_FORCE_STDERR_LOGGING=1` to get it in a file |
+| **Focus leaving the app (Wayland)** | `QGuiApplication::focusWindow()` becomes null when another app takes the focus; own menus, dialogs and windows keep it non-null. It can pass through null briefly between own windows: check again after a short delay (150 ms) |
 | **`pkill -f` in test scripts** | Matches any command line containing the text, including the shell running the test. Stop processes by the PIDs you started |

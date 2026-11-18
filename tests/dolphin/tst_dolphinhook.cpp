@@ -11,7 +11,9 @@
 #include "dbusnames.h"
 #include "mockdolphin.h"
 
+#include <KConfigGroup>
 #include <KOverlayIconPlugin>
+#include <KSharedConfig>
 
 #include <QApplication>
 #include <QDBusConnection>
@@ -268,6 +270,33 @@ private Q_SLOTS:
         QTest::qWait(200);
         QCOMPARE(m_viewer.calls.size(), before);
         delete editor;
+    }
+
+    void openKeyFollowsTheSettings()
+    {
+        // As the settings window saves it (XDG_CONFIG_HOME is a scratch folder here).
+        const auto setOpenKey = [this](const QString &key) {
+            KSharedConfig::Ptr config = KSharedConfig::openConfig(u"kwiklookrc"_s, KConfig::SimpleConfig);
+            config->group(u"General"_s).writeEntry("OpenKey", key, KConfig::Notify);
+            QVERIFY(config->sync());
+            QTRY_COMPARE(bridgeState().value(u"openKey"_s).toString(), key);
+        };
+        setOpenKey(u"Shift+Space"_s);
+        m_view->selectOnly(1);
+        m_view->container()->keysReceived.clear();
+        const qsizetype before = m_viewer.calls.size();
+        pressSpace(m_view);
+        QTest::qWait(200);
+        QCOMPARE(m_viewer.calls.size(), before); // plain Space is Dolphin's again
+        QVERIFY(m_view->container()->keysReceived.contains(Qt::Key_Space));
+        QTest::keyClick(m_view->container(), Qt::Key_Space, Qt::ShiftModifier);
+        QCOMPARE(nextCall().method, u"Open"_s);
+        closeFromViewer();
+
+        setOpenKey(u"Space"_s);
+        pressSpace(m_view);
+        QCOMPARE(nextCall().method, u"Open"_s);
+        closeFromViewer();
     }
 
     void viewerGoneEndsTheSession()

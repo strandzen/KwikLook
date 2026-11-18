@@ -42,6 +42,9 @@ class Viewer : public QObject
     Q_PROPERTY(bool fileExists READ fileExists NOTIFY fileInfoChanged)
     Q_PROPERTY(QString details READ details NOTIFY fileInfoChanged) // type · size · date
     Q_PROPERTY(QSize imageSize READ imageSize NOTIFY fileInfoChanged) // pictures; invalid otherwise
+    Q_PROPERTY(QString text READ text NOTIFY fileInfoChanged) // text files: the start of the file
+    // “This file is long: showing only its beginning.”, or empty.
+    Q_PROPERTY(QString textNote READ textNote NOTIFY fileInfoChanged)
     // For the information panel: [{title, rows: [{label, value}]}], empty sections left out.
     Q_PROPERTY(QVariantList infoSections READ infoSections NOTIFY fileInfoChanged)
     // The information panel is open; remembered across previews and restarts.
@@ -76,6 +79,8 @@ public:
     bool fileExists() const;
     QString details() const;
     QSize imageSize() const;
+    QString text() const;
+    QString textNote() const;
     QVariantList infoSections() const;
     bool infoOpen() const;
     void setInfoOpen(bool open);
@@ -89,6 +94,8 @@ public Q_SLOTS:
     Q_SCRIPTABLE void Previous();
     // Ends the background viewer.
     Q_SCRIPTABLE void Quit();
+    // Shows the settings window (`kwiklook --settings`, the “KwikLook Settings” launcher entry).
+    Q_SCRIPTABLE void ShowSettings(const QString &activationToken);
 
 Q_SIGNALS:
     Q_SCRIPTABLE void CurrentChanged(const QString &sessionId, const QString &url, int index);
@@ -96,12 +103,15 @@ Q_SIGNALS:
     void currentChanged();
     void fileInfoChanged();
     void infoOpenChanged();
+    // main.cpp creates the settings window on the first request and shows it.
+    void settingsRequested(const QString &activationToken);
 
 private:
     void setCurrent(int index);
     void showWindow(const QString &activationToken);
     void markClosed();
     void readFileInfo(int generation);
+    void closeIfFocusLeft();
 
     QList<QUrl> m_urls;
     int m_index = -1;

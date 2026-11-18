@@ -19,6 +19,10 @@
     <method name="Previous"/>
     <!-- Ends the background viewer. -->
     <method name="Quit"/>
+    <!-- Shows the settings window. activationToken as for Open. -->
+    <method name="ShowSettings">
+      <arg name="activationToken" type="s" direction="in"/>
+    </method>
     <signal name="CurrentChanged">
       <arg name="sessionId" type="s"/>
       <arg name="url" type="s"/>

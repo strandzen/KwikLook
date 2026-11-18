@@ -10,8 +10,10 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 - “Open with…” and Share buttons in the preview's bar.
 - Press Space in Dolphin to preview the selected file; ← and → go through the folder in Dolphin's order and Dolphin's selection follows along.
 - Pictures fill the preview window (small ones stay at their real size).
+- Text and code files show with syntax colours and line numbers (long files show their beginning); PDFs show all their pages.
 - An (i) button opens a panel with the file's details: name, type, size, dates, picture size and camera details, owner and permissions, with “Show in Dolphin” and “Copy Path”.
 - Every file gets a preview: a large thumbnail (as in Dolphin) or the file type's icon, with its type, size and when it was changed.
+- “KwikLook Settings” in the app launcher: choose the corner radius, the key that opens the preview in Dolphin (Space, Shift+Space or Ctrl+Space), whether the preview closes when you switch to another window (on by default), and whether KwikLook starts in the background at login.
 
 <!-- Sections, in this order, only those that have entries:
 ### Added       new features

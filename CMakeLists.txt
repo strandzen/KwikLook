@@ -46,6 +46,8 @@ find_package(KF6 ${KF_MIN_VERSION} REQUIRED COMPONENTS
     FileMetaData   # file details (EXIF, page count, ...)
 )
 find_package(KF6Kirigami ${KF_MIN_VERSION} REQUIRED)
+# QML only (form cards in the settings window); checked here so a missing one shows at build time.
+find_package(KF6KirigamiAddons 1.0 REQUIRED)
 
 add_subdirectory(src)
 add_subdirectory(data)

@@ -1,21 +1,34 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
+#include "gui/autostart.h"
 #include "gui/thumbnailprovider.h"
 #include "gui/viewer.h"
+#include "kwiklooksettings.h"
 
 #include <KLocalizedQmlContext>
 
 #include <QQmlApplicationEngine>
+#include <QQmlComponent>
 #include <QDir>
+#include <QPainter>
+#include <QPdfWriter>
 #include <QQuickItem>
+#include <QQuickWindow>
 #include <QImage>
 #include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QStandardPaths>
 #include <QTest>
+
+#include <KConfig>
+#include <KConfigGroup>
+
+#include <memory>
 #include <QtQml/qqmlextensionplugin.h>
 
 Q_IMPORT_QML_PLUGIN(kwiklookPlugin)
+
+using namespace Qt::StringLiterals;
 
 class TstQmlSmoke : public QObject
 {
@@ -54,9 +67,9 @@ private Q_SLOTS:
         });
         engine.loadFromModule("kwiklook", "Main");
         QCOMPARE(engine.rootObjects().size(), 1);
-        QTemporaryFile file(QDir::tempPath() + QStringLiteral("/kwiklook-XXXXXX.txt"));
+        QTemporaryFile file(QDir::tempPath() + QStringLiteral("/kwiklook-XXXXXX.bin"));
         QVERIFY(file.open());
-        file.write("hello");
+        file.write(QByteArray(3000, '\x07')); // binary: no view of its own
         file.flush();
         Viewer::instance()->Open({file.fileName()}, 0, QString(), QString());
         QTRY_COMPARE(Viewer::instance()->view(), QStringLiteral("FallbackView"));
@@ -97,6 +110,159 @@ private Q_SLOTS:
         QVERIFY(errors.isEmpty());
     }
 
+
+    void loadsTextViewAndKeysStillNavigate()
+    {
+        QQmlApplicationEngine engine;
+        KLocalization::setupLocalizedContext(&engine);
+        engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
+        QList<QQmlError> errors;
+        connect(&engine, &QQmlApplicationEngine::warnings, this, [&errors](const QList<QQmlError> &w) {
+            errors << w;
+        });
+        engine.loadFromModule("kwiklook", "Main");
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+        QVERIFY(window);
+        QTemporaryDir dir;
+        QStringList files;
+        for (const QString &name : {QStringLiteral("a.cpp"), QStringLiteral("b.md")}) {
+            QFile f(dir.filePath(name));
+            QVERIFY(f.open(QIODevice::WriteOnly));
+            for (int i = 0; i < 200; ++i) {
+                f.write("int main() { return 0; } // a line of code\n");
+            }
+            files << f.fileName();
+        }
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open(files, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QTRY_VERIFY(window->findChild<QQuickItem *>(QStringLiteral("textView")));
+        // The text field has the focus (as after a click into it): ← → and Space
+        // still belong to the preview.
+        auto *area = window->findChild<QQuickItem *>(QStringLiteral("textArea"));
+        QVERIFY(area);
+        area->forceActiveFocus();
+        QTRY_VERIFY(area->hasActiveFocus());
+        QTest::keyClick(window, Qt::Key_Right);
+        QTRY_COMPARE(v->currentIndex(), 1);
+        QTest::keyClick(window, Qt::Key_Left);
+        QTRY_COMPARE(v->currentIndex(), 0);
+        QTest::keyClick(window, Qt::Key_Space);
+        QTRY_VERIFY(!window->isVisible());
+        v->setWindow(nullptr);
+        for (const QQmlError &e : std::as_const(errors)) {
+            qWarning().noquote() << e.toString();
+        }
+        QVERIFY(errors.isEmpty());
+    }
+
+    void loadsPdfView()
+    {
+        QQmlApplicationEngine engine;
+        KLocalization::setupLocalizedContext(&engine);
+        engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
+        QList<QQmlError> errors;
+        connect(&engine, &QQmlApplicationEngine::warnings, this, [&errors](const QList<QQmlError> &w) {
+            errors << w;
+        });
+        engine.loadFromModule("kwiklook", "Main");
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+        QVERIFY(window);
+        QTemporaryDir dir;
+        const QString pdf = dir.filePath(QStringLiteral("doc.pdf"));
+        {
+            QPdfWriter writer(pdf);
+            QPainter painter(&writer);
+            painter.drawText(QPointF(100, 100), QStringLiteral("Page one"));
+            writer.newPage();
+            painter.drawText(QPointF(100, 100), QStringLiteral("Page two"));
+        }
+        QFile other(dir.filePath(QStringLiteral("other.bin")));
+        QVERIFY(other.open(QIODevice::WriteOnly));
+        other.write(QByteArray(100, '\x01'));
+        other.close();
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open({pdf, other.fileName()}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QTRY_VERIFY(window->findChild<QQuickItem *>(QStringLiteral("pdfView")));
+        QTest::qWait(500); // pages render
+        QTest::keyClick(window, Qt::Key_Right);
+        QTRY_COMPARE(v->currentIndex(), 1);
+        v->Close();
+        v->setWindow(nullptr);
+        for (const QQmlError &e : std::as_const(errors)) {
+            qWarning().noquote() << e.toString();
+        }
+        QVERIFY(errors.isEmpty());
+    }
+
+    void settingsWindowAppliesOnlyOnApply()
+    {
+        // Test mode: kwiklookrc and the autostart entry go to ~/.qttest, not ~/.config.
+        QVERIFY(Autostart::filePath().contains(u".qttest"_s));
+        QQmlApplicationEngine engine;
+        KLocalization::setupLocalizedContext(&engine);
+        QList<QQmlError> errors;
+        connect(&engine, &QQmlApplicationEngine::warnings, this, [&errors](const QList<QQmlError> &w) {
+            errors << w;
+        });
+        QQmlComponent component(&engine, "kwiklook", "SettingsWindow");
+        std::unique_ptr<QObject> object(component.create());
+        QVERIFY2(object, qPrintable(component.errorString()));
+        auto *window = qobject_cast<QQuickWindow *>(object.get());
+        QVERIFY(window);
+        window->show();
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+
+        KwikLookSettings *settings = KwikLookSettings::self();
+        QCOMPARE(window->property("openKey").toString(), settings->openKey());
+        QCOMPARE(window->property("changed").toBool(), false);
+
+        // A change is only shown until Apply.
+        window->setProperty("openKey", u"Shift+Space"_s);
+        window->setProperty("matchBreeze", false);
+        window->setProperty("radius", 12);
+        window->setProperty("startAtLogin", true);
+        QCOMPARE(window->property("changed").toBool(), true);
+        QCOMPARE(settings->openKey(), u"Space"_s);
+        QVERIFY(!QFile::exists(Autostart::filePath()));
+
+        QVariant ok;
+        QVERIFY(QMetaObject::invokeMethod(window, "apply", Q_RETURN_ARG(QVariant, ok)));
+        QVERIFY(ok.toBool());
+        QCOMPARE(settings->openKey(), u"Shift+Space"_s);
+        QCOMPARE(settings->matchBreezeCorners(), false);
+        QCOMPARE(settings->cornerRadius(), 12);
+        QCOMPARE(window->property("changed").toBool(), false);
+        KConfig saved(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + u"/kwiklookrc"_s, KConfig::SimpleConfig);
+        QCOMPARE(saved.group(u"General"_s).readEntry("OpenKey"), u"Shift+Space"_s);
+        QFile entry(Autostart::filePath());
+        QVERIFY(entry.open(QIODevice::ReadOnly));
+        QVERIFY(entry.readAll().contains("Exec=kwiklook --service\n"));
+        entry.close();
+
+        // Cancel-like: closing and reopening shows the saved values again.
+        window->setProperty("openKey", u"Ctrl+Space"_s);
+        window->close();
+        window->show();
+        QCOMPARE(window->property("openKey").toString(), u"Shift+Space"_s);
+
+        // Back to the defaults, entry removed.
+        window->setProperty("openKey", u"Space"_s);
+        window->setProperty("matchBreeze", true);
+        window->setProperty("radius", 5);
+        window->setProperty("startAtLogin", false);
+        QVERIFY(QMetaObject::invokeMethod(window, "apply", Q_RETURN_ARG(QVariant, ok)));
+        QVERIFY(!QFile::exists(Autostart::filePath()));
+        QCOMPARE(settings->openKey(), u"Space"_s);
+
+        for (const QQmlError &e : std::as_const(errors)) {
+            qWarning().noquote() << e.toString();
+        }
+        QVERIFY(errors.isEmpty());
+    }
 };
 
 QTEST_MAIN(TstQmlSmoke)
