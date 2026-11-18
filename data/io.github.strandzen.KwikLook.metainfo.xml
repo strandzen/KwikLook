@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<!-- SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com> -->
+<component type="desktop-application">
+  <id>io.github.strandzen.KwikLook</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>KwikLook</name>
+  <summary>Quick previews of files from Dolphin</summary>
+  <description>
+    <p>Select a file in Dolphin and press Space to see a quick preview of it, without opening another app.</p>
+  </description>
+  <developer id="io.github.strandzen">
+    <name>strandzen</name>
+  </developer>
+  <url type="homepage">https://github.com/strandzen/KwikLook</url>
+  <url type="bugtracker">https://github.com/strandzen/KwikLook/issues</url>
+  <launchable type="desktop-id">io.github.strandzen.KwikLook.desktop</launchable>
+  <content_rating type="oars-1.1"/>
+  <releases>
+  </releases>
+</component>
