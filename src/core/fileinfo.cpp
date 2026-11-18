@@ -2,12 +2,55 @@
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
 #include "fileinfo.h"
 
+#include <KFileMetaData/ExtractorCollection>
+#include <KFileMetaData/PropertyInfo>
+#include <KFileMetaData/SimpleExtractionResult>
+
 #include <QFileInfo>
+#include <QImageReader>
 #include <QMimeDatabase>
 
 using namespace Qt::StringLiterals;
 
-FileInfo FileInfo::read(const QUrl &url)
+namespace
+{
+bool isImage(const QString &mimeType)
+{
+    static const QList<QByteArray> types = QImageReader::supportedMimeTypes();
+    return types.contains(mimeType.toLatin1());
+}
+
+QList<FileInfo::Detail> readDetails(const QString &path, const QString &mimeType, bool skipSize)
+{
+    // One collection per worker thread: loading the extractor plugins takes a moment.
+    thread_local KFileMetaData::ExtractorCollection extractors;
+    QList<FileInfo::Detail> details;
+    const auto found = extractors.fetchExtractors(mimeType);
+    for (KFileMetaData::Extractor *extractor : found) {
+        KFileMetaData::SimpleExtractionResult result(path, mimeType, KFileMetaData::ExtractionResult::ExtractMetaData);
+        extractor->extract(&result);
+        const auto properties = result.properties();
+        for (auto it = properties.cbegin(); it != properties.cend(); ++it) {
+            if (skipSize && (it.key() == KFileMetaData::Property::Width || it.key() == KFileMetaData::Property::Height)) {
+                continue; // shown as one “Dimensions” row
+            }
+            const KFileMetaData::PropertyInfo info(it.key());
+            const QString value = info.formatAsDisplayString(it.value());
+            if (!value.isEmpty() && std::none_of(details.cbegin(), details.cend(), [&](const FileInfo::Detail &d) {
+                    return d.label == info.displayName();
+                })) {
+                details.append({info.displayName(), value});
+            }
+        }
+        if (!details.isEmpty()) {
+            break; // the first extractor that knows the type is enough
+        }
+    }
+    return details;
+}
+} // namespace
+
+FileInfo FileInfo::read(const QUrl &url, bool withDetails)
 {
     FileInfo info;
     info.url = url;
@@ -20,6 +63,10 @@ FileInfo FileInfo::read(const QUrl &url)
         info.isDir = fi.isDir();
         if (info.exists) {
             info.modified = fi.lastModified();
+            info.created = fi.birthTime();
+            info.owner = fi.owner();
+            info.group = fi.group();
+            info.permissions = fi.permissions();
             if (!info.isDir) {
                 info.size = fi.size();
             }
@@ -32,13 +79,27 @@ FileInfo FileInfo::read(const QUrl &url)
     info.mimeType = mime.name();
     info.typeName = mime.comment();
     info.iconName = mime.iconName();
+    if (withDetails && url.isLocalFile() && info.exists && !info.isDir) {
+        const QString path = url.toLocalFile();
+        if (isImage(info.mimeType)) {
+            QImageReader reader(path);
+            reader.setAutoTransform(true);
+            info.imageSize = reader.size(); // reads the header only
+            if (reader.transformation() & QImageIOHandler::TransformationRotate90) {
+                info.imageSize.transpose();
+            }
+        }
+        info.details = readDetails(path, info.mimeType, info.imageSize.isValid());
+    }
     return info;
 }
 
 QString viewFor(const FileInfo &info)
 {
-    Q_UNUSED(info)
-    // Images, text and PDF get their own views in step 7; everything else, and
-    // whatever a view can't open, shows the fallback.
+    // Text and PDF get their own views in step 7; everything else, and whatever a
+    // view can't open, shows the fallback.
+    if (info.exists && !info.isDir && isImage(info.mimeType)) {
+        return u"ImageView"_s;
+    }
     return u"FallbackView"_s;
 }

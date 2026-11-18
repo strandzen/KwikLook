@@ -163,19 +163,21 @@ keeps running when its window closes, so the next preview opens instantly.
 
 | Class | Files | Role |
 |---|---|---|
-| `Viewer` | `src/gui/viewer.*` | File list, current file and its details (`view`, `mimeType`, `details`, read off the main thread with a generation counter), the preview window; the D-Bus object; QML singleton `Viewer` |
+| `Viewer` | `src/gui/viewer.*` | File list, current file and its details (`view`, `mimeType`, `details`, `imageSize`, `infoSections` for the panel, read off the main thread with a generation counter), `infoOpen` (kept in `kwiklookstaterc`), the preview window; the D-Bus object; QML singleton `Viewer` |
 | `WindowFrame` | `src/gui/windowframe.*` | QML element: compositor shadow (`KWindowShadow`) for the frameless window, corner radius and outline flag; watches breezerc (`KDirWatch`), recreates the shadow on each new surface |
 | `BreezeStyle` | `src/core/breezestyle.*` | Reads breezerc `[Common]` (absolute path only); the fitted shadow layers per size |
-| `FileMenus` | `src/gui/filemenus.*` | QML element: “Open with…” (`KFileItemActions::associatedApplications` + KIO's dialog) and Share (`Purpose::Menu`) as QMenus below a button |
+| `FileMenus` | `src/gui/filemenus.*` | QML element: “Open with…” (`KFileItemActions::associatedApplications` + KIO's dialog) and Share (`Purpose::Menu`) as QMenus below a button; “Show in Dolphin” (`KIO::highlightInFileManager` with a token), “Copy Path” |
 | `renderShadow()` | `src/core/shadowimage.*` | Shadow nine-patch image + tile rects from layers, radius, colour |
-| `FileInfo`, `viewFor()` | `src/core/fileinfo.*` | A file's type (by content), icon, size, date (`read()` may block: Viewer runs it with QtConcurrent); `viewFor()` picks the QML view for a type |
+| `FileInfo`, `viewFor()` | `src/core/fileinfo.*` | A file's type (by content), icon, size, dates, owner, permissions, picture size, KFileMetaData details (`read()` may block: Viewer runs it with QtConcurrent); `viewFor()` picks the QML view for a type (`ImageView` for what QImageReader reads) |
 | `ThumbnailProvider` | `src/gui/thumbnailprovider.*` | `image://thumbnail/<mime>/<url>` from `KIO::PreviewJob` (job on the main thread); 1×1 transparent image = no thumbnail |
 
 | QML file | Role |
 |---|---|
 | `qml/Main.qml` | The preview window: frameless, content clipped to the corner radius (`MultiEffect` mask), Breeze outline, keys; a `Loader` showing `Viewer.view` |
 | `qml/FallbackView.qml` | Any file: thumbnail or type icon, name, one dimmed line (type · size · date) |
-| `qml/TitleBar.qml` | The only bar: ← →, file name (centred), Share, Open with…, close; a standard toolbar (Kirigami header size); Header colours; drag moves the window |
+| `qml/ImageView.qml` | Pictures: fit the area, never enlarged past real size; decoded at most at screen size; fallback when undecodable |
+| `qml/InfoPanel.qml` | The (i) panel: sections from `Viewer.infoSections` (File, Details, Permissions), Show in Dolphin, Copy Path |
+| `qml/TitleBar.qml` | The only bar: ← →, file name (centred), (i), Share, Open with…, close; a standard toolbar (Kirigami header size); Header colours; drag moves the window |
 | `qml/ResizeHandles.qml` | Edge and corner strips calling `startSystemResize()` (frameless windows get no KWin borders) |
 
 ```
@@ -269,7 +271,8 @@ turns it off.
 9. The bar's buttons are normal toolbar size, easy to hit.
 10. Open with…: lists the file's apps; one opens the file and the preview closes; “Other Application…” shows KDE's chooser.
 11. A picture, a text file, a folder and an unknown file each show a thumbnail or icon with type, size and date.
-12. Share: KDE's share menu opens below the button; sharing to a device or by mail works.
+12. A large picture fills the preview (no name below it); a small one stays at its real size. (i) opens the panel at the right and the picture shrinks beside it; it stays open for the next file and after a restart. Show in Dolphin opens the folder with the file selected; Copy Path puts the path on the clipboard.
+13. Share: KDE's share menu opens below the button; sharing to a device or by mail works.
 
 ---
 
@@ -331,4 +334,7 @@ General Qt / KF6 / Kirigami ones first; add project-specific rows below them.
 | **Async D-Bus calls to your own connection** | `asyncCall()` to a service registered on the same `QDBusConnection` never arrives. In tests, give a stand-in service its own connection (`QDBusConnection::connectToBus(..., name)`) |
 | **Mock of a shared library under KDE compiler settings** | ECM builds with `-fvisibility=hidden`: a mock meant to be found by `dlsym` (or linked) needs `CXX_VISIBILITY_PRESET default` |
 | **Testing the Dolphin hook in a nested session** | `QT_PLUGIN_PATH=<build>/plugins dolphin --new-window --select <file>`; no keyboard there, so call `TriggerFocusedView` on `org.kde.dolphin-<pid>` `/KwikLookBridge` |
+| **“Could not register app ID: App info not found” from the build tree** | Qt registers the app with the desktop portal by its desktop file name; uninstalled, there's no `io.github.strandzen.KwikLook.desktop`, so the portal refuses. Harmless (no portal features used); gone once installed |
+| **`QQuickImageResponse` and the main thread** | Qt creates, cancels and deletes the response on its image loader thread. Don't `moveToThread()` it (crashed on fast switching: SIGSEGV in `deleteLater` on the loader thread). Run main-thread work (KIO jobs) in a separate relay object that sends the result back by queued signal and deletes itself; the response never touches it again |
+| **Reproducing races in the viewer** | The offscreen QML test did not reproduce the thumbnail crash; fast D-Bus Next/Previous in the nested session did (kept as the check: Next/Previous with 0–80 ms pauses over folders, text, binary and pictures) |
 | **`pkill -f` in test scripts** | Matches any command line containing the text, including the shell running the test. Stop processes by the PIDs you started |

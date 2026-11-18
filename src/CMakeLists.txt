@@ -7,6 +7,8 @@ set(KWIKLOOK_QML_FILES
     ${CMAKE_SOURCE_DIR}/qml/TitleBar.qml
     ${CMAKE_SOURCE_DIR}/qml/ResizeHandles.qml
     ${CMAKE_SOURCE_DIR}/qml/FallbackView.qml
+    ${CMAKE_SOURCE_DIR}/qml/ImageView.qml
+    ${CMAKE_SOURCE_DIR}/qml/InfoPanel.qml
 )
 
 # Pure logic, no Qt Quick: Breeze settings, shadow images, file details.
@@ -17,6 +19,7 @@ add_library(kwiklook_core STATIC
 )
 target_include_directories(kwiklook_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/core)
 target_link_libraries(kwiklook_core PUBLIC Qt6::Gui KF6::ConfigCore KF6::ConfigGui) # ConfigGui: QColor entries
+target_link_libraries(kwiklook_core PRIVATE KF6::FileMetaData) # details like EXIF, page count
 foreach(qml_file ${KWIKLOOK_QML_FILES})
     get_filename_component(qml_name ${qml_file} NAME)
     set_source_files_properties(${qml_file} PROPERTIES QT_RESOURCE_ALIAS ${qml_name})

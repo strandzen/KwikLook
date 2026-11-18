@@ -6,12 +6,18 @@
 #include <KFileItemActions>
 #include <KIO/ApplicationLauncherJob>
 #include <KIO/JobUiDelegateFactory>
+#include <KIO/OpenFileManagerWindowJob>
+#include <KWaylandExtras>
+#include <KWindowSystem>
 #include <KLocalizedString>
 #include <KService>
 #include <Purpose/AlternativesModel>
 #include <Purpose/Menu>
 
+#include <QClipboard>
 #include <QCursor>
+#include <QFuture>
+#include <QGuiApplication>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QMenu>
@@ -117,4 +123,34 @@ void FileMenus::popup(QMenu *menu, QQuickItem *button)
     menu->winId();
     menu->windowHandle()->setTransientParent(button->window());
     menu->popup(button->mapToGlobal(QPointF(0, button->height())).toPoint());
+}
+
+void FileMenus::showInFileManager(QQuickItem *from)
+{
+    if (m_url.isEmpty()) {
+        return;
+    }
+    const QUrl url = m_url;
+    const auto show = [this, url](const QString &token) {
+        auto *job = KIO::highlightInFileManager({url}, token.toUtf8());
+        connect(job, &KJob::result, this, [this](KJob *job) {
+            if (!job->error()) {
+                Q_EMIT launched();
+            }
+        });
+    };
+    // On Wayland the file manager may take the focus only with a token from us.
+    QWindow *window = from ? from->window() : nullptr;
+    if (KWindowSystem::isPlatformWayland() && window) {
+        KWaylandExtras::xdgActivationToken(window, u"org.kde.dolphin"_s).then(this, show);
+    } else {
+        show(QString());
+    }
+}
+
+void FileMenus::copyPath()
+{
+    if (!m_url.isEmpty()) {
+        QGuiApplication::clipboard()->setText(m_url.isLocalFile() ? m_url.toLocalFile() : m_url.toDisplayString());
+    }
 }

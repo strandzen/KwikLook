@@ -4,6 +4,7 @@
 #include "fileinfo.h"
 
 #include <QFile>
+#include <QImage>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -70,10 +71,42 @@ private Q_SLOTS:
         QCOMPARE(info.mimeType, u"image/jpeg"_s);
     }
 
-    void everythingFallsBackForNow()
+    void pictureSizeAndView()
+    {
+        QTemporaryDir dir;
+        const QString path = dir.filePath(u"pic.png"_s);
+        QImage img(120, 80, QImage::Format_RGB32);
+        img.fill(Qt::red);
+        QVERIFY(img.save(path));
+        const FileInfo info = FileInfo::read(QUrl::fromLocalFile(path));
+        QCOMPARE(info.imageSize, QSize(120, 80));
+        QCOMPARE(viewFor(info), u"ImageView"_s);
+        for (const FileInfo::Detail &d : info.details) {
+            QVERIFY2(!d.value.isEmpty(), qPrintable(d.label));
+        }
+        // Without details: no parsing.
+        QVERIFY(!FileInfo::read(QUrl::fromLocalFile(path), false).imageSize.isValid());
+    }
+
+    void otherFilesFallBack()
     {
         QCOMPARE(viewFor(FileInfo()), u"FallbackView"_s);
-        QCOMPARE(viewFor(FileInfo::read(QUrl(u"file:///nope.png"_s))), u"FallbackView"_s);
+        QCOMPARE(viewFor(FileInfo::read(QUrl(u"file:///nope.png"_s))), u"FallbackView"_s); // missing
+        QTemporaryDir dir;
+        QCOMPARE(viewFor(FileInfo::read(QUrl::fromLocalFile(dir.path()))), u"FallbackView"_s);
+    }
+
+    void ownerAndPermissions()
+    {
+        QTemporaryDir dir;
+        QFile f(dir.filePath(u"mine.txt"_s));
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.close();
+        QVERIFY(f.setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ReadGroup));
+        const FileInfo info = FileInfo::read(QUrl::fromLocalFile(f.fileName()));
+        QVERIFY(!info.owner.isEmpty());
+        QCOMPARE(info.permissions & (QFile::ReadOwner | QFile::WriteOwner | QFile::ReadGroup | QFile::WriteGroup | QFile::ReadOther),
+                 QFile::ReadOwner | QFile::WriteOwner | QFile::ReadGroup);
     }
 };
 

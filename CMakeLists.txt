@@ -43,6 +43,7 @@ find_package(KF6 ${KF_MIN_VERSION} REQUIRED COMPONENTS
     KIO            # “Open with…”
     Service
     Purpose        # Share
+    FileMetaData   # file details (EXIF, page count, ...)
 )
 find_package(KF6Kirigami ${KF_MIN_VERSION} REQUIRED)
 

@@ -81,6 +81,13 @@ QQC2.ToolBar {
             spacing: parent.spacing
 
             BarButton {
+                icon.name: "documentinfo"
+                text: i18nc("@action:button", "Information")
+                checkable: true
+                checked: Viewer.infoOpen
+                onToggled: Viewer.infoOpen = checked
+            }
+            BarButton {
                 icon.name: "document-share"
                 text: i18nc("@action:button", "Share")
                 onClicked: menus.showShare(this)

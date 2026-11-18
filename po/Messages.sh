@@ -22,6 +22,7 @@ $XGETTEXT \
 $XGETTEXT \
     qml/Main.qml \
     qml/TitleBar.qml \
+    qml/InfoPanel.qml \
     --keyword=i18n:1 \
     --keyword=i18nc:1c,2 \
     --keyword=i18np:1,2 \

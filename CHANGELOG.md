@@ -9,6 +9,8 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 - The preview window looks like your other windows: corners, outline and shadow follow your Breeze window decoration settings and colour scheme, also when you change them.
 - “Open with…” and Share buttons in the preview's bar.
 - Press Space in Dolphin to preview the selected file; ← and → go through the folder in Dolphin's order and Dolphin's selection follows along.
+- Pictures fill the preview window (small ones stay at their real size).
+- An (i) button opens a panel with the file's details: name, type, size, dates, picture size and camera details, owner and permissions, with “Show in Dolphin” and “Copy Path”.
 - Every file gets a preview: a large thumbnail (as in Dolphin) or the file type's icon, with its type, size and when it was changed.
 
 <!-- Sections, in this order, only those that have entries:

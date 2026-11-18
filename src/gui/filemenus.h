@@ -18,8 +18,9 @@ class Menu;
 }
 
 /*
- * The title bar's “Open with…” and Share menus for a file, as KDE's own menus
- * (the applications for its type, KDE's share plugins), shown below a button.
+ * What can be done with the previewed file: the title bar's “Open with…” and
+ * Share menus, as KDE's own menus (the applications for its type, KDE's share
+ * plugins) shown below a button, and the information panel's actions.
  *
  *   FileMenus { id: menus; url: Viewer.currentUrl }
  *   ToolButton { onClicked: menus.showOpenWith(this) }
@@ -37,10 +38,14 @@ public:
 
     Q_INVOKABLE void showOpenWith(QQuickItem *button);
     Q_INVOKABLE void showShare(QQuickItem *button);
+    // Opens the file manager at the file's folder with the file selected.
+    Q_INVOKABLE void showInFileManager(QQuickItem *from);
+    // The local path (or the URL of a remote file) to the clipboard.
+    Q_INVOKABLE void copyPath();
 
 Q_SIGNALS:
     void urlChanged();
-    // An application was started for the file.
+    // An application (or the file manager) was started for the file.
     void launched();
     // Something to tell the user (a share failed, or gave a link).
     void message(const QString &text);

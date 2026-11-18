@@ -8,7 +8,10 @@
 #include <QQmlApplicationEngine>
 #include <QDir>
 #include <QQuickItem>
+#include <QImage>
+#include <QTemporaryDir>
 #include <QTemporaryFile>
+#include <QStandardPaths>
 #include <QTest>
 #include <QtQml/qqmlextensionplugin.h>
 
@@ -19,6 +22,11 @@ class TstQmlSmoke : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    void initTestCase()
+    {
+        QStandardPaths::setTestModeEnabled(true); // remembered state goes to a test folder
+    }
+
     void loadsMainWindow()
     {
         QQmlApplicationEngine engine;
@@ -59,6 +67,36 @@ private Q_SLOTS:
         }
         QVERIFY(errors.isEmpty());
     }
+
+    void loadsImageViewWithInfoPanel()
+    {
+        QQmlApplicationEngine engine;
+        KLocalization::setupLocalizedContext(&engine);
+        engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
+        QList<QQmlError> errors;
+        connect(&engine, &QQmlApplicationEngine::warnings, this, [&errors](const QList<QQmlError> &w) {
+            errors << w;
+        });
+        engine.loadFromModule("kwiklook", "Main");
+        QCOMPARE(engine.rootObjects().size(), 1);
+        QTemporaryDir dir;
+        const QString path = dir.filePath(QStringLiteral("pic.png"));
+        QImage img(40, 30, QImage::Format_RGB32);
+        img.fill(Qt::green);
+        QVERIFY(img.save(path));
+        Viewer::instance()->setInfoOpen(true);
+        Viewer::instance()->Open({path}, 0, QString(), QString());
+        QObject *root = engine.rootObjects().constFirst();
+        QTRY_VERIFY(root->findChild<QQuickItem *>(QStringLiteral("imageView")));
+        QTRY_VERIFY(root->findChild<QQuickItem *>(QStringLiteral("infoPanel")));
+        QTest::qWait(300);
+        Viewer::instance()->setInfoOpen(false);
+        for (const QQmlError &e : std::as_const(errors)) {
+            qWarning().noquote() << e.toString();
+        }
+        QVERIFY(errors.isEmpty());
+    }
+
 };
 
 QTEST_MAIN(TstQmlSmoke)

@@ -18,7 +18,7 @@ Kirigami.ApplicationWindow {
     title: Viewer.fileName
     width: Kirigami.Units.gridUnit * 36
     height: Kirigami.Units.gridUnit * 24
-    minimumWidth: Kirigami.Units.gridUnit * 16
+    minimumWidth: Kirigami.Units.gridUnit * 18
     minimumHeight: Kirigami.Units.gridUnit * 10
 
     Kirigami.Theme.colorSet: Kirigami.Theme.Window
@@ -66,11 +66,43 @@ Kirigami.ApplicationWindow {
                 window: root
             }
 
-            // The view Viewer picked for the current file's type (a QML file next to this one).
-            Loader {
+            RowLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                source: Viewer.view ? Qt.resolvedUrl(Viewer.view + ".qml") : ""
+                spacing: 0
+
+                // The view Viewer picked for the current file's type (a QML file next to this one).
+                Loader {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    source: Viewer.view ? Qt.resolvedUrl(Viewer.view + ".qml") : ""
+                }
+
+                // The information panel slides in from the right; the preview shrinks beside it.
+                Kirigami.Separator {
+                    Layout.fillHeight: true
+                    visible: infoPanel.Layout.preferredWidth > 0
+                }
+                Item {
+                    id: infoPanel
+                    Layout.fillHeight: true
+                    Layout.preferredWidth: Viewer.infoOpen ? Kirigami.Units.gridUnit * 18 : 0
+                    Behavior on Layout.preferredWidth {
+                        NumberAnimation {
+                            duration: Kirigami.Units.longDuration
+                            easing.type: Easing.InOutQuad
+                        }
+                    }
+                    visible: Layout.preferredWidth > 0
+                    clip: true
+
+                    InfoPanel {
+                        // Full width while sliding, so the text doesn't reflow.
+                        width: Kirigami.Units.gridUnit * 18
+                        height: parent.height
+                        window: root
+                    }
+                }
             }
         }
     }

@@ -4,8 +4,10 @@
 #include "gui/viewer.h"
 
 #include <QFile>
+#include <QImage>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QStandardPaths>
 #include <QTest>
 
 using namespace Qt::StringLiterals;
@@ -15,6 +17,11 @@ class TstViewer : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    void initTestCase()
+    {
+        QStandardPaths::setTestModeEnabled(true); // remembered state goes to a test folder
+    }
+
     void openShowsRequestedFile()
     {
         Viewer v(nullptr);
@@ -123,6 +130,37 @@ private Q_SLOTS:
         QVERIFY(v.details().contains(u"5 B"_s));
         QTest::qWait(50);
         QCOMPARE(v.mimeType(), u"text/html"_s);
+    }
+
+    void infoPanelSections()
+    {
+        QTemporaryDir dir;
+        const QString path = dir.filePath(u"pic.png"_s);
+        QImage img(30, 20, QImage::Format_RGB32);
+        img.fill(Qt::blue);
+        QVERIFY(img.save(path));
+        Viewer v(nullptr);
+        v.Open({path}, 0, QString(), QString());
+        QTRY_COMPARE(v.view(), u"ImageView"_s);
+        const QVariantList sections = v.infoSections();
+        QVERIFY(sections.size() >= 2);
+        const QVariantMap file = sections.at(0).toMap();
+        const QVariantList rows = file.value(u"rows"_s).toList();
+        QCOMPARE(rows.at(0).toMap().value(u"value"_s).toString(), u"pic.png"_s);
+        QCOMPARE(sections.at(1).toMap().value(u"rows"_s).toList().at(0).toMap().value(u"value"_s).toString(), u"30 × 20 pixels"_s);
+        QCOMPARE(sections.last().toMap().value(u"rows"_s).toList().size(), 5); // owner, group, 3× access
+    }
+
+    void infoPanelStateIsRemembered()
+    {
+        {
+            Viewer v(nullptr);
+            v.setInfoOpen(false);
+            v.setInfoOpen(true);
+        }
+        Viewer again(nullptr);
+        QVERIFY(again.infoOpen());
+        again.setInfoOpen(false);
     }
 
     void missingFileSaysSo()

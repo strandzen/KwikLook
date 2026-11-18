@@ -6,30 +6,55 @@
 #include <KIO/PreviewJob>
 
 #include <QCoreApplication>
-#include <QPointer>
+
+/*
+ * Threads: Qt asks for a ThumbnailResponse on its image loader thread, which also
+ * cancels and deletes it there. KIO jobs must run on the main thread. So the
+ * response stays on the loader thread, and a ThumbnailRelay on the main thread runs
+ * the job, sends the image back through a queued signal and deletes itself. The
+ * response never touches the relay after creating it: if the response is gone by
+ * then, Qt drops the queued signal. (Moving the response to the main thread
+ * crashed when switching files quickly: both threads handled it.)
+ */
+class ThumbnailRelay : public QObject
+{
+    Q_OBJECT
+public:
+    void start(const QUrl &url, const QString &mimeType, const QSize &size)
+    {
+        auto *job = KIO::filePreview(KFileItemList{KFileItem(url, mimeType)}, size);
+        job->setScaleType(KIO::PreviewJob::ScaledAndCached);
+        connect(job, &KIO::PreviewJob::gotPreview, this, [this](const KFileItem &, const QPixmap &preview) {
+            Q_EMIT done(preview.toImage());
+        });
+        connect(job, &KJob::result, this, [this] {
+            // After gotPreview (or failed): no image means no thumbnailer for the type.
+            Q_EMIT done(QImage());
+            deleteLater();
+        });
+    }
+
+Q_SIGNALS:
+    void done(const QImage &image);
+};
 
 namespace
 {
-// Lives on the main thread (KIO jobs must), though Qt asks for it from its image loader thread.
 class ThumbnailResponse : public QQuickImageResponse
 {
 public:
     ThumbnailResponse(const QUrl &url, const QString &mimeType, const QSize &size)
     {
-        moveToThread(QCoreApplication::instance()->thread());
+        auto *relay = new ThumbnailRelay;
+        relay->moveToThread(QCoreApplication::instance()->thread());
+        // Queued: runs on this (the loader) thread, only while this response exists.
+        connect(relay, &ThumbnailRelay::done, this, &ThumbnailResponse::finish);
         QMetaObject::invokeMethod(
-            this,
-            [this, url, mimeType, size] {
-                start(url, mimeType, size);
+            relay,
+            [relay, url, mimeType, size] {
+                relay->start(url, mimeType, size);
             },
             Qt::QueuedConnection);
-    }
-
-    ~ThumbnailResponse() override
-    {
-        if (m_job) {
-            m_job->kill();
-        }
     }
 
     QQuickTextureFactory *textureFactory() const override
@@ -37,41 +62,32 @@ public:
         return QQuickTextureFactory::textureFactoryForImage(m_image);
     }
 
-    QString errorString() const override
-    {
-        return m_error;
-    }
-
     void cancel() override
     {
-        if (m_job) {
-            m_job->kill(); // quietly: no gotPreview/failed afterwards
-        }
-        m_error = QStringLiteral("cancelled");
-        Q_EMIT finished();
+        // The job finishes on its own (thumbnails are quick); its result is ignored.
+        finish(QImage());
     }
 
 private:
-    void start(const QUrl &url, const QString &mimeType, const QSize &size)
+    void finish(const QImage &image)
     {
-        m_job = KIO::filePreview(KFileItemList{KFileItem(url, mimeType)}, size);
-        m_job->setScaleType(KIO::PreviewJob::ScaledAndCached);
-        connect(m_job, &KIO::PreviewJob::gotPreview, this, [this](const KFileItem &, const QPixmap &preview) {
-            m_image = preview.toImage();
-            Q_EMIT finished();
-        });
-        connect(m_job, &KIO::PreviewJob::failed, this, [this] {
-            // Common (no thumbnailer for the type), so not an error: an error would log
-            // a QML warning per file. 1×1 transparent means “no thumbnail”.
+        if (m_finished) {
+            return; // the first answer counts (a thumbnail, then the job's end)
+        }
+        m_finished = true;
+        if (image.isNull()) {
+            // Common (no thumbnailer for the type), so not an error: an error would
+            // log a QML warning per file. 1×1 transparent means “no thumbnail”.
             m_image = QImage(1, 1, QImage::Format_ARGB32_Premultiplied);
             m_image.fill(Qt::transparent);
-            Q_EMIT finished();
-        });
+        } else {
+            m_image = image;
+        }
+        Q_EMIT finished();
     }
 
-    QPointer<KIO::PreviewJob> m_job;
     QImage m_image;
-    QString m_error;
+    bool m_finished = false;
 };
 } // namespace
 
@@ -84,3 +100,5 @@ QQuickImageResponse *ThumbnailProvider::requestImageResponse(const QString &id, 
     const QSize size = requestedSize.isValid() ? requestedSize : QSize(512, 512);
     return new ThumbnailResponse(url, mimeType, size);
 }
+
+#include "thumbnailprovider.moc"

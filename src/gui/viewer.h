@@ -41,6 +41,11 @@ class Viewer : public QObject
     Q_PROPERTY(QString iconName READ iconName NOTIFY fileInfoChanged)
     Q_PROPERTY(bool fileExists READ fileExists NOTIFY fileInfoChanged)
     Q_PROPERTY(QString details READ details NOTIFY fileInfoChanged) // type · size · date
+    Q_PROPERTY(QSize imageSize READ imageSize NOTIFY fileInfoChanged) // pictures; invalid otherwise
+    // For the information panel: [{title, rows: [{label, value}]}], empty sections left out.
+    Q_PROPERTY(QVariantList infoSections READ infoSections NOTIFY fileInfoChanged)
+    // The information panel is open; remembered across previews and restarts.
+    Q_PROPERTY(bool infoOpen READ infoOpen WRITE setInfoOpen NOTIFY infoOpenChanged)
 
 public:
     static constexpr auto ServiceName = KwikLookDBus::Service;
@@ -70,6 +75,10 @@ public:
     QString iconName() const;
     bool fileExists() const;
     QString details() const;
+    QSize imageSize() const;
+    QVariantList infoSections() const;
+    bool infoOpen() const;
+    void setInfoOpen(bool open);
 
 public Q_SLOTS:
     // Shows `urls[index]` (local paths or URLs), with the others reachable by Next/Previous.
@@ -86,12 +95,13 @@ Q_SIGNALS:
     Q_SCRIPTABLE void Closed(const QString &sessionId);
     void currentChanged();
     void fileInfoChanged();
+    void infoOpenChanged();
 
 private:
     void setCurrent(int index);
     void showWindow(const QString &activationToken);
     void markClosed();
-    void readFileInfo();
+    void readFileInfo(int generation);
 
     QList<QUrl> m_urls;
     int m_index = -1;
@@ -100,5 +110,6 @@ private:
     QPointer<QWindow> m_window;
     FileInfo m_info;
     QString m_view; // kept while the next file's details load, so the view doesn't flicker
+    bool m_infoOpen = false;
     int m_generation = 0; // drops details read for a file that's no longer current
 };
