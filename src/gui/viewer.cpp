@@ -397,5 +397,9 @@ void Viewer::markClosed()
         return;
     }
     m_open = false;
+    if (m_textZoom != 1) {
+        m_textZoom = 1;
+        Q_EMIT textZoomChanged();
+    }
     Q_EMIT Closed(m_sessionId);
 }

@@ -50,6 +50,8 @@ class Viewer : public QObject
     Q_PROPERTY(QVariantList infoSections READ infoSections NOTIFY fileInfoChanged)
     // The information panel is open; remembered across previews and restarts.
     Q_PROPERTY(bool infoOpen READ infoOpen WRITE setInfoOpen NOTIFY infoOpenChanged)
+    // Text font size factor (Ctrl+wheel in text): kept from file to file until the preview closes.
+    Q_PROPERTY(qreal textZoom MEMBER m_textZoom NOTIFY textZoomChanged)
 
 public:
     static constexpr auto ServiceName = KwikLookDBus::Service;
@@ -105,6 +107,7 @@ Q_SIGNALS:
     void currentChanged();
     void fileInfoChanged();
     void infoOpenChanged();
+    void textZoomChanged();
     // main.cpp creates the settings window on the first request and shows it.
     void settingsRequested(const QString &activationToken);
 
@@ -123,5 +126,6 @@ private:
     FileInfo m_info;
     QString m_view; // kept while the next file's details load, so the view doesn't flicker
     bool m_infoOpen = false;
+    qreal m_textZoom = 1;
     int m_generation = 0; // drops details read for a file that's no longer current
 };

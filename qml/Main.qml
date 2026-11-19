@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
 import QtQuick
+import QtQuick.Controls as QQC2
 import QtQuick.Effects
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
@@ -50,6 +51,22 @@ Kirigami.ApplicationWindow {
         sequence: "Right"
         onActivated: Viewer.Next()
     }
+    // Zoom, for the views that have it (pictures, text, PDF).
+    Shortcut {
+        sequences: [StandardKey.ZoomIn, "Ctrl+="]
+        enabled: viewLoader.zoomable
+        onActivated: viewLoader.item.zoomBy(1.25)
+    }
+    Shortcut {
+        sequences: [StandardKey.ZoomOut]
+        enabled: viewLoader.zoomable
+        onActivated: viewLoader.item.zoomBy(1 / 1.25)
+    }
+    Shortcut {
+        sequence: "Ctrl+0"
+        enabled: viewLoader.zoomable
+        onActivated: viewLoader.item.resetZoom()
+    }
 
     // Everything inside the frame, clipped to the rounded corners.
     Rectangle {
@@ -81,11 +98,58 @@ Kirigami.ApplicationWindow {
                 Layout.fillHeight: true
                 spacing: 0
 
-                // The view Viewer picked for the current file's type (a QML file next to this one).
-                Loader {
+                Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    source: Viewer.view ? Qt.resolvedUrl(Viewer.view + ".qml") : ""
+
+                    // The view Viewer picked for the current file's type (a QML file next to this one).
+                    Loader {
+                        id: viewLoader
+
+                        readonly property bool zoomable: item !== null && typeof item.zoomBy === "function"
+
+                        anchors.fill: parent
+                        source: Viewer.view ? Qt.resolvedUrl(Viewer.view + ".qml") : ""
+                    }
+
+                    // The zoom level, shown briefly while zooming.
+                    Rectangle {
+                        id: zoomIndicator
+                        objectName: "zoomIndicator"
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        anchors.margins: Kirigami.Units.largeSpacing * 2
+                        width: zoomLabel.implicitWidth + Kirigami.Units.largeSpacing * 2
+                        height: zoomLabel.implicitHeight + Kirigami.Units.smallSpacing * 2
+                        radius: Kirigami.Units.cornerRadius
+                        color: Kirigami.Theme.backgroundColor
+                        opacity: 0
+                        visible: opacity > 0
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: Kirigami.Units.longDuration
+                            }
+                        }
+
+                        QQC2.Label {
+                            id: zoomLabel
+                            anchors.centerIn: parent
+                            text: viewLoader.zoomable ? i18nc("@info zoom level", "%1%", viewLoader.item.zoomPercent) : ""
+                        }
+                        Timer {
+                            id: zoomIndicatorTimer
+                            interval: 1000
+                            onTriggered: zoomIndicator.opacity = 0
+                        }
+                        Connections {
+                            target: viewLoader.item
+                            ignoreUnknownSignals: true
+                            function onZoomed() {
+                                zoomIndicator.opacity = 1;
+                                zoomIndicatorTimer.restart();
+                            }
+                        }
+                    }
                 }
 
                 // The information panel slides in from the right; the preview shrinks beside it.

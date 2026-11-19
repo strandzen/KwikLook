@@ -88,6 +88,17 @@ private Q_SLOTS:
         QVERIFY(!v.isOpen());
     }
 
+    void textZoomLastsUntilClosed()
+    {
+        Viewer v(nullptr);
+        v.Open({u"/tmp/a.txt"_s, u"/tmp/b.txt"_s}, 0, QString(), QString());
+        v.setProperty("textZoom", 1.5);
+        v.Next();
+        QCOMPARE(v.property("textZoom").toReal(), 1.5);
+        v.Close();
+        QCOMPARE(v.property("textZoom").toReal(), 1.0);
+    }
+
     void newSessionClosesThePreviousOne()
     {
         Viewer v(nullptr);

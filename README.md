@@ -16,6 +16,7 @@ This is version 0.1.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my
 - Pictures fill the preview window; small ones stay at their real size.
 - Text and code files show with syntax colours and line numbers; long files show their beginning.
 - PDFs show all their pages, fitted to the window.
+- Zoom pictures, text and PDFs; pictures zoom towards the mouse pointer and can be dragged around.
 - Any other file shows a large thumbnail (as in Dolphin) or its type's icon, with its type, size and when it was changed.
 - An (i) panel with the file's details: name, type, size, dates, picture size and camera details, owner and permissions, plus “Show in Dolphin” and “Copy Path”.
 - “Open with…” and Share buttons in the preview's bar.
@@ -80,6 +81,9 @@ After installing, close every Dolphin window (or log out and back in) so Dolphin
 | Space (in Dolphin) | Opens the preview of the selected file (the key can be changed in the settings) |
 | Space or Esc | Closes the preview |
 | ← and → | Previous and next file |
+| Ctrl+wheel, Ctrl++ and Ctrl+- | Zoom in and out (pictures also with a touchpad pinch) |
+| Ctrl+0 | Back to the normal size |
+| Double-click a picture | Real size, and back to fitted |
 
 Space keeps working as usual in Dolphin's location bar, while renaming, in type-ahead search and in selection mode, and on folders.
 

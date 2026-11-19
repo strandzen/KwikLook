@@ -10,9 +10,36 @@ import kwiklook
 // Text and code, like Kate but read-only: syntax colours (KDE's highlighting, a
 // light or dark theme to match the colour scheme), monospace, line numbers, long
 // lines wrapped. Text can be selected and copied. Long files show their start.
+// Ctrl+wheel zooms (the font size, kept for the next files until the preview closes).
 ColumnLayout {
     id: view
     objectName: "textView"
+
+    // The user zoomed (for the zoom indicator).
+    signal zoomed()
+
+    readonly property real zoomPercent: Math.round(Viewer.textZoom * 100)
+
+    function zoomBy(factor) {
+        const old = Viewer.textZoom;
+        let z = Math.max(0.5, Math.min(4, old * factor));
+        // Stop at normal size on the way through.
+        if ((old < 1 && z > 1) || (old > 1 && z < 1)) {
+            z = 1;
+        }
+        setZoom(z);
+    }
+    function resetZoom() {
+        setZoom(1);
+    }
+    function setZoom(z) {
+        // Stay at the same place in the text while it reflows.
+        const flick = scroll.contentItem;
+        const at = flick.contentHeight > 0 ? flick.contentY / flick.contentHeight : 0;
+        Viewer.textZoom = z;
+        Qt.callLater(() => flick.contentY = at * flick.contentHeight);
+        zoomed();
+    }
 
     spacing: 0
     Kirigami.Theme.colorSet: Kirigami.Theme.View
@@ -42,7 +69,8 @@ ColumnLayout {
             selectByMouse: true
             textFormat: TextEdit.PlainText
             wrapMode: TextEdit.Wrap
-            font: Kirigami.Theme.fixedWidthFont
+            font.family: Kirigami.Theme.fixedWidthFont.family
+            font.pointSize: Kirigami.Theme.fixedWidthFont.pointSize * Viewer.textZoom
             text: Viewer.text
             leftPadding: gutterWidth + Kirigami.Units.largeSpacing
             topPadding: Kirigami.Units.largeSpacing
@@ -69,6 +97,12 @@ ColumnLayout {
                 }
                 theme: Repository.defaultTheme(Kirigami.ColorUtils.brightnessForColor(Kirigami.Theme.backgroundColor) === Kirigami.ColorUtils.Dark
                     ? Repository.DarkTheme : Repository.LightTheme)
+            }
+
+            // On the text itself: the scroll view would take the wheel first.
+            WheelHandler {
+                acceptedModifiers: Qt.ControlModifier
+                onWheel: event => view.zoomBy(Math.pow(1.1, event.angleDelta.y / 120))
             }
 
             FontMetrics {

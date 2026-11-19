@@ -11,6 +11,7 @@
 #include <QQmlComponent>
 #include <QDir>
 #include <QFontMetricsF>
+#include <QWheelEvent>
 #include <QPainter>
 #include <QPdfWriter>
 #include <QQuickItem>
@@ -285,6 +286,108 @@ private Q_SLOTS:
         QTest::keyClick(window, Qt::Key_Right);
         QTRY_COMPARE(v->currentIndex(), 1);
         v->Close();
+        v->setWindow(nullptr);
+        for (const QQmlError &e : std::as_const(errors)) {
+            qWarning().noquote() << e.toString();
+        }
+        QVERIFY(errors.isEmpty());
+    }
+
+    void zoomsPicturesTextAndPdf()
+    {
+        QQmlApplicationEngine engine;
+        KLocalization::setupLocalizedContext(&engine);
+        engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
+        QList<QQmlError> errors;
+        connect(&engine, &QQmlApplicationEngine::warnings, this, [&errors](const QList<QQmlError> &w) {
+            errors << w;
+        });
+        engine.loadFromModule("kwiklook", "Main");
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+        QVERIFY(window);
+        QTemporaryDir dir;
+        QStringList files;
+        for (const QString &name : {u"big.png"_s, u"big2.png"_s}) {
+            QImage img(3000, 2000, QImage::Format_RGB32);
+            img.fill(Qt::darkCyan);
+            QVERIFY(img.save(dir.filePath(name)));
+            files << dir.filePath(name);
+        }
+        QFile text(dir.filePath(u"a.txt"_s));
+        QVERIFY(text.open(QIODevice::WriteOnly));
+        text.write(QByteArray("some text\n").repeated(50));
+        text.close();
+        files << text.fileName() << text.fileName();
+        const QString pdf = dir.filePath(u"doc.pdf"_s);
+        {
+            QPdfWriter writer(pdf);
+            QPainter painter(&writer);
+            painter.drawText(QPointF(100, 100), u"Page one"_s);
+        }
+        files << pdf;
+
+        const auto ctrlWheel = [window](QQuickItem *over, int steps) {
+            const QPointF pos = over->mapToScene(QPointF(over->width() / 2, over->height() / 2));
+            QWheelEvent event(pos, window->mapToGlobal(pos), QPoint(), QPoint(0, 120 * steps), Qt::NoButton, Qt::ControlModifier, Qt::NoScrollPhase, false);
+            QCoreApplication::sendEvent(window, &event);
+        };
+        QObject *indicator = window->findChild<QObject *>(u"zoomIndicator"_s);
+        QVERIFY(indicator);
+
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open(files, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+
+        // Picture: fitted first; Ctrl+wheel zooms in, the indicator shows, Ctrl+0 fits again.
+        QQuickItem *image = nullptr;
+        QTRY_VERIFY((image = window->findChild<QQuickItem *>(u"imageView"_s)));
+        QTRY_VERIFY(image->property("fit").toReal() > 0);
+        const qreal fit = image->property("fit").toReal();
+        QVERIFY(fit < 1);
+        ctrlWheel(image, 1);
+        QCOMPARE(image->property("zoom").toReal(), fit * 1.25);
+        QTRY_COMPARE(indicator->property("opacity").toReal(), 1.0);
+        QTest::keyClick(window, Qt::Key_Plus, Qt::ControlModifier);
+        QCOMPARE(image->property("zoom").toReal(), fit * 1.25 * 1.25);
+        QTest::keyClick(window, Qt::Key_0, Qt::ControlModifier);
+        QCOMPARE(image->property("zoom").toReal(), fit);
+        ctrlWheel(image, -1); // not below fitted
+        QCOMPARE(image->property("zoom").toReal(), fit);
+        for (int i = 0; i < 20; ++i) { // not past 800 %, and through real size
+            ctrlWheel(image, 1);
+        }
+        QCOMPARE(image->property("zoom").toReal(), 8.0);
+        QVERIFY(image->property("pannable").toBool());
+        // The next picture starts fitted.
+        v->Next();
+        QTRY_COMPARE(image->property("userZoom").toReal(), 0.0);
+        QTRY_COMPARE(image->property("zoom").toReal(), fit); // once its size is read
+
+        // Text: the font grows and stays for the next file.
+        v->Next();
+        QQuickItem *area = nullptr;
+        QTRY_VERIFY((area = window->findChild<QQuickItem *>(u"textArea"_s)));
+        const qreal pointSize = area->property("font").value<QFont>().pointSizeF();
+        ctrlWheel(window->findChild<QQuickItem *>(u"textView"_s), 1); // the area is as tall as the text
+        QCOMPARE(v->property("textZoom").toReal(), 1.1);
+        QCOMPARE(area->property("font").value<QFont>().pointSizeF(), pointSize * 1.1);
+        v->Next();
+        QCOMPARE(v->property("textZoom").toReal(), 1.1);
+
+        // PDF: wider than the view when zoomed in.
+        v->Next();
+        QQuickItem *pdfView = nullptr;
+        QTRY_VERIFY((pdfView = window->findChild<QQuickItem *>(u"pdfView"_s)));
+        QTRY_VERIFY(pdfView->property("zoomPercent").toInt() > 0);
+        QTest::qWait(300);
+        ctrlWheel(pdfView, 2);
+        QCOMPARE(pdfView->property("zoom").toReal(), 1.25 * 1.25);
+        QTest::keyClick(window, Qt::Key_Minus, Qt::ControlModifier);
+        QCOMPARE(pdfView->property("zoom").toReal(), 1.25);
+
+        v->Close();
+        QCOMPARE(v->property("textZoom").toReal(), 1.0);
         v->setWindow(nullptr);
         for (const QQmlError &e : std::as_const(errors)) {
             qWarning().noquote() << e.toString();
