@@ -90,6 +90,7 @@ FileInfo FileInfo::read(const QUrl &url)
             if (reader.transformation() & QImageIOHandler::TransformationRotate90) {
                 info.imageSize.transpose();
             }
+            info.animated = reader.supportsAnimation() && reader.imageCount() > 1;
         }
         info.details = readDetails(path, info.mimeType, info.imageSize.isValid());
         if (info.isText) {

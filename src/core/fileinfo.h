@@ -25,6 +25,7 @@ struct FileInfo {
     QString group;
     QFile::Permissions permissions;
     QSize imageSize; // pictures Qt can read; invalid otherwise
+    bool animated = false; // pictures with more than one frame (GIF, WebP, ...)
     bool isText = false; // plain text, source code, Markdown, ... (type inherits text/plain)
     QString text; // text files: the start of the file (see TextLimit)
     bool textTruncated = false; // the file is longer than `text`

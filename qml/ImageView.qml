@@ -8,7 +8,8 @@ import kwiklook
 
 // Pictures: as large as fits, never enlarged beyond their real size (1 image pixel
 // = 1 screen pixel), so small ones stay sharp. Name and details are in the bar and
-// the information panel. A picture that can't be decoded shows the fallback view.
+// the information panel. Animated ones (GIF, WebP, ...) play. A picture that can't
+// be decoded shows the fallback view.
 Item {
     id: view
     objectName: "imageView"
@@ -23,13 +24,15 @@ Item {
         : 0
     // Pictures larger than the screen are decoded at screen size: same look, far less memory.
     readonly property bool largerThanScreen: Viewer.imageSize.width > Screen.width * dpr || Viewer.imageSize.height > Screen.height * dpr
+    // The one showing the current picture.
+    readonly property Image image: Viewer.imageAnimated ? animatedImage : stillImage
 
     Image {
-        id: image
+        id: stillImage
         anchors.centerIn: parent
         width: view.naturalWidth * view.fit
         height: view.naturalHeight * view.fit
-        source: Viewer.imageSize.width > 0 ? Viewer.currentUrl : ""
+        source: Viewer.imageSize.width > 0 && !Viewer.imageAnimated ? Viewer.currentUrl : ""
         asynchronous: true
         autoTransform: true // EXIF orientation
         cache: false
@@ -39,9 +42,22 @@ Item {
         sourceSize: view.largerThanScreen ? Qt.size(Screen.width * view.dpr, Screen.height * view.dpr) : undefined
     }
 
+    AnimatedImage {
+        id: animatedImage
+        objectName: "animatedImage"
+        anchors.centerIn: parent
+        width: view.naturalWidth * view.fit
+        height: view.naturalHeight * view.fit
+        source: Viewer.imageSize.width > 0 && Viewer.imageAnimated ? Viewer.currentUrl : ""
+        cache: false
+        smooth: true
+        mipmap: true
+        fillMode: Image.PreserveAspectFit
+    }
+
     QQC2.BusyIndicator {
         anchors.centerIn: parent
-        running: image.status === Image.Loading
+        running: view.image.status === Image.Loading
         visible: running
     }
 
@@ -49,7 +65,7 @@ Item {
     Loader {
         anchors.fill: parent
         // Can't be decoded, or its size can't even be read (damaged file).
-        active: image.status === Image.Error || (Viewer.mimeType !== "" && Viewer.imageSize.width <= 0)
+        active: view.image.status === Image.Error || (Viewer.mimeType !== "" && Viewer.imageSize.width <= 0)
         sourceComponent: FallbackView {}
     }
 }

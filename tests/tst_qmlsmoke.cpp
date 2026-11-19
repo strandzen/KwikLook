@@ -31,9 +31,14 @@ Q_IMPORT_QML_PLUGIN(kwiklookPlugin)
 
 using namespace Qt::StringLiterals;
 
+// A 4×4 GIF with two frames (red, blue), made with ImageMagick: Qt can't write animated GIFs.
+static const QByteArray TwoFrameGif = QByteArray::fromRawData("\x47\x49\x46\x38\x39\x61\x04\x00\x04\x00\xf0\x00\x00\xff\x00\x00\x00\x00\x00\x21\xff\x0b\x4e\x45\x54\x53\x43\x41\x50\x45\x32\x2e\x30\x03\x01\x00\x00\x00\x21\xf9\x04\x00\x00\x00\x00\x00\x2c\x00\x00\x00\x00\x04\x00\x04\x00\x00\x02\x04\x84\x8f\x09\x05\x00\x21\xf9\x04\x00\x00\x00\x00\x00\x2c\x00\x00\x00\x00\x04\x00\x04\x00\x80\x00\x00\xff\x00\x00\x00\x02\x04\x84\x8f\x09\x05\x00\x3b", 95);
+
 class TstQmlSmoke : public QObject
 {
     Q_OBJECT
+
+    QTemporaryDir m_keptDir; // files the shared viewer may still show after a test
 
 private Q_SLOTS:
     void initTestCase()
@@ -111,6 +116,34 @@ private Q_SLOTS:
         QVERIFY(errors.isEmpty());
     }
 
+
+    void playsAnimatedPictures()
+    {
+        QQmlApplicationEngine engine;
+        KLocalization::setupLocalizedContext(&engine);
+        engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
+        QList<QQmlError> errors;
+        connect(&engine, &QQmlApplicationEngine::warnings, this, [&errors](const QList<QQmlError> &w) {
+            errors << w;
+        });
+        engine.loadFromModule("kwiklook", "Main");
+        QObject *root = engine.rootObjects().constFirst();
+        // Kept until the end: the viewer still points at it when the next test starts.
+        QFile gif(m_keptDir.filePath(u"moving.gif"_s));
+        QVERIFY(gif.open(QIODevice::WriteOnly));
+        gif.write(TwoFrameGif);
+        gif.close();
+        Viewer::instance()->Open({gif.fileName()}, 0, QString(), QString());
+        QQuickItem *animated = nullptr;
+        QTRY_VERIFY((animated = root->findChild<QQuickItem *>(u"animatedImage"_s)));
+        QTRY_COMPARE(animated->property("frameCount").toInt(), 2);
+        QVERIFY(animated->property("playing").toBool());
+        QVERIFY(animated->width() > 0);
+        for (const QQmlError &e : std::as_const(errors)) {
+            qWarning().noquote() << e.toString();
+        }
+        QVERIFY(errors.isEmpty());
+    }
 
     void loadsTextViewAndKeysStillNavigate()
     {

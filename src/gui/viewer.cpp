@@ -177,6 +177,11 @@ QSize Viewer::imageSize() const
     return m_info.imageSize;
 }
 
+bool Viewer::imageAnimated() const
+{
+    return m_info.animated;
+}
+
 QString Viewer::text() const
 {
     return m_info.text;

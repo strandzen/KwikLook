@@ -4,6 +4,9 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Added
+- Animated pictures (GIF, WebP and other formats with several frames) play in the preview.
+
 ### Fixed
 - Scripts and other text files without a file name extension now show syntax colours too.
 

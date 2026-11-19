@@ -10,6 +10,9 @@
 
 using namespace Qt::StringLiterals;
 
+// A 4×4 GIF with two frames (red, blue), made with ImageMagick: Qt can't write animated GIFs.
+static const QByteArray TwoFrameGif = QByteArray::fromRawData("\x47\x49\x46\x38\x39\x61\x04\x00\x04\x00\xf0\x00\x00\xff\x00\x00\x00\x00\x00\x21\xff\x0b\x4e\x45\x54\x53\x43\x41\x50\x45\x32\x2e\x30\x03\x01\x00\x00\x00\x21\xf9\x04\x00\x00\x00\x00\x00\x2c\x00\x00\x00\x00\x04\x00\x04\x00\x00\x02\x04\x84\x8f\x09\x05\x00\x21\xf9\x04\x00\x00\x00\x00\x00\x2c\x00\x00\x00\x00\x04\x00\x04\x00\x80\x00\x00\xff\x00\x00\x00\x02\x04\x84\x8f\x09\x05\x00\x3b", 95);
+
 class TstFileInfo : public QObject
 {
     Q_OBJECT
@@ -160,6 +163,25 @@ private Q_SLOTS:
         bool truncated = false;
         QCOMPARE(readTextStart(path, 4, &truncated), u"aæ"_s); // "a", "æ", half an "æ"
         QVERIFY(truncated);
+    }
+
+    void animatedPictures()
+    {
+        QTemporaryDir dir;
+        QFile gif(dir.filePath(u"moving.gif"_s));
+        QVERIFY(gif.open(QIODevice::WriteOnly));
+        gif.write(TwoFrameGif);
+        gif.close();
+        const FileInfo moving = FileInfo::read(QUrl::fromLocalFile(gif.fileName()));
+        QCOMPARE(moving.imageSize, QSize(4, 4));
+        QVERIFY(moving.animated);
+        QCOMPARE(viewFor(moving), u"ImageView"_s);
+
+        // One frame: still.
+        QImage image(4, 4, QImage::Format_RGB32);
+        image.fill(Qt::red);
+        QVERIFY(image.save(dir.filePath(u"still.png"_s)));
+        QVERIFY(!FileInfo::read(QUrl::fromLocalFile(dir.filePath(u"still.png"_s))).animated);
     }
 
     void otherFilesFallBack()

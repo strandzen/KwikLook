@@ -42,6 +42,7 @@ class Viewer : public QObject
     Q_PROPERTY(bool fileExists READ fileExists NOTIFY fileInfoChanged)
     Q_PROPERTY(QString details READ details NOTIFY fileInfoChanged) // type · size · date
     Q_PROPERTY(QSize imageSize READ imageSize NOTIFY fileInfoChanged) // pictures; invalid otherwise
+    Q_PROPERTY(bool imageAnimated READ imageAnimated NOTIFY fileInfoChanged) // pictures with several frames
     Q_PROPERTY(QString text READ text NOTIFY fileInfoChanged) // text files: the start of the file
     // “This file is long: showing only its beginning.”, or empty.
     Q_PROPERTY(QString textNote READ textNote NOTIFY fileInfoChanged)
@@ -79,6 +80,7 @@ public:
     bool fileExists() const;
     QString details() const;
     QSize imageSize() const;
+    bool imageAnimated() const;
     QString text() const;
     QString textNote() const;
     QVariantList infoSections() const;
