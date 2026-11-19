@@ -9,6 +9,7 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 - Zoom pictures, text and PDFs with Ctrl+wheel, Ctrl+plus and Ctrl+minus (Ctrl+0 goes back). Pictures zoom towards the mouse pointer, can be pinched on a touchpad and moved by dragging or scrolling, and a double-click switches between fitted and real size. Text keeps its size for the next files until the preview closes; pictures and PDFs start fitted again.
 
 ### Fixed
+- KwikLook could crash when it was stopped while a PDF preview was still drawing its pages.
 - PDF pages no longer scroll over the preview's bar, and all pages are centred the same way.
 - Scripts and other text files without a file name extension now show syntax colours too.
 

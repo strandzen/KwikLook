@@ -10,7 +10,12 @@
 #include <KLocalizedString>
 #include <KWindowSystem>
 
+#include <algorithm>
+
 #include <QCoreApplication>
+#include <QDeadlineTimer>
+#include <QQuickItem>
+#include <QQuickWindow>
 #include <QDBusConnection>
 #include <QDir>
 #include <QGuiApplication>
@@ -123,6 +128,36 @@ void Viewer::setWindow(QWindow *window)
             }
         });
     }
+}
+
+namespace
+{
+bool pdfPagesRendering(const QQuickItem *item)
+{
+    if (item->inherits("QQuickPdfPageImage") && item->property("status").toInt() == 2 /* Image.Loading */) {
+        return true;
+    }
+    const auto children = item->childItems();
+    return std::any_of(children.begin(), children.end(), pdfPagesRendering);
+}
+} // namespace
+
+bool Viewer::finishRendering(int timeoutMs)
+{
+    auto *window = qobject_cast<QQuickWindow *>(m_window.data());
+    if (!window) {
+        return true;
+    }
+    window->hide();
+    const QDeadlineTimer deadline(timeoutMs);
+    while (pdfPagesRendering(window->contentItem())) {
+        if (deadline.hasExpired()) {
+            qCWarning(lcViewer) << "quitting while a PDF page still renders";
+            return false;
+        }
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+    }
+    return true;
 }
 
 void Viewer::closeIfFocusLeft()

@@ -37,18 +37,6 @@ using namespace Qt::StringLiterals;
 // A 4×4 GIF with two frames (red, blue), made with ImageMagick: Qt can't write animated GIFs.
 static const QByteArray TwoFrameGif = QByteArray::fromRawData("\x47\x49\x46\x38\x39\x61\x04\x00\x04\x00\xf0\x00\x00\xff\x00\x00\x00\x00\x00\x21\xff\x0b\x4e\x45\x54\x53\x43\x41\x50\x45\x32\x2e\x30\x03\x01\x00\x00\x00\x21\xf9\x04\x00\x00\x00\x00\x00\x2c\x00\x00\x00\x00\x04\x00\x04\x00\x00\x02\x04\x84\x8f\x09\x05\x00\x21\xf9\x04\x00\x00\x00\x00\x00\x2c\x00\x00\x00\x00\x04\x00\x04\x00\x80\x00\x00\xff\x00\x00\x00\x02\x04\x84\x8f\x09\x05\x00\x3b", 95);
 
-// Qt PDF renders pages on the engine's image thread and crashes if the engine (and
-// the PDF document) is deleted mid-render (SIGSEGV in the qpdf image plugin). Tests
-// with PDFs wait for their pages before the engine goes.
-static bool pdfPagesRendering(QQuickItem *item)
-{
-    if (item->inherits("QQuickPdfPageImage") && item->property("status").toInt() == 2 /* Image.Loading */) {
-        return true;
-    }
-    const auto children = item->childItems();
-    return std::any_of(children.begin(), children.end(), pdfPagesRendering);
-}
-
 class TstQmlSmoke : public QObject
 {
     Q_OBJECT
@@ -263,7 +251,9 @@ private Q_SLOTS:
             }
             return numbers;
         };
-        QTRY_VERIFY(shown().contains(u"1"_s));
+        // The text has arrived (an empty area shows a "1" too, and loading the text
+        // would undo the scrolling below).
+        QTRY_VERIFY(shown().contains(u"20"_s));
         const QList<QQuickItem *> before = labels();
         QVERIFY(!before.isEmpty());
         QObject *flickable = area->parentItem()->parentItem(); // ScrollView's Flickable
@@ -312,7 +302,7 @@ private Q_SLOTS:
         QTest::qWait(500); // pages render
         QTest::keyClick(window, Qt::Key_Right);
         QTRY_COMPARE(v->currentIndex(), 1);
-        QTRY_VERIFY(!pdfPagesRendering(window->contentItem()));
+        QVERIFY(v->finishRendering()); // the engine goes next: see Viewer::finishRendering()
         v->Close();
         v->setWindow(nullptr);
         for (const QQmlError &e : std::as_const(errors)) {
@@ -439,7 +429,7 @@ private Q_SLOTS:
         QTest::keyClick(window, Qt::Key_Minus, Qt::ControlModifier);
         QCOMPARE(pdfView->property("zoom").toReal(), 1.25);
 
-        QTRY_VERIFY(!pdfPagesRendering(window->contentItem()));
+        QVERIFY(v->finishRendering()); // the engine goes next: see Viewer::finishRendering()
         v->Close();
         QCOMPARE(v->property("textZoom").toReal(), 1.0);
         v->setWindow(nullptr);
@@ -524,7 +514,7 @@ private Q_SLOTS:
         // Pages scrolled up stay below the bar: the view area clips.
         QQuickItem *area = pdfView->parentItem()->parentItem();
         QVERIFY(area->clip());
-        QTRY_VERIFY(!pdfPagesRendering(window->contentItem()));
+        QVERIFY(v->finishRendering()); // the engine goes next: see Viewer::finishRendering()
         v->Close();
         v->setWindow(nullptr);
     }

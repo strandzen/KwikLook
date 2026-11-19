@@ -70,6 +70,10 @@ public:
     bool registerOnBus();
     // The preview window; shown on Open(), hidden on Close().
     void setWindow(QWindow *window);
+    // Before the QML engine goes (quitting): hides the window and waits, at most
+    // `timeoutMs`, until no PDF page is rendering. Qt PDF renders on the engine's image
+    // thread and crashes when the document is deleted mid-render. False on timeout.
+    bool finishRendering(int timeoutMs = 3000);
 
     QUrl currentUrl() const;
     QString fileName() const;

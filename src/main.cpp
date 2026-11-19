@@ -160,5 +160,7 @@ int main(int argc, char *argv[])
     } else if (!urls.isEmpty()) {
         viewer->Open(urls, 0, QString(), token);
     }
-    return app.exec();
+    const int result = app.exec();
+    viewer->finishRendering(); // before the engine goes: see Known Pitfalls, Qt PDF
+    return result;
 }
