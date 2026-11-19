@@ -33,6 +33,7 @@ find_package(Qt6 ${QT_MIN_VERSION} REQUIRED COMPONENTS
     Qml
     DBus
     Concurrent
+    Multimedia  # QML only (video and audio); checked here so a missing one shows at build time
 )
 
 find_package(KF6 ${KF_MIN_VERSION} REQUIRED COMPONENTS

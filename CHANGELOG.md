@@ -5,6 +5,7 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 ## [Unreleased]
 
 ### Added
+- Videos and audio play in the preview, with play/pause, a seek bar and a mute button; audio shows its cover, title and artist. Media keys play and pause. Two settings: start playing when a file opens (on) and start without sound (off).
 - Office documents (Word, Excel, PowerPoint and OpenDocument) can be previewed when LibreOffice is installed. LibreOffice turns them into a PDF in the background, shut away from your files and the network; the preview shows the file's icon and “Preparing preview…” meanwhile. Previews are kept in a cache (at most 200 MB), so a document opens at once the next time. A setting turns this off.
 - Animated pictures (GIF, WebP and other formats with several frames) play in the preview.
 - Zoom pictures, text and PDFs with Ctrl+wheel, Ctrl+plus and Ctrl+minus (Ctrl+0 goes back). Pictures zoom towards the mouse pointer, can be pinched on a touchpad and moved by dragging or scrolling, and a double-click switches between fitted and real size. Text keeps its size for the next files until the preview closes; pictures and PDFs start fitted again.

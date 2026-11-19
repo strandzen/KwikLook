@@ -19,6 +19,8 @@ Kirigami.ApplicationWindow {
     property bool closeOnFocusLoss
     property bool startAtLogin
     property bool officePreviews
+    property bool autoplayMedia
+    property bool startMuted
     // LibreOffice installed (checked each time the window opens).
     property bool officeAvailable
 
@@ -28,6 +30,8 @@ Kirigami.ApplicationWindow {
         || closeOnFocusLoss !== KwikLookSettings.closeOnFocusLoss
         || startAtLogin !== autostart.enabled
         || officePreviews !== KwikLookSettings.officePreviews
+        || autoplayMedia !== KwikLookSettings.autoplayMedia
+        || startMuted !== KwikLookSettings.startMuted
 
     function reset() {
         matchBreeze = KwikLookSettings.matchBreezeCorners;
@@ -36,6 +40,8 @@ Kirigami.ApplicationWindow {
         closeOnFocusLoss = KwikLookSettings.closeOnFocusLoss;
         startAtLogin = autostart.enabled;
         officePreviews = KwikLookSettings.officePreviews;
+        autoplayMedia = KwikLookSettings.autoplayMedia;
+        startMuted = KwikLookSettings.startMuted;
         officeAvailable = Viewer.officePreviewsAvailable();
         errorMessage.visible = false;
     }
@@ -46,6 +52,8 @@ Kirigami.ApplicationWindow {
         KwikLookSettings.openKey = openKey;
         KwikLookSettings.closeOnFocusLoss = closeOnFocusLoss;
         KwikLookSettings.officePreviews = officePreviews;
+        KwikLookSettings.autoplayMedia = autoplayMedia;
+        KwikLookSettings.startMuted = startMuted;
         KwikLookSettings.save();
         if (!autostart.setEnabled(startAtLogin)) {
             startAtLogin = autostart.enabled;
@@ -57,7 +65,7 @@ Kirigami.ApplicationWindow {
 
     title: i18nc("@title:window", "Settings") // Kirigami adds “— KwikLook”
     width: Kirigami.Units.gridUnit * 28
-    height: Kirigami.Units.gridUnit * 38 // all settings without scrolling
+    height: Kirigami.Units.gridUnit * 44 // all settings without scrolling
     minimumWidth: Kirigami.Units.gridUnit * 20
     minimumHeight: Kirigami.Units.gridUnit * 16
     visible: false
@@ -136,6 +144,24 @@ Kirigami.ApplicationWindow {
                 description: i18n("The first preview after login opens at once. Without this, KwikLook starts when Dolphin opens.")
                 checked: root.startAtLogin
                 onToggled: root.startAtLogin = checked
+            }
+        }
+
+        FormCard.FormHeader {
+            title: i18nc("@title:group", "Videos and Audio")
+        }
+        FormCard.FormCard {
+            FormCard.FormSwitchDelegate {
+                text: i18nc("@option:check", "Start playing when a video or song opens")
+                checked: root.autoplayMedia
+                onToggled: root.autoplayMedia = checked
+            }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormSwitchDelegate {
+                text: i18nc("@option:check", "Start without sound")
+                description: i18n("The sound can be turned on in the preview.")
+                checked: root.startMuted
+                onToggled: root.startMuted = checked
             }
         }
 

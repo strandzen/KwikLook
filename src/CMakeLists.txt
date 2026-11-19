@@ -11,6 +11,7 @@ set(KWIKLOOK_QML_FILES
     ${CMAKE_SOURCE_DIR}/qml/InfoPanel.qml
     ${CMAKE_SOURCE_DIR}/qml/TextView.qml
     ${CMAKE_SOURCE_DIR}/qml/PdfView.qml
+    ${CMAKE_SOURCE_DIR}/qml/MediaView.qml
     ${CMAKE_SOURCE_DIR}/qml/SettingsWindow.qml
 )
 

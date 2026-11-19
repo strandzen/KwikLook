@@ -166,7 +166,7 @@ keeps running when its window closes, so the next preview opens instantly.
 |---|---|---|
 | `Viewer` | `src/gui/viewer.*` | File list, current file and its details (`view`, `mimeType`, `details`, `imageSize`, `infoSections` for the panel, read off the main thread with a generation counter), `infoOpen` (kept in `kwiklookstaterc`), the preview window; the D-Bus object; QML singleton `Viewer` |
 | `WindowFrame` | `src/gui/windowframe.*` | QML element: compositor shadow (`KWindowShadow`) for the frameless window, corner radius (Breeze's or the setting's) and outline flag; watches breezerc (`KDirWatch`), recreates the shadow on each new surface |
-| `KwikLookSettings` | `src/gui/kwiklooksettings.kcfg(c)` | KConfig XT, generated; `kwiklookrc` [General]: MatchBreezeCorners, CornerRadius, OpenKey, CloseOnFocusLoss, OfficePreviews. QML singleton. main.cpp sets the Notify write flag on every item (no kcfg option for it), so the Dolphin hook's `KConfigWatcher` hears about saves |
+| `KwikLookSettings` | `src/gui/kwiklooksettings.kcfg(c)` | KConfig XT, generated; `kwiklookrc` [General]: MatchBreezeCorners, CornerRadius, OpenKey, CloseOnFocusLoss, AutoplayMedia, StartMuted, OfficePreviews. QML singleton. main.cpp sets the Notify write flag on every item (no kcfg option for it), so the Dolphin hook's `KConfigWatcher` hears about saves |
 | `OpenKey` | `src/core/openkey.h` | The open key choices (Space, Shift+Space, Ctrl+Space) and parsing; shared by the viewer and the Dolphin hook |
 | `Autostart` | `src/gui/autostart.*` | QML element: “Start at login” = `~/.config/autostart/io.github.strandzen.KwikLook.desktop` (`kwiklook --service`); the file is the setting |
 | `BreezeStyle` | `src/core/breezestyle.*` | Reads breezerc `[Common]` (absolute path only); the fitted shadow layers per size |
@@ -185,6 +185,7 @@ keeps running when its window closes, so the next preview opens instantly.
 | `qml/ImageView.qml` | Pictures: fit the area, never enlarged past real size; decoded at most at screen size; fallback when undecodable |
 | `qml/TextView.qml` | Text and code: read-only TextArea, KSyntaxHighlighting (dark/light theme by background), monospace, wrap, line numbers; note when only the start is shown |
 | `qml/PdfView.qml` | PDFs (and converted office documents, `Viewer.pdfUrl`): `PdfPageImage` pages in a ListView inside KDE's ScrollView, fitted to the width |
+| `qml/MediaView.qml` | Video and audio: `MediaPlayer` + `VideoOutput`, or cover (thumbnail) / icon with title and artist; footer `ToolBar` with play/pause, times, seek `Slider`, mute. Autoplay and start muted from the settings; stops when the window hides or the file changes (`mediaUrl` cleared, so reopening restarts); media keys |
 | `qml/InfoPanel.qml` | The (i) panel: sections from `Viewer.infoSections` (File, Details, Permissions), Show in Dolphin, Copy Path |
 | `qml/TitleBar.qml` | The only bar: ← →, file name (centred), (i), Share, Open with…, close; a standard toolbar (Kirigami header size); Header colours; drag moves the window |
 | `qml/ResizeHandles.qml` | Edge and corner strips calling `startSystemResize()` (frameless windows get no KWin borders) |
@@ -293,6 +294,7 @@ turns it off.
 21. Zoom a large picture with Ctrl+wheel: it zooms towards the pointer and stops at 100 % on the way; dragging and scrolling (wheel or touchpad) move it; pinch on the touchpad zooms; double-click switches real size / fitted; the zoom label fades out; the next picture starts fitted.
 22. Ctrl+wheel in a text file: the font grows and stays for the next text file, normal again after closing. In a PDF: pages grow with a sideways scrollbar; Ctrl+0 fits them again.
 23. A DOCX, XLSX and ODT (LibreOffice installed): icon and “Preparing preview…” for a moment, then the pages; the second time at once. With “Preview office documents” off: the icon only. `ls /tmp | grep OSL_PIPE` shows nothing left after previews.
+24. A video and an MP3: the video plays at once (setting), the MP3 shows its cover or icon, title and artist; play/pause, seek and mute work; media keys play and pause; closing the preview stops the sound; reopening starts again. With “Start without sound”: silent until the mute button.
 
 ---
 
@@ -363,6 +365,7 @@ General Qt / KF6 / Kirigami ones first; add project-specific rows below them.
 | **An id named like the property it feeds** | `PdfPageImage { document: document }` binds the property to itself (blank pages). Name the id differently (`pdf`) |
 | **Large text in a QML TextArea** | Measured 2026-11-18: 1 MB plain text took 0.2 s to lay out, 0.46 s with KSyntaxHighlighting, on the main thread; 256 KB 0.05 / 0.11 s. Hence the 256 KB limit |
 | **Runtime dependency: Qt PDF** | `QtQuick.Pdf` ships with Qt WebEngine on Arch (`qt6-webengine`); list it in packaging |
+| **Runtime dependency: Qt Multimedia backend** | `QtMultimedia` needs a backend plugin to play anything: `qt6-multimedia-ffmpeg` on Arch; list both in packaging |
 | **KConfig XT and `KConfigWatcher`** | Other processes only hear about a save written with `KConfig::Notify`; the kcfgc has no option for it: call `setWriteFlags(KConfigBase::Notify)` on each item. `kconfig_add_kcfg_files` on a target without `GENERATE_MOC` fails with "moc_….cpp: No such file" |
 | **Nested session reads the real `kwinrc`** | `kwin_wayland` uses the caller's `XDG_CONFIG_HOME`: run it with a scratch config holding a `kwinrc` copy with KWin scripts off (`rememberwindowpositions` resized the settings window to the preview's remembered size, and applies the scale) |
 | **No log output from a nested-session app** | Without a terminal Qt logs to the journal; set `QT_FORCE_STDERR_LOGGING=1` to get it in a file |

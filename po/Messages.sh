@@ -25,6 +25,7 @@ $XGETTEXT \
     qml/TitleBar.qml \
     qml/InfoPanel.qml \
     qml/TextView.qml \
+    qml/MediaView.qml \
     qml/SettingsWindow.qml \
     --keyword=i18n:1 \
     --keyword=i18nc:1c,2 \

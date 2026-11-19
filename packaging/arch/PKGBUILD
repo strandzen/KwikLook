@@ -24,6 +24,8 @@ depends=(
   'purpose'
   'qt6-base'
   'qt6-declarative'
+  'qt6-multimedia'
+  'qt6-multimedia-ffmpeg'  # its playback backend
   'qt6-webengine'  # QtQuick.Pdf
   'syntax-highlighting'
   'libseccomp'  # kwiklook-sandbox

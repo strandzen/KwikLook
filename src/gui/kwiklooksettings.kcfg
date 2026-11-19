@@ -26,6 +26,14 @@
       <label>Close the preview when another application gets the focus</label>
       <default>true</default>
     </entry>
+    <entry name="AutoplayMedia" type="Bool">
+      <label>Start playing videos and audio when they open</label>
+      <default>true</default>
+    </entry>
+    <entry name="StartMuted" type="Bool">
+      <label>Start videos and audio without sound</label>
+      <default>false</default>
+    </entry>
     <entry name="OfficePreviews" type="Bool">
       <label>Preview office documents by converting them with LibreOffice (sandboxed)</label>
       <default>true</default>

@@ -17,6 +17,7 @@ This is version 0.1.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my
 - Text and code files show with syntax colours and line numbers; long files show their beginning.
 - PDFs show all their pages, fitted to the window.
 - Office documents (Word, Excel, PowerPoint and OpenDocument files) show like PDFs, when LibreOffice is installed.
+- Videos and audio play, with the usual controls; audio shows its cover, title and artist.
 - Zoom pictures, text and PDFs; pictures zoom towards the mouse pointer and can be dragged around.
 - Any other file shows a large thumbnail (as in Dolphin) or its type's icon, with its type, size and when it was changed.
 - An (i) panel with the file's details: name, type, size, dates, picture size and camera details, owner and permissions, plus “Show in Dolphin” and “Copy Path”.
@@ -26,7 +27,7 @@ This is version 0.1.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my
 ## Requirements
 
 - KDE Plasma 6 with Dolphin.
-- Qt 6.8 or newer, with Qt PDF (part of Qt WebEngine on Arch).
+- Qt 6.8 or newer, with Qt PDF (part of Qt WebEngine on Arch) and Qt Multimedia with its FFmpeg backend.
 - KDE Frameworks 6.19 or newer, including Kirigami, KIO, Purpose, KFileMetaData and KSyntaxHighlighting.
 - Kirigami Addons 1.0 or newer.
 - libseccomp, and a Linux kernel from 2025 or later (for the sandbox around office previews).
@@ -60,12 +61,12 @@ sudo cmake --install build/release
 Arch:
 
 ```sh
-sudo pacman -S --needed cmake extra-cmake-modules qt6-base qt6-declarative qt6-webengine \
+sudo pacman -S --needed cmake extra-cmake-modules qt6-base qt6-declarative qt6-webengine qt6-multimedia qt6-multimedia-ffmpeg \
     kconfig kcoreaddons ki18n kwindowsystem kio kservice purpose kfilemetadata \
     kirigami kirigami-addons syntax-highlighting libseccomp
 ```
 
-Other distributions: the development packages of CMake, Extra CMake Modules, Qt 6 (Base, Declarative, PDF) and the KDE Frameworks 6 listed above (Config, CoreAddons, I18n, WindowSystem, KIO, Service, Purpose, FileMetaData, Kirigami, SyntaxHighlighting), plus Kirigami Addons and libseccomp. Package names differ between distributions.
+Other distributions: the development packages of CMake, Extra CMake Modules, Qt 6 (Base, Declarative, PDF, Multimedia) and the KDE Frameworks 6 listed above (Config, CoreAddons, I18n, WindowSystem, KIO, Service, Purpose, FileMetaData, Kirigami, SyntaxHighlighting), plus Kirigami Addons and libseccomp. Package names differ between distributions.
 
 </details>
 
@@ -87,6 +88,7 @@ After installing, close every Dolphin window (or log out and back in) so Dolphin
 | Ctrl+wheel, Ctrl++ and Ctrl+- | Zoom in and out (pictures also with a touchpad pinch) |
 | Ctrl+0 | Back to the normal size |
 | Double-click a picture | Real size, and back to fitted |
+| Media keys, or a click on a video | Play and pause |
 
 Space keeps working as usual in Dolphin's location bar, while renaming, in type-ahead search and in selection mode, and on folders.
 
@@ -106,6 +108,8 @@ Open “KwikLook Settings” from the app launcher (or run `kwiklook --settings`
 - **Open key:** the key that opens the preview in Dolphin: Space, Shift+Space or Ctrl+Space.
 - **Close when you switch to another window:** on by default.
 - **Start in the background at login:** off by default. KwikLook starts with Dolphin anyway; this makes the very first preview after login open faster.
+- **Start playing when a video or song opens:** on by default.
+- **Start without sound:** off by default.
 - **Preview office documents:** on by default, when LibreOffice is installed.
 
 ## Security

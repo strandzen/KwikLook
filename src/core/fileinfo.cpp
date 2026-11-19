@@ -166,5 +166,9 @@ QString viewFor(const FileInfo &info)
     if (info.isText) {
         return u"TextView"_s;
     }
+    // After text: playlists (audio/x-mpegurl) are text files and read best as such.
+    if (info.mimeType.startsWith(u"video/"_s) || info.mimeType.startsWith(u"audio/"_s)) {
+        return u"MediaView"_s;
+    }
     return u"FallbackView"_s;
 }

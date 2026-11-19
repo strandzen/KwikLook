@@ -568,6 +568,57 @@ private Q_SLOTS:
         QVERIFY(errors.isEmpty());
     }
 
+    void playsAudio()
+    {
+        QQmlApplicationEngine engine;
+        KLocalization::setupLocalizedContext(&engine);
+        engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
+        QList<QQmlError> errors;
+        connect(&engine, &QQmlApplicationEngine::warnings, this, [&errors](const QList<QQmlError> &w) {
+            errors << w;
+        });
+        engine.loadFromModule("kwiklook", "Main");
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+        QVERIFY(window);
+        // Two seconds of silence as WAV (16-bit mono, 8 kHz).
+        QFile wav(m_keptDir.filePath(u"silence.wav"_s));
+        QVERIFY(wav.open(QIODevice::WriteOnly));
+        const quint32 rate = 8000;
+        const quint32 dataSize = rate * 2 * 2;
+        auto le32 = [](quint32 v) { return QByteArray(reinterpret_cast<const char *>(&v), 4); };
+        auto le16 = [](quint16 v) { return QByteArray(reinterpret_cast<const char *>(&v), 2); };
+        wav.write("RIFF" + le32(36 + dataSize) + "WAVEfmt " + le32(16) + le16(1) + le16(1) + le32(rate) + le32(rate * 2) + le16(2) + le16(16) + "data"
+                  + le32(dataSize) + QByteArray(dataSize, '\0'));
+        wav.close();
+        KwikLookSettings::self()->setAutoplayMedia(true);
+        KwikLookSettings::self()->setStartMuted(true); // silent anyway: nothing on the speakers
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open({wav.fileName()}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QObject *player = nullptr;
+        QTRY_VERIFY((player = window->findChild<QObject *>(u"mediaPlayer"_s)));
+        QTRY_VERIFY(player->property("duration").toLongLong() > 1900);
+        QCOMPARE(player->property("hasVideo").toBool(), false);
+        QTRY_COMPARE(player->property("playbackState").toInt(), 1); // PlayingState: started by itself
+        QTRY_VERIFY(player->property("position").toLongLong() > 0);
+        // The play button pauses.
+        QQuickItem *play = window->findChild<QQuickItem *>(u"playButton"_s);
+        QVERIFY(play);
+        QMetaObject::invokeMethod(play, "clicked");
+        QTRY_COMPARE(player->property("playbackState").toInt(), 2); // PausedState
+        QMetaObject::invokeMethod(play, "clicked");
+        QTRY_COMPARE(player->property("playbackState").toInt(), 1);
+        // Closing the preview stops it.
+        v->Close();
+        QTRY_COMPARE(player->property("playbackState").toInt(), 0); // StoppedState
+        v->setWindow(nullptr);
+        for (const QQmlError &e : std::as_const(errors)) {
+            qWarning().noquote() << e.toString();
+        }
+        QVERIFY(errors.isEmpty());
+    }
+
     void settingsWindowAppliesOnlyOnApply()
     {
         // Test mode: kwiklookrc and the autostart entry go to ~/.qttest, not ~/.config.

@@ -184,6 +184,23 @@ private Q_SLOTS:
         QVERIFY(!FileInfo::read(QUrl::fromLocalFile(dir.filePath(u"still.png"_s))).animated);
     }
 
+    void mediaFiles()
+    {
+        FileInfo video;
+        video.exists = true;
+        video.mimeType = u"video/mp4"_s;
+        QCOMPARE(viewFor(video), u"MediaView"_s);
+        FileInfo audio;
+        audio.exists = true;
+        audio.mimeType = u"audio/mpeg"_s;
+        QCOMPARE(viewFor(audio), u"MediaView"_s);
+        FileInfo playlist; // audio/x-mpegurl is text: shown as text
+        playlist.exists = true;
+        playlist.mimeType = u"audio/x-mpegurl"_s;
+        playlist.isText = true;
+        QCOMPARE(viewFor(playlist), u"TextView"_s);
+    }
+
     void officeDocuments()
     {
         QVERIFY(isOfficeDocument(u"application/vnd.oasis.opendocument.text"_s));
