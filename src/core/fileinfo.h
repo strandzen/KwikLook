@@ -57,5 +57,9 @@ struct FileInfo {
 // Latin-1 if it isn't valid UTF-8. `truncated` tells whether there was more.
 QString readTextStart(const QString &path, qint64 limit, bool *truncated);
 
+// Office documents LibreOffice can convert to PDF: OpenDocument, Office Open XML,
+// and the older Microsoft Office formats.
+bool isOfficeDocument(const QString &mimeType);
+
 // The QML file (component name in the kwiklook module) that previews this file.
 QString viewFor(const FileInfo &info);

@@ -184,6 +184,19 @@ private Q_SLOTS:
         QVERIFY(!FileInfo::read(QUrl::fromLocalFile(dir.filePath(u"still.png"_s))).animated);
     }
 
+    void officeDocuments()
+    {
+        QVERIFY(isOfficeDocument(u"application/vnd.oasis.opendocument.text"_s));
+        QVERIFY(isOfficeDocument(u"application/vnd.oasis.opendocument.spreadsheet"_s));
+        QVERIFY(isOfficeDocument(u"application/vnd.openxmlformats-officedocument.wordprocessingml.document"_s));
+        QVERIFY(isOfficeDocument(u"application/vnd.openxmlformats-officedocument.presentationml.presentation"_s));
+        QVERIFY(isOfficeDocument(u"application/msword"_s));
+        QVERIFY(isOfficeDocument(u"application/vnd.ms-excel"_s));
+        QVERIFY(!isOfficeDocument(u"application/pdf"_s));
+        QVERIFY(!isOfficeDocument(u"text/plain"_s));
+        QVERIFY(!isOfficeDocument(u"application/zip"_s));
+    }
+
     void otherFilesFallBack()
     {
         QCOMPARE(viewFor(FileInfo()), u"FallbackView"_s);

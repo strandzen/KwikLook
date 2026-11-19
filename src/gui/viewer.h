@@ -4,6 +4,7 @@
 
 #include "dbusnames.h"
 #include "fileinfo.h"
+#include "officeconverter.h"
 
 #include <QFutureWatcher>
 #include <QList>
@@ -46,6 +47,12 @@ class Viewer : public QObject
     Q_PROPERTY(QString text READ text NOTIFY fileInfoChanged) // text files: the start of the file
     // “This file is long: showing only its beginning.”, or empty.
     Q_PROPERTY(QString textNote READ textNote NOTIFY fileInfoChanged)
+    // The PDF the PDF view shows: the file itself, or an office document converted
+    // by LibreOffice; empty until there is one.
+    Q_PROPERTY(QUrl pdfUrl READ pdfUrl NOTIFY fileInfoChanged)
+    // About the preview itself, shown above the fallback view (“Preparing preview…”).
+    Q_PROPERTY(QString previewNote READ previewNote NOTIFY fileInfoChanged)
+    Q_PROPERTY(bool previewBusy READ previewBusy NOTIFY fileInfoChanged)
     // For the information panel: [{title, rows: [{label, value}]}], empty sections left out.
     Q_PROPERTY(QVariantList infoSections READ infoSections NOTIFY fileInfoChanged)
     // The information panel is open; remembered across previews and restarts.
@@ -89,6 +96,11 @@ public:
     bool imageAnimated() const;
     QString text() const;
     QString textNote() const;
+    QUrl pdfUrl() const;
+    QString previewNote() const;
+    bool previewBusy() const;
+    // LibreOffice and the sandbox helper are installed (for the settings window).
+    Q_INVOKABLE bool officePreviewsAvailable() const;
     QVariantList infoSections() const;
     bool infoOpen() const;
     void setInfoOpen(bool open);
@@ -121,6 +133,7 @@ private:
     void markClosed();
     void readFileInfo(int generation);
     void closeIfFocusLeft();
+    void startOfficePreview();
 
     QList<QUrl> m_urls;
     int m_index = -1;
@@ -132,4 +145,8 @@ private:
     bool m_infoOpen = false;
     qreal m_textZoom = 1;
     int m_generation = 0; // drops details read for a file that's no longer current
+    OfficeConverter *m_office = nullptr;
+    QUrl m_convertedPdf; // the current office document as PDF
+    QString m_previewNote;
+    bool m_previewBusy = false;
 };

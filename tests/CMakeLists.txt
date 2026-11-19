@@ -57,3 +57,11 @@ target_compile_definitions(tst_sandbox PRIVATE
     SANDBOX_BINARY="$<TARGET_FILE:kwiklook-sandbox>"
     PROBE_BINARY="$<TARGET_FILE:sandboxprobe>")
 add_dependencies(tst_sandbox kwiklook-sandbox sandboxprobe)
+
+# Office previews: LibreOffice in kwiklook-sandbox, the cache. Skipped without LibreOffice.
+ecm_add_test(tst_officeconverter.cpp
+    TEST_NAME tst_officeconverter
+    LINK_LIBRARIES Qt6::Test kwiklook_qml
+    NAME_PREFIX "kwiklook-"
+)
+add_dependencies(tst_officeconverter kwiklook-sandbox)

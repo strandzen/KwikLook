@@ -75,7 +75,28 @@ QVariantMap section(const QString &title, const QVariantList &rows)
 Viewer::Viewer(QObject *parent)
     : QObject(parent)
     , m_infoOpen(stateGroup().readEntry("InfoPanelOpen", false))
+    , m_office(new OfficeConverter(this))
 {
+    connect(m_office, &OfficeConverter::converted, this, [this](const QString &path, const QUrl &pdf) {
+        if (path != currentUrl().toLocalFile()) {
+            return;
+        }
+        m_convertedPdf = pdf;
+        m_previewNote.clear();
+        m_previewBusy = false;
+        m_view = u"PdfView"_s;
+        Q_EMIT fileInfoChanged();
+    });
+    connect(m_office, &OfficeConverter::failed, this, [this](const QString &path, OfficeConverter::Failure failure) {
+        if (path != currentUrl().toLocalFile()) {
+            return;
+        }
+        m_previewBusy = false;
+        m_previewNote = failure == OfficeConverter::Failure::NoSandbox
+            ? i18n("This system can't run LibreOffice shut away from your files and the network, so office documents aren't previewed.")
+            : i18n("LibreOffice couldn't convert this document.");
+        Q_EMIT fileInfoChanged();
+    });
 }
 
 Viewer *Viewer::instance()
@@ -228,6 +249,41 @@ QString Viewer::textNote() const
         return QString();
     }
     return i18n("This file is long: showing only its beginning.");
+}
+
+QUrl Viewer::pdfUrl() const
+{
+    if (!m_convertedPdf.isEmpty()) {
+        return m_convertedPdf;
+    }
+    return m_info.mimeType == u"application/pdf"_s ? currentUrl() : QUrl();
+}
+
+QString Viewer::previewNote() const
+{
+    return m_previewNote;
+}
+
+bool Viewer::previewBusy() const
+{
+    return m_previewBusy;
+}
+
+bool Viewer::officePreviewsAvailable() const
+{
+    return OfficeConverter::available();
+}
+
+void Viewer::startOfficePreview()
+{
+    if (!isOfficeDocument(m_info.mimeType) || !m_info.exists || !currentUrl().isLocalFile() || !KwikLookSettings::self()->officePreviews()
+        || !OfficeConverter::available()) {
+        return;
+    }
+    m_previewBusy = true;
+    m_previewNote = i18n("Preparing preview…");
+    m_view = u"FallbackView"_s; // also for flat XML documents, which would show as text
+    m_office->convert(currentUrl().toLocalFile()); // may answer at once (cached)
 }
 
 QVariantList Viewer::infoSections() const
@@ -391,6 +447,10 @@ void Viewer::setCurrent(int index)
     // the old type (it asked the JPEG thumbnailer for a PNG that way).
     const int generation = ++m_generation;
     m_info = FileInfo();
+    m_office->cancel();
+    m_convertedPdf.clear();
+    m_previewNote.clear();
+    m_previewBusy = false;
     Q_EMIT fileInfoChanged();
     Q_EMIT currentChanged();
     Q_EMIT CurrentChanged(m_sessionId, currentUrl().toString(), m_index);
@@ -407,6 +467,7 @@ void Viewer::readFileInfo(int generation)
         }
         m_info = watcher->result();
         m_view = viewFor(m_info);
+        startOfficePreview(); // the fallback view meanwhile, then the PDF view
         Q_EMIT fileInfoChanged();
     });
     watcher->setFuture(QtConcurrent::run([url = currentUrl()] {
@@ -432,6 +493,7 @@ void Viewer::markClosed()
         return;
     }
     m_open = false;
+    m_office->cancel();
     if (m_textZoom != 1) {
         m_textZoom = 1;
         Q_EMIT textZoomChanged();

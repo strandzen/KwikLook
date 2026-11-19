@@ -67,13 +67,14 @@ Item {
     PdfDocument {
         id: pdf // not “document”: PdfPageImage.document would bind to itself
     }
-    // Only once the file's details say it is a PDF (not the previous file's type).
-    // Kept, not cleared, when the next file isn't one: an empty source logs a warning.
+    // The PDF itself, or an office document converted to one; only once the file's
+    // details say so (not the previous file's type). Kept, not cleared, when the next
+    // file has none: an empty source logs a warning.
     Binding {
         target: pdf
         property: "source"
-        when: Viewer.mimeType === "application/pdf"
-        value: Viewer.currentUrl
+        when: Viewer.pdfUrl.toString() !== ""
+        value: Viewer.pdfUrl
         restoreMode: Binding.RestoreNone
     }
 

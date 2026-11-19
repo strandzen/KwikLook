@@ -9,6 +9,7 @@
 
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
+#include <QDateTime>
 #include <QDir>
 #include <QFontMetricsF>
 #include <QPointingDevice>
@@ -517,6 +518,54 @@ private Q_SLOTS:
         QVERIFY(v->finishRendering()); // the engine goes next: see Viewer::finishRendering()
         v->Close();
         v->setWindow(nullptr);
+    }
+
+    void officeDocumentBecomesAPdf()
+    {
+        if (!Viewer::instance()->officePreviewsAvailable()) {
+            QSKIP("LibreOffice or kwiklook-sandbox not found");
+        }
+        QQmlApplicationEngine engine;
+        KLocalization::setupLocalizedContext(&engine);
+        engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
+        QList<QQmlError> errors;
+        connect(&engine, &QQmlApplicationEngine::warnings, this, [&errors](const QList<QQmlError> &w) {
+            errors << w;
+        });
+        engine.loadFromModule("kwiklook", "Main");
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+        QVERIFY(window);
+        // A new name each run: not in the converter's cache yet.
+        QFile doc(m_keptDir.filePath(u"report-%1.fodt"_s.arg(QDateTime::currentMSecsSinceEpoch())));
+        QVERIFY(doc.open(QIODevice::WriteOnly));
+        doc.write(R"(<?xml version="1.0" encoding="UTF-8"?>
+<office:document xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+ xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+ office:version="1.3" office:mimetype="application/vnd.oasis.opendocument.text">
+ <office:body><office:text><text:p>Quarterly report</text:p></office:text></office:body></office:document>
+)");
+        doc.close();
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open({doc.fileName()}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        // Meanwhile: the fallback view with “Preparing preview…”.
+        QTRY_VERIFY(v->previewBusy());
+        QVERIFY2(window->findChild<QQuickItem *>(u"fallbackView"_s), qPrintable(v->view()));
+        QCOMPARE(v->previewNote(), u"Preparing preview…"_s);
+        // Then the PDF view, showing the converted PDF.
+        QTRY_VERIFY_WITH_TIMEOUT(window->findChild<QQuickItem *>(u"pdfView"_s), 60000);
+        QVERIFY(!v->previewBusy());
+        QVERIFY(v->previewNote().isEmpty());
+        QVERIFY(v->pdfUrl().toLocalFile().endsWith(u".pdf"_s));
+        QTest::qWait(300);
+        QVERIFY(v->finishRendering());
+        v->Close();
+        v->setWindow(nullptr);
+        for (const QQmlError &e : std::as_const(errors)) {
+            qWarning().noquote() << e.toString();
+        }
+        QVERIFY(errors.isEmpty());
     }
 
     void settingsWindowAppliesOnlyOnApply()

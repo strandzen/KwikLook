@@ -18,12 +18,16 @@ Kirigami.ApplicationWindow {
     property string openKey
     property bool closeOnFocusLoss
     property bool startAtLogin
+    property bool officePreviews
+    // LibreOffice installed (checked each time the window opens).
+    property bool officeAvailable
 
     readonly property bool changed: matchBreeze !== KwikLookSettings.matchBreezeCorners
         || radius !== KwikLookSettings.cornerRadius
         || openKey !== KwikLookSettings.openKey
         || closeOnFocusLoss !== KwikLookSettings.closeOnFocusLoss
         || startAtLogin !== autostart.enabled
+        || officePreviews !== KwikLookSettings.officePreviews
 
     function reset() {
         matchBreeze = KwikLookSettings.matchBreezeCorners;
@@ -31,6 +35,8 @@ Kirigami.ApplicationWindow {
         openKey = KwikLookSettings.openKey;
         closeOnFocusLoss = KwikLookSettings.closeOnFocusLoss;
         startAtLogin = autostart.enabled;
+        officePreviews = KwikLookSettings.officePreviews;
+        officeAvailable = Viewer.officePreviewsAvailable();
         errorMessage.visible = false;
     }
 
@@ -39,6 +45,7 @@ Kirigami.ApplicationWindow {
         KwikLookSettings.cornerRadius = radius;
         KwikLookSettings.openKey = openKey;
         KwikLookSettings.closeOnFocusLoss = closeOnFocusLoss;
+        KwikLookSettings.officePreviews = officePreviews;
         KwikLookSettings.save();
         if (!autostart.setEnabled(startAtLogin)) {
             startAtLogin = autostart.enabled;
@@ -50,7 +57,7 @@ Kirigami.ApplicationWindow {
 
     title: i18nc("@title:window", "Settings") // Kirigami adds “— KwikLook”
     width: Kirigami.Units.gridUnit * 28
-    height: Kirigami.Units.gridUnit * 32 // all settings without scrolling
+    height: Kirigami.Units.gridUnit * 38 // all settings without scrolling
     minimumWidth: Kirigami.Units.gridUnit * 20
     minimumHeight: Kirigami.Units.gridUnit * 16
     visible: false
@@ -129,6 +136,21 @@ Kirigami.ApplicationWindow {
                 description: i18n("The first preview after login opens at once. Without this, KwikLook starts when Dolphin opens.")
                 checked: root.startAtLogin
                 onToggled: root.startAtLogin = checked
+            }
+        }
+
+        FormCard.FormHeader {
+            title: i18nc("@title:group", "Office Documents")
+        }
+        FormCard.FormCard {
+            FormCard.FormSwitchDelegate {
+                text: i18nc("@option:check", "Preview office documents")
+                description: root.officeAvailable
+                    ? i18n("Documents, spreadsheets and presentations are converted with LibreOffice, shut away from your files and the network.")
+                    : i18n("Needs LibreOffice, which isn't installed.")
+                enabled: root.officeAvailable
+                checked: root.officePreviews && root.officeAvailable
+                onToggled: root.officePreviews = checked
             }
         }
 

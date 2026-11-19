@@ -8,7 +8,8 @@ import org.kde.kirigami as Kirigami
 import kwiklook
 
 // For files no other view shows: a large thumbnail (or the file type's icon),
-// the name, and one dimmed line with type, size and date.
+// the name, and one dimmed line with type, size and date. Office documents show here
+// while LibreOffice prepares their preview, with a note at the top.
 Item {
     id: view
     objectName: "fallbackView"
@@ -71,5 +72,23 @@ Item {
             color: Kirigami.Theme.disabledTextColor
             text: Viewer.details
         }
+
+        QQC2.BusyIndicator {
+            Layout.alignment: Qt.AlignHCenter
+            running: Viewer.previewBusy
+            visible: running
+        }
+    }
+
+    // “Preparing preview…”, or why there is no preview.
+    Kirigami.InlineMessage {
+        objectName: "previewNote"
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        position: Kirigami.InlineMessage.Position.Header
+        type: Viewer.previewBusy ? Kirigami.MessageType.Information : Kirigami.MessageType.Warning
+        visible: text !== ""
+        text: Viewer.previewNote
     }
 }

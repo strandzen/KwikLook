@@ -47,9 +47,13 @@ qt_add_qml_module(kwiklook_qml
         gui/linenumbers.cpp
         gui/autostart.h
         gui/autostart.cpp
+        gui/officeconverter.h
+        gui/officeconverter.cpp
     RESOURCE_PREFIX "/qt/qml" # Qt searches here by default
     OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/kwiklook"
 )
+# Where kwiklook-sandbox is installed (the build tree's copy is found next to the binary).
+target_compile_definitions(kwiklook_qml PRIVATE KWIKLOOK_LIBEXECDIR="${KDE_INSTALL_FULL_LIBEXECDIR}")
 target_include_directories(kwiklook_qml PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/gui # QML type registration includes headers by bare name

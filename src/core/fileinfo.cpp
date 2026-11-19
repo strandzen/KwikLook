@@ -9,6 +9,8 @@
 #include <QFileInfo>
 #include <QStringDecoder>
 #include <QImageReader>
+
+#include <algorithm>
 #include <QMimeDatabase>
 
 using namespace Qt::StringLiterals;
@@ -128,6 +130,23 @@ QString readTextStart(const QString &path, qint64 limit, bool *truncated)
         }
     }
     return text;
+}
+
+bool isOfficeDocument(const QString &mimeType)
+{
+    static const QStringList prefixes{
+        u"application/vnd.oasis.opendocument."_s, // ODT, ODS, ODP, ODG (and templates)
+        u"application/vnd.openxmlformats-officedocument."_s, // DOCX, XLSX, PPTX
+        u"application/vnd.ms-word"_s,
+        u"application/vnd.ms-excel"_s,
+        u"application/vnd.ms-powerpoint"_s,
+    };
+    if (mimeType == u"application/msword"_s) {
+        return true;
+    }
+    return std::any_of(prefixes.begin(), prefixes.end(), [&mimeType](const QString &prefix) {
+        return mimeType.startsWith(prefix);
+    });
 }
 
 QString viewFor(const FileInfo &info)

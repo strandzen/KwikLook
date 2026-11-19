@@ -26,5 +26,9 @@
       <label>Close the preview when another application gets the focus</label>
       <default>true</default>
     </entry>
+    <entry name="OfficePreviews" type="Bool">
+      <label>Preview office documents by converting them with LibreOffice (sandboxed)</label>
+      <default>true</default>
+    </entry>
   </group>
 </kcfg>

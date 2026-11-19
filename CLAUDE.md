@@ -166,7 +166,7 @@ keeps running when its window closes, so the next preview opens instantly.
 |---|---|---|
 | `Viewer` | `src/gui/viewer.*` | File list, current file and its details (`view`, `mimeType`, `details`, `imageSize`, `infoSections` for the panel, read off the main thread with a generation counter), `infoOpen` (kept in `kwiklookstaterc`), the preview window; the D-Bus object; QML singleton `Viewer` |
 | `WindowFrame` | `src/gui/windowframe.*` | QML element: compositor shadow (`KWindowShadow`) for the frameless window, corner radius (Breeze's or the setting's) and outline flag; watches breezerc (`KDirWatch`), recreates the shadow on each new surface |
-| `KwikLookSettings` | `src/gui/kwiklooksettings.kcfg(c)` | KConfig XT, generated; `kwiklookrc` [General]: MatchBreezeCorners, CornerRadius, OpenKey, CloseOnFocusLoss. QML singleton. main.cpp sets the Notify write flag on every item (no kcfg option for it), so the Dolphin hook's `KConfigWatcher` hears about saves |
+| `KwikLookSettings` | `src/gui/kwiklooksettings.kcfg(c)` | KConfig XT, generated; `kwiklookrc` [General]: MatchBreezeCorners, CornerRadius, OpenKey, CloseOnFocusLoss, OfficePreviews. QML singleton. main.cpp sets the Notify write flag on every item (no kcfg option for it), so the Dolphin hook's `KConfigWatcher` hears about saves |
 | `OpenKey` | `src/core/openkey.h` | The open key choices (Space, Shift+Space, Ctrl+Space) and parsing; shared by the viewer and the Dolphin hook |
 | `Autostart` | `src/gui/autostart.*` | QML element: “Start at login” = `~/.config/autostart/io.github.strandzen.KwikLook.desktop` (`kwiklook --service`); the file is the setting |
 | `BreezeStyle` | `src/core/breezestyle.*` | Reads breezerc `[Common]` (absolute path only); the fitted shadow layers per size |
@@ -174,6 +174,8 @@ keeps running when its window closes, so the next preview opens instantly.
 | `renderShadow()` | `src/core/shadowimage.*` | Shadow nine-patch image + tile rects from layers, radius, colour |
 | `FileInfo`, `viewFor()` | `src/core/fileinfo.*` | A file's type (by content), icon, size, dates, owner, permissions, picture size, KFileMetaData details, the start of text files (`readTextStart()`, 256 KB) (`read()` may block: Viewer runs it with QtConcurrent); `viewFor()` picks the QML view: PDF → `PdfView`, what QImageReader reads → `ImageView`, types inheriting text/plain → `TextView`, else `FallbackView` |
 | `LineNumbers` | `src/gui/linenumbers.*` | QML element: line numbers for a TextArea (block positions from its QTextDocument layout, wrapped lines included, visible part only) |
+| `OfficeConverter` | `src/gui/officeconverter.*` | Office documents → PDF: `kwiklook-sandbox … soffice --convert-to pdf` (QProcess, fresh profile and scratch folder each time, /tmp as socket dir, 60 s timeout, cancel kills the process group); cache `~/.cache/kwiklook/office/<sha1 of path, size, date>.pdf`, 200 MB, least recently used pruned. Viewer shows the fallback with “Preparing preview…” (`previewNote`, `previewBusy`), then `PdfView` with `pdfUrl` |
+| `kwiklook-sandbox` | `src/sandbox/main.cpp` | Runs a program locked in: Landlock (system folders read-only, `--read`/`--write`/`--socket-dir`, UNIX sockets only to its own, scoped abstract sockets and signals) + seccomp (AF_UNIX only; no io_uring, ptrace, bpf, keyrings); empty environment, no inherited fds, own process group. Exit 77: kernel's Landlock too old (ABI < 6 or no RESOLVE_UNIX): caller refuses |
 | `ThumbnailProvider` | `src/gui/thumbnailprovider.*` | `image://thumbnail/<mime>/<url>` from `KIO::PreviewJob` (job on the main thread); 1×1 transparent image = no thumbnail |
 
 | QML file | Role |
@@ -182,7 +184,7 @@ keeps running when its window closes, so the next preview opens instantly.
 | `qml/FallbackView.qml` | Any file: thumbnail or type icon, name, one dimmed line (type · size · date) |
 | `qml/ImageView.qml` | Pictures: fit the area, never enlarged past real size; decoded at most at screen size; fallback when undecodable |
 | `qml/TextView.qml` | Text and code: read-only TextArea, KSyntaxHighlighting (dark/light theme by background), monospace, wrap, line numbers; note when only the start is shown |
-| `qml/PdfView.qml` | PDFs: `PdfPageImage` pages in a ListView inside KDE's ScrollView, fitted to the width |
+| `qml/PdfView.qml` | PDFs (and converted office documents, `Viewer.pdfUrl`): `PdfPageImage` pages in a ListView inside KDE's ScrollView, fitted to the width |
 | `qml/InfoPanel.qml` | The (i) panel: sections from `Viewer.infoSections` (File, Details, Permissions), Show in Dolphin, Copy Path |
 | `qml/TitleBar.qml` | The only bar: ← →, file name (centred), (i), Share, Open with…, close; a standard toolbar (Kirigami header size); Header colours; drag moves the window |
 | `qml/ResizeHandles.qml` | Edge and corner strips calling `startSystemResize()` (frameless windows get no KWin borders) |
@@ -290,6 +292,7 @@ turns it off.
 20. An animated GIF and WebP play; a still GIF stays still.
 21. Zoom a large picture with Ctrl+wheel: it zooms towards the pointer and stops at 100 % on the way; dragging and scrolling (wheel or touchpad) move it; pinch on the touchpad zooms; double-click switches real size / fitted; the zoom label fades out; the next picture starts fitted.
 22. Ctrl+wheel in a text file: the font grows and stays for the next text file, normal again after closing. In a PDF: pages grow with a sideways scrollbar; Ctrl+0 fits them again.
+23. A DOCX, XLSX and ODT (LibreOffice installed): icon and “Preparing preview…” for a moment, then the pages; the second time at once. With “Preview office documents” off: the icon only. `ls /tmp | grep OSL_PIPE` shows nothing left after previews.
 
 ---
 

@@ -16,6 +16,7 @@ This is version 0.1.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my
 - Pictures fill the preview window; small ones stay at their real size.
 - Text and code files show with syntax colours and line numbers; long files show their beginning.
 - PDFs show all their pages, fitted to the window.
+- Office documents (Word, Excel, PowerPoint and OpenDocument files) show like PDFs, when LibreOffice is installed.
 - Zoom pictures, text and PDFs; pictures zoom towards the mouse pointer and can be dragged around.
 - Any other file shows a large thumbnail (as in Dolphin) or its type's icon, with its type, size and when it was changed.
 - An (i) panel with the file's details: name, type, size, dates, picture size and camera details, owner and permissions, plus “Show in Dolphin” and “Copy Path”.
@@ -28,6 +29,8 @@ This is version 0.1.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my
 - Qt 6.8 or newer, with Qt PDF (part of Qt WebEngine on Arch).
 - KDE Frameworks 6.19 or newer, including Kirigami, KIO, Purpose, KFileMetaData and KSyntaxHighlighting.
 - Kirigami Addons 1.0 or newer.
+- libseccomp, and a Linux kernel from 2025 or later (for the sandbox around office previews).
+- Optional: LibreOffice, for previews of office documents.
 
 ## Installation
 
@@ -59,10 +62,10 @@ Arch:
 ```sh
 sudo pacman -S --needed cmake extra-cmake-modules qt6-base qt6-declarative qt6-webengine \
     kconfig kcoreaddons ki18n kwindowsystem kio kservice purpose kfilemetadata \
-    kirigami kirigami-addons syntax-highlighting
+    kirigami kirigami-addons syntax-highlighting libseccomp
 ```
 
-Other distributions: the development packages of CMake, Extra CMake Modules, Qt 6 (Base, Declarative, PDF) and the KDE Frameworks 6 listed above (Config, CoreAddons, I18n, WindowSystem, KIO, Service, Purpose, FileMetaData, Kirigami, SyntaxHighlighting), plus Kirigami Addons. Package names differ between distributions.
+Other distributions: the development packages of CMake, Extra CMake Modules, Qt 6 (Base, Declarative, PDF) and the KDE Frameworks 6 listed above (Config, CoreAddons, I18n, WindowSystem, KIO, Service, Purpose, FileMetaData, Kirigami, SyntaxHighlighting), plus Kirigami Addons and libseccomp. Package names differ between distributions.
 
 </details>
 
@@ -103,13 +106,15 @@ Open “KwikLook Settings” from the app launcher (or run `kwiklook --settings`
 - **Open key:** the key that opens the preview in Dolphin: Space, Shift+Space or Ctrl+Space.
 - **Close when you switch to another window:** on by default.
 - **Start in the background at login:** off by default. KwikLook starts with Dolphin anyway; this makes the very first preview after login open faster.
+- **Preview office documents:** on by default, when LibreOffice is installed.
 
 ## Security
 
 A preview reads the file, so a file made to attack a bug in a picture, PDF or other file reader could do harm when you preview it. What KwikLook does about that:
 
 - **Not sandboxed:** pictures, PDFs, text and file details are read inside KwikLook itself, with the same rights as you; thumbnails come from KDE's thumbnail service, also unsandboxed. Dolphin already reads the same files the same way when it shows thumbnails or indexes files for search, whether you preview them or not. The protection here is keeping your system up to date.
-- **Sandboxed:** external programs KwikLook runs on a file are locked in a sandbox: no network, no access to anything but that one file, and they can only write to KwikLook's cache. Version 0.1.0 runs no external programs yet; this applies to office documents (through LibreOffice) and anything similar added later.
+- **Sandboxed:** external programs KwikLook runs on a file are locked in a sandbox: no network, no connection to other programs, read access only to that one file (plus the system's programs and fonts), and they can only write to a scratch folder in KwikLook's cache. In `/tmp` they may only create and remove entries, because LibreOffice puts its own connection there. This applies to office documents, which LibreOffice turns into PDFs, and anything similar added later. The PDF it makes is then shown like any PDF, unsandboxed.
+- **No sandbox, no conversion:** on systems whose kernel can't lock LibreOffice in this way (Linux older than about 2025), office documents aren't converted; the preview says so.
 
 ## Troubleshooting
 
@@ -119,6 +124,8 @@ A preview reads the file, so a file made to attack a bug in a picture, PDF or ot
 
 **Ctrl+Space no longer toggles the selection in Dolphin.** With Ctrl+Space as the open key, KwikLook takes it over. Choose another open key to get Dolphin's back.
 
+**Office documents show only their icon and a note.** “LibreOffice couldn't convert this document”: the file may be damaged or password-protected. “This system can't run LibreOffice shut away…”: your kernel is too old for the sandbox, so KwikLook doesn't run LibreOffice at all. No note: check that LibreOffice is installed and “Preview office documents” is on in the settings.
+
 **I want to turn off the Dolphin part for a moment.** Start Dolphin with `KWIKLOOK_DISABLE_DOLPHIN_HOOK=1 dolphin`.
 
 Bugs and ideas are welcome in the [issue tracker](https://github.com/strandzen/KwikLook/issues).
@@ -127,7 +134,7 @@ Bugs and ideas are welcome in the [issue tracker](https://github.com/strandzen/K
 
 Turn off “Start in the background at login” first if you turned it on, then run `kwiklook --quit` and remove the package (`sudo pacman -R kwiklook`), or, if you installed with CMake, run `sudo xargs rm < build/release/install_manifest.txt` in the source folder.
 
-Left behind in your home folder: the settings in `~/.config/kwiklookrc` and the window state in `~/.local/state/kwiklookstaterc`. Delete them if you like.
+Left behind in your home folder: the settings in `~/.config/kwiklookrc`, the window state in `~/.local/state/kwiklookstaterc` and office previews in `~/.cache/kwiklook` (at most 200 MB). Delete them if you like.
 
 ## Translations
 
