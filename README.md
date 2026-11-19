@@ -12,7 +12,7 @@ This is version 0.1.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my
 
 ## Features
 
-- Press Space in Dolphin to preview the selected file; ← and → go through the folder in Dolphin's order and Dolphin's selection follows along.
+- Press Space in Dolphin to preview the selected file; ← and → go through the folder in Dolphin's order and Dolphin's selection follows along, and the bar shows where you are (“2 / 5”). Enter opens the file in its usual application.
 - Pictures fill the preview window; small ones stay at their real size.
 - Text and code files show with syntax colours and line numbers; long files show their beginning.
 - PDFs show all their pages, fitted to the window.
@@ -84,6 +84,7 @@ After installing, close every Dolphin window (or log out and back in) so Dolphin
 |---|---|
 | Space (in Dolphin) | Opens the preview of the selected file (the key can be changed in the settings) |
 | Space or Esc | Closes the preview |
+| Enter | Opens the file in its usual application and closes the preview |
 | ← and → | Previous and next file |
 | Ctrl+wheel, Ctrl++ and Ctrl+- | Zoom in and out (pictures also with a touchpad pinch) |
 | Ctrl+0 | Back to the normal size |

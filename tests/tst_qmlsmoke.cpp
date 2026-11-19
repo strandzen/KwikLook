@@ -108,6 +108,8 @@ private Q_SLOTS:
         Viewer::instance()->Open({file.fileName()}, 0, QString(), QString());
         QTRY_COMPARE(Viewer::instance()->view(), QStringLiteral("FallbackView"));
         QTRY_VERIFY(main.root()->findChild<QQuickItem *>(QStringLiteral("fallbackView")));
+        // One file: no position in the bar.
+        QVERIFY(!main.root()->findChild<QQuickItem *>(u"position"_s)->isVisible());
         QTest::qWait(200); // let the thumbnail request finish or fail
         QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
@@ -176,8 +178,14 @@ private Q_SLOTS:
         QVERIFY(area);
         area->forceActiveFocus();
         QTRY_VERIFY(area->hasActiveFocus());
+        // The position follows the file name.
+        QQuickItem *position = window->findChild<QQuickItem *>(u"position"_s);
+        QVERIFY(position);
+        QVERIFY(position->isVisible());
+        QCOMPARE(position->property("text").toString(), u"1 / 2"_s);
         QTest::keyClick(window, Qt::Key_Right);
         QTRY_COMPARE(v->currentIndex(), 1);
+        QCOMPARE(position->property("text").toString(), u"2 / 2"_s);
         QTest::keyClick(window, Qt::Key_Left);
         QTRY_COMPARE(v->currentIndex(), 0);
         QTest::keyClick(window, Qt::Key_Space);

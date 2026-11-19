@@ -5,6 +5,8 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 ## [Unreleased]
 
 ### Added
+- Enter opens the previewed file in its usual application and closes the preview.
+- With several files, the bar shows the position next to the file name, like “2 / 5”.
 - Videos and audio play in the preview, with play/pause, a seek bar and a mute button; audio shows its cover, title and artist. Media keys play and pause. Two settings: start playing when a file opens (on) and start without sound (off).
 - Office documents (Word, Excel, PowerPoint and OpenDocument) can be previewed when LibreOffice is installed. LibreOffice turns them into a PDF in the background, shut away from your files and the network; the preview shows the file's icon and “Preparing preview…” meanwhile. Previews are kept in a cache (at most 200 MB), so a document opens at once the next time. A setting turns this off. Macros and updates of linked files are always off during the conversion.
 - Animated pictures (GIF, WebP and other formats with several frames) play in the preview.

@@ -7,6 +7,7 @@
 #include <KIO/ApplicationLauncherJob>
 #include <KIO/JobUiDelegateFactory>
 #include <KIO/OpenFileManagerWindowJob>
+#include <KIO/OpenUrlJob>
 #include <KWaylandExtras>
 #include <KWindowSystem>
 #include <KLocalizedString>
@@ -67,6 +68,22 @@ void FileMenus::showOpenWith(QQuickItem *button)
         launch(url, QString());
     });
     popup(menu, button);
+}
+
+void FileMenus::openWithDefault()
+{
+    if (m_url.isEmpty()) {
+        return;
+    }
+    auto *job = new KIO::OpenUrlJob(m_url, mimeType());
+    job->setRunExecutables(false); // a script opens in its editor, it doesn't run
+    job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, nullptr));
+    connect(job, &KJob::result, this, [this](KJob *job) {
+        if (!job->error()) {
+            Q_EMIT launched();
+        }
+    });
+    job->start();
 }
 
 void FileMenus::launch(const QUrl &url, const QString &desktopEntry)

@@ -39,6 +39,8 @@ public:
     ~FileMenus() override;
 
     Q_INVOKABLE void showOpenWith(QQuickItem *button);
+    // Opens the file in the application it opens with by default (Enter).
+    Q_INVOKABLE void openWithDefault();
     Q_INVOKABLE void showShare(QQuickItem *button);
     // Opens the file manager at the file's folder with the file selected.
     Q_INVOKABLE void showInFileManager(QQuickItem *from);

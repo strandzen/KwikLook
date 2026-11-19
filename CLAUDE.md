@@ -170,7 +170,7 @@ keeps running when its window closes, so the next preview opens instantly.
 | `OpenKey` | `src/core/openkey.h` | The open key choices (Space, Shift+Space, Ctrl+Space) and parsing; shared by the viewer and the Dolphin hook |
 | `Autostart` | `src/gui/autostart.*` | QML element: “Start at login” = `~/.config/autostart/io.github.strandzen.KwikLook.desktop` (`kwiklook --service`); the file is the setting |
 | `BreezeStyle` | `src/core/breezestyle.*` | Reads breezerc `[Common]` (absolute path only); the fitted shadow layers per size |
-| `FileMenus` | `src/gui/filemenus.*` | QML element: “Open with…” (`KFileItemActions::associatedApplications` + KIO's dialog) and Share (`Purpose::Menu`) as QMenus below a button; “Show in Dolphin” (`KIO::highlightInFileManager` with a token), “Copy Path” |
+| `FileMenus` | `src/gui/filemenus.*` | QML element: Enter's default application (`KIO::OpenUrlJob`, executables not run), “Open with…” (`KFileItemActions::associatedApplications` + KIO's dialog) and Share (`Purpose::Menu`) as QMenus below a button; “Show in Dolphin” (`KIO::highlightInFileManager` with a token), “Copy Path” |
 | `renderShadow()` | `src/core/shadowimage.*` | Shadow nine-patch image + tile rects from layers, radius, colour |
 | `FileInfo`, `viewFor()` | `src/core/fileinfo.*` | A file's type (by content), icon, size, dates, owner, permissions, picture size, KFileMetaData details, the start of text files (`readTextStart()`, 256 KB) (`read()` may block: Viewer runs it with QtConcurrent); `viewFor()` picks the QML view: PDF → `PdfView`, what QImageReader reads → `ImageView`, types inheriting text/plain → `TextView`, else `FallbackView` |
 | `LineNumbers` | `src/gui/linenumbers.*` | QML element: line numbers for a TextArea (block positions from its QTextDocument layout, wrapped lines included, visible part only) |
@@ -188,7 +188,7 @@ keeps running when its window closes, so the next preview opens instantly.
 | `qml/PdfView.qml` | PDFs (and converted office documents, `Viewer.pdfUrl`): `PdfPageImage` pages in a ListView inside KDE's ScrollView, fitted to the width |
 | `qml/MediaView.qml` | Video and audio: `MediaPlayer` + `VideoOutput`, or cover (thumbnail) / icon with title and artist; footer `ToolBar` with play/pause, times, seek `Slider`, mute. Autoplay and start muted from the settings; stops when the window hides or the file changes (`mediaUrl` cleared, so reopening restarts); media keys |
 | `qml/InfoPanel.qml` | The (i) panel: sections from `Viewer.infoSections` (File, Details, Permissions), Show in Dolphin, Copy Path |
-| `qml/TitleBar.qml` | The only bar: ← →, file name (centred), (i), Share, Open with…, close; a standard toolbar (Kirigami header size); Header colours; drag moves the window |
+| `qml/TitleBar.qml` | The only bar: ← →, file name (centred, with “2 / 5” when there are several), (i), Share, Open with…, close; a standard toolbar (Kirigami header size); Header colours; drag moves the window |
 | `qml/ResizeHandles.qml` | Edge and corner strips calling `startSystemResize()` (frameless windows get no KWin borders) |
 | `qml/SettingsWindow.qml` | “KwikLook Settings”: Kirigami Addons form cards, OK / Apply / Cancel (values held in the window until applied); made by main.cpp on the first `ShowSettings` |
 
@@ -296,6 +296,7 @@ turns it off.
 22. Ctrl+wheel in a text file: the font grows and stays for the next text file, normal again after closing. In a PDF: pages grow with a sideways scrollbar; Ctrl+0 fits them again.
 23. A DOCX, XLSX and ODT (LibreOffice installed): icon and “Preparing preview…” for a moment, then the pages; the second time at once. With “Preview office documents” off: the icon only. `ls /tmp | grep OSL_PIPE` shows nothing left after previews.
 24. A video and an MP3: the video plays at once (setting), the MP3 shows its cover or icon, title and artist; play/pause, seek and mute work; media keys play and pause; closing the preview stops the sound; reopening starts again. With “Start without sound”: silent until the mute button.
+25. Enter on a file opens it in its usual application and the preview closes (also after clicking into a text file); a script opens in its editor, it doesn't run. With several files the bar shows “2 / 5”, with one file nothing.
 
 ---
 

@@ -99,13 +99,26 @@ QQC2.ToolBar {
         }
     }
 
-    // Centred in the bar, not between the buttons, like a window title.
-    Kirigami.Heading {
+    // Centred in the bar, not between the buttons, like a window title; with several
+    // files, the position follows, dimmed (“2 / 5”).
+    RowLayout {
         anchors.centerIn: parent
         width: Math.min(implicitWidth, parent.width - 2 * (Math.max(leftButtons.width, rightButtons.width) + Kirigami.Units.largeSpacing))
-        level: 5
-        elide: Text.ElideMiddle
-        horizontalAlignment: Text.AlignHCenter
-        text: Viewer.fileName
+        spacing: Kirigami.Units.largeSpacing
+
+        Kirigami.Heading {
+            Layout.fillWidth: true
+            Layout.minimumWidth: 0
+            level: 5
+            elide: Text.ElideMiddle
+            horizontalAlignment: Text.AlignHCenter
+            text: Viewer.fileName
+        }
+        QQC2.Label {
+            objectName: "position"
+            visible: Viewer.count > 1
+            color: Kirigami.Theme.disabledTextColor
+            text: i18nc("@info position in the list of files, e.g. 2 / 5", "%1 / %2", Viewer.currentIndex + 1, Viewer.count)
+        }
     }
 }

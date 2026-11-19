@@ -51,6 +51,11 @@ Kirigami.ApplicationWindow {
         sequence: "Right"
         onActivated: Viewer.Next()
     }
+    // Enter: open the file in its usual application (the preview then closes).
+    Shortcut {
+        sequences: ["Return", "Enter"]
+        onActivated: fileMenus.openWithDefault()
+    }
     // Zoom, for the views that have it (pictures, text, PDF).
     Shortcut {
         sequences: [StandardKey.ZoomIn, "Ctrl+="]
