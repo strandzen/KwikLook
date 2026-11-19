@@ -33,8 +33,8 @@ depends=(
 optdepends=('libreoffice: previews of office documents')
 makedepends=('cmake' 'extra-cmake-modules')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-# Update after pushing the tag: updpkgsums
-sha256sums=('SKIP')
+# After pushing a new tag: updpkgsums (or gh release download vX --archive=tar.gz while the repository is private)
+sha256sums=('6c2d87ef8a8091b7f7c3ed8a4797a08cdff7def795955bb3ff0a9466190f3d04')
 
 build() {
   cmake -B build -S "KwikLook-$pkgver" \

@@ -121,7 +121,7 @@ QT_QPA_PLATFORM=offscreen QML_IMPORT_PATH=build/dev/src timeout 5 qml6 qml/<File
 read it), the version in this file and the README, move CHANGELOG's `[Unreleased]` entries under
 the new version with the date, add a `<release>` entry to the metainfo
 (`appstreamcli validate --pedantic data/io.github.strandzen.KwikLook.metainfo.xml`), then tag and publish.
-Packaging: `packaging/arch/PKGBUILD` (builds the GitHub tag tarball; not on the AUR yet). On release bump `pkgver`, reset `pkgrel=1`, and after pushing the tag run `updpkgsums` there (replaces `SKIP`); test with `makepkg -f` in a scratch copy.
+Packaging: `packaging/arch/PKGBUILD` (builds the GitHub tag tarball; not on the AUR yet). On release bump `pkgver`, reset `pkgrel=1`, and after pushing the tag set the checksum: `updpkgsums` there, or while the repository is private `gh release download v<x> --archive=tar.gz` and `sha256sum`; test with `makepkg -f` in a scratch copy.
 
 ---
 
