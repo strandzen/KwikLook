@@ -6,7 +6,7 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ### Added
 - Animated pictures (GIF, WebP and other formats with several frames) play in the preview.
-- Zoom pictures, text and PDFs with Ctrl+wheel, Ctrl+plus and Ctrl+minus (Ctrl+0 goes back). Pictures zoom towards the mouse pointer, can be pinched on a touchpad and dragged around, and a double-click switches between fitted and real size. Text keeps its size for the next files until the preview closes; pictures and PDFs start fitted again.
+- Zoom pictures, text and PDFs with Ctrl+wheel, Ctrl+plus and Ctrl+minus (Ctrl+0 goes back). Pictures also zoom with the plain mouse wheel, towards the mouse pointer; they can be pinched on a touchpad, moved by dragging or scrolling on a touchpad, and a double-click switches between fitted and real size. Text keeps its size for the next files until the preview closes; pictures and PDFs start fitted again.
 
 ### Fixed
 - PDF pages no longer scroll over the preview's bar, and all pages are centred the same way.

@@ -287,7 +287,7 @@ turns it off.
 18. With “close when you switch” on, clicking Dolphin or another window closes the preview; “Open with… → Other Application…” and Share dialogs don't.
 19. “Start in the background at login” on: the entry shows in System Settings → Autostart; after a new login the viewer is running before Dolphin opens.
 20. An animated GIF and WebP play; a still GIF stays still.
-21. Zoom a large picture with Ctrl+wheel: it zooms towards the pointer and stops at 100 % on the way; drag and the wheel move it; pinch on the touchpad zooms; double-click switches real size / fitted; the zoom label fades out; the next picture starts fitted.
+21. Zoom a large picture with the mouse wheel (and Ctrl+wheel): it zooms towards the pointer and stops at 100 % on the way; dragging and two-finger scrolling on the touchpad move it; pinch on the touchpad zooms; double-click switches real size / fitted; the zoom label fades out; the next picture starts fitted.
 22. Ctrl+wheel in a text file: the font grows and stays for the next text file, normal again after closing. In a PDF: pages grow with a sideways scrollbar; Ctrl+0 fits them again.
 
 ---

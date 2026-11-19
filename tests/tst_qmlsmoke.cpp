@@ -11,6 +11,7 @@
 #include <QQmlComponent>
 #include <QDir>
 #include <QFontMetricsF>
+#include <QPointingDevice>
 #include <QWheelEvent>
 #include <QPainter>
 #include <QPdfWriter>
@@ -386,6 +387,24 @@ private Q_SLOTS:
         }
         QCOMPARE(image->property("zoom").toReal(), 8.0);
         QVERIFY(image->property("pannable").toBool());
+        // Touchpad scrolling moves the zoomed picture, it doesn't zoom.
+        {
+            QPointingDevice touchpad(u"test touchpad"_s, 1001, QInputDevice::DeviceType::TouchPad, QPointingDevice::PointerType::Finger,
+                                     QInputDevice::Capability::Position | QInputDevice::Capability::Scroll | QInputDevice::Capability::PixelScroll, 1, 0);
+            const QPointF pos = image->mapToScene(QPointF(image->width() / 2, image->height() / 2));
+            QWheelEvent scroll(pos, window->mapToGlobal(pos), QPoint(0, -40), QPoint(0, -120), Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false, Qt::MouseEventNotSynthesized, &touchpad);
+            const qreal panY = image->property("panY").toReal();
+            QCoreApplication::sendEvent(window, &scroll);
+            QCOMPARE(image->property("zoom").toReal(), 8.0);
+            QCOMPARE(image->property("panY").toReal(), panY - 40);
+        }
+        // A plain mouse wheel zooms.
+        {
+            const QPointF pos = image->mapToScene(QPointF(image->width() / 2, image->height() / 2));
+            QWheelEvent wheel(pos, window->mapToGlobal(pos), QPoint(), QPoint(0, -120), Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+            QCoreApplication::sendEvent(window, &wheel);
+            QCOMPARE(image->property("zoom").toReal(), 8.0 / 1.25);
+        }
         // The next picture starts fitted.
         v->Next();
         QTRY_COMPARE(image->property("userZoom").toReal(), 0.0);

@@ -11,8 +11,9 @@ import kwiklook
 // the information panel. Animated ones (GIF, WebP, ...) play. A picture that can't
 // be decoded shows the fallback view.
 //
-// Zoom like Gwenview: Ctrl+wheel or pinch towards the pointer, double-click for real
-// size and back; a picture larger than the view is moved by dragging or the wheel.
+// Zoom like Gwenview: the mouse wheel (or Ctrl+wheel, or pinch) towards the pointer,
+// double-click for real size and back; a picture larger than the view is moved by
+// dragging or by scrolling on a touchpad.
 // Each picture starts fitted.
 Item {
     id: view
@@ -136,15 +137,22 @@ Item {
         }
     }
 
+    // A mouse wheel zooms, with or without Ctrl; on a touchpad Ctrl+scroll zooms.
+    WheelHandler {
+        acceptedDevices: PointerDevice.Mouse
+        acceptedModifiers: Qt.NoModifier
+        onWheel: event => view.zoomBy(Math.pow(1.25, event.angleDelta.y / 120), Qt.point(event.x, event.y))
+    }
     WheelHandler {
         acceptedModifiers: Qt.ControlModifier
         onWheel: event => view.zoomBy(Math.pow(1.25, event.angleDelta.y / 120), Qt.point(event.x, event.y))
     }
+    // Scrolling on a touchpad moves a zoomed picture (pinch zooms there).
     WheelHandler {
+        acceptedDevices: PointerDevice.TouchPad
         acceptedModifiers: Qt.NoModifier
         enabled: view.pannable
         onWheel: event => {
-            // Touchpads give pixels, mouse wheels steps of 120.
             const step = Kirigami.Units.gridUnit * 3;
             const dx = event.pixelDelta.x !== 0 ? event.pixelDelta.x : event.angleDelta.x / 120 * step;
             const dy = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y / 120 * step;
