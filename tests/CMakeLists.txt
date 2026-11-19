@@ -45,3 +45,15 @@ target_link_libraries(tst_dolphinhook PRIVATE mockdolphinprivate Qt6::Test Qt6::
 target_compile_definitions(tst_dolphinhook PRIVATE KWIKLOOK_HOOK_PLUGIN="$<TARGET_FILE:kwiklook_dolphinhook>")
 add_dependencies(tst_dolphinhook kwiklook_dolphinhook)
 add_test(NAME kwiklook-tst_dolphinhook COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run-with-bus.sh $<TARGET_FILE:tst_dolphinhook>)
+
+# kwiklook-sandbox: a probe program run inside it tries each thing it must not do.
+add_executable(sandboxprobe sandboxprobe.cpp)
+ecm_add_test(tst_sandbox.cpp
+    TEST_NAME tst_sandbox
+    LINK_LIBRARIES Qt6::Test
+    NAME_PREFIX "kwiklook-"
+)
+target_compile_definitions(tst_sandbox PRIVATE
+    SANDBOX_BINARY="$<TARGET_FILE:kwiklook-sandbox>"
+    PROBE_BINARY="$<TARGET_FILE:sandboxprobe>")
+add_dependencies(tst_sandbox kwiklook-sandbox sandboxprobe)

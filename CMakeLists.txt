@@ -46,6 +46,9 @@ find_package(KF6 ${KF_MIN_VERSION} REQUIRED COMPONENTS
     FileMetaData   # file details (EXIF, page count, ...)
 )
 find_package(KF6Kirigami ${KF_MIN_VERSION} REQUIRED)
+# kwiklook-sandbox: refuses sockets in the programs it runs (Landlock comes with the kernel headers).
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(SECCOMP REQUIRED IMPORTED_TARGET libseccomp)
 # QML only (form cards in the settings window); checked here so a missing one shows at build time.
 find_package(KF6KirigamiAddons 1.0 REQUIRED)
 

@@ -109,3 +109,8 @@ set_target_properties(kwiklook_dolphinhook PROPERTIES
     PREFIX ""
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugins/kf6/overlayicon")
 install(TARGETS kwiklook_dolphinhook DESTINATION ${KDE_INSTALL_PLUGINDIR}/kf6/overlayicon)
+
+# Runs converters (LibreOffice) locked down: see sandbox/main.cpp. No Qt.
+add_executable(kwiklook-sandbox sandbox/main.cpp)
+target_link_libraries(kwiklook-sandbox PRIVATE PkgConfig::SECCOMP)
+install(TARGETS kwiklook-sandbox DESTINATION ${KDE_INSTALL_LIBEXECDIR})

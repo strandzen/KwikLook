@@ -132,6 +132,7 @@ Packaging: `packaging/arch/PKGBUILD` (builds the GitHub tag tarball; not on the 
 | `src/core/` | Pure C++ logic, no Qt Quick |
 | `src/gui/` | Qt Quick backend classes (models, windows) |
 | `src/dolphin/` | The Dolphin hook plugin (runs inside Dolphin; Qt Widgets, no QML) |
+| `src/sandbox/` | `kwiklook-sandbox`: runs converters locked down (Landlock + seccomp; no Qt) |
 | `qml/` | All QML files (top level, wired in with `qt_add_qml_module`) |
 | `tests/` | Unit tests (`tst_*.cpp`), QML smoke tests; `tests/dolphin/` the hook against KDEGlance's mock Dolphin; `run-with-bus.sh` runs a test on a private bus |
 | `data/` | Desktop file, metainfo, icons, notifyrc, D-Bus service files |
@@ -367,5 +368,6 @@ General Qt / KF6 / Kirigami ones first; add project-specific rows below them.
 | **Views don't clip by themselves** | A ListView, Flickable or a zoomed Image paints outside its bounds, over the bar above it. The area around the views in `Main.qml` has `clip: true` |
 | **Qt PDF and engine teardown** | Deleting a QML engine while a `PdfPageImage` renders crashes the image thread (SIGSEGV in the qpdf image plugin). `Viewer::finishRendering()` waits for the pages; main() and the PDF tests call it before the engine goes |
 | **Mouse or touchpad wheel on Wayland** | Qt's Wayland client reports one pointer device for both, typed `TouchPad` (checked 2026-11-19, Qt 6.12, with a probe listing `QInputDevice::devices()`). A `WheelHandler` takes only mice by default, so on Wayland it gets nothing: always set `acceptedDevices: PointerDevice.Mouse \| PointerDevice.TouchPad`. Don't tell wheel and touchpad apart by `pixelDelta` either: a plain-wheel zoom built on that (touchpad scrolling has a `pixelDelta`) didn't react to the user's mouse wheel. Tests send wheel events from a TouchPad-typed `QPointingDevice` |
+| **LibreOffice in a sandbox** | Needs AF_UNIX sockets and creates its single-instance pipe in `/tmp` (hard-coded in libuno_sal, `TMPDIR` doesn't move it; fallback `/var/tmp`): give `/tmp` create-socket + delete rights, else it exits 1 without a message. A separate `-env:UserInstallation` keeps it apart from the user's running LibreOffice. Debug without strace: bisect the sandbox (rules off one by one, `--read /`) |
 | **Running a test binary directly** | ctest sets `QT_QPA_PLATFORM=offscreen` (and the hook test's private bus); `build/dev/bin/tst_*` run by hand opens real windows on the user's desktop, and focus-dependent tests fail there. Run tests through `ctest -R <name>`, or set the same environment |
 | **`pkill -f` in test scripts** | Matches any command line containing the text, including the shell running the test. Stop processes by the PIDs you started |
