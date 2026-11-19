@@ -5,9 +5,9 @@ something here turns out wrong or a new pitfall is found, update it in the same 
 
 ## Project Overview
 
-**KwikLook** is <one sentence: what it does, for whom, on KDE Plasma 6>.
+**KwikLook** shows a quick preview of the file selected in Dolphin when you press Space, for KDE Plasma 6 users (like Quick Look on macOS).
 
-**Goal:** <the problem it solves; what "done" looks like>.
+**Goal:** look at a file without opening an application: instant, keyboard-driven, looking like a native Breeze window. Done means the common types (pictures, text, PDF, media, office files) preview well and the Dolphin hook survives Dolphin updates.
 **Philosophy:** Simplicity and native Plasma behaviour. Every feature must justify its existence.
 **Stack:** C++20, Qt 6, KDE Frameworks 6, Kirigami (+ Kirigami Addons if used), QML, CMake with
 ECM. Project version `0.1.0` (single source: `project(... VERSION ...)` in `CMakeLists.txt`).
@@ -121,7 +121,7 @@ QT_QPA_PLATFORM=offscreen QML_IMPORT_PATH=build/dev/src timeout 5 qml6 qml/<File
 read it), the version in this file and the README, move CHANGELOG's `[Unreleased]` entries under
 the new version with the date, add a `<release>` entry to the metainfo
 (`appstreamcli validate --pedantic data/io.github.strandzen.KwikLook.metainfo.xml`), then tag and publish.
-Packaging: <where packages live and what to update>.
+Packaging: `packaging/arch/PKGBUILD` (builds the GitHub tag tarball; not on the AUR yet). On release bump `pkgver`, reset `pkgrel=1`, and after pushing the tag run `updpkgsums` there (replaces `SKIP`); test with `makepkg -f` in a scratch copy.
 
 ---
 
@@ -136,6 +136,7 @@ Packaging: <where packages live and what to update>.
 | `tests/` | Unit tests (`tst_*.cpp`), QML smoke tests; `tests/dolphin/` the hook against KDEGlance's mock Dolphin; `run-with-bus.sh` runs a test on a private bus |
 | `data/` | Desktop file, metainfo, icons, notifyrc, D-Bus service files |
 | `po/` | `Messages.sh` and the `.pot`; reviewed translations in `po/<lang>/` |
+| `packaging/arch/` | PKGBUILD |
 | `comp/` | Reference projects (read-only, gitignored) |
 
 ## Architecture

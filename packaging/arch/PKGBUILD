@@ -1,0 +1,45 @@
+# Maintainer: strandzen <strandzen@gmail.com>
+# SPDX-License-Identifier: CC0-1.0
+
+pkgname=kwiklook
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Quick previews of files from Dolphin'
+arch=('x86_64')
+url='https://github.com/strandzen/KwikLook'
+license=('GPL-3.0-or-later')
+depends=(
+  'dolphin'
+  'gcc-libs'
+  'glibc'
+  'kconfig'
+  'kcoreaddons'
+  'kfilemetadata'
+  'ki18n'
+  'kio'
+  'kirigami'
+  'kirigami-addons'
+  'kservice'
+  'kwindowsystem'
+  'purpose'
+  'qt6-base'
+  'qt6-declarative'
+  'qt6-webengine'  # QtQuick.Pdf
+  'syntax-highlighting'
+)
+makedepends=('cmake' 'extra-cmake-modules')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+# Update after pushing the tag: updpkgsums
+sha256sums=('SKIP')
+
+build() {
+  cmake -B build -S "KwikLook-$pkgver" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DBUILD_TESTING=OFF
+  cmake --build build
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+}

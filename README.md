@@ -1,32 +1,43 @@
 # KwikLook
 
-<One or two sentences: what it is and what it does for the user on KDE Plasma.>
+KwikLook shows a quick preview of a file when you press Space in Dolphin, on KDE Plasma 6. Press Space or Esc again and it's gone; ← and → go through the folder.
 
-<A short paragraph on why it exists or how it differs from similar tools.>
+It keeps running in the background, so previews open at once, and the preview window looks like your other windows: corners, outline, shadow and colours follow your Breeze and colour scheme settings. It shows pictures, text and code, PDFs and the details of any file, without starting a full application.
 
-This is version 0.1.0 (see [CHANGELOG.md](CHANGELOG.md)). <How widely it's tested, e.g. "I mostly test it on my own machine on Arch, so other distributions may need some work.">
+This is version 0.1.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my own machine (Arch Linux, Plasma 6 on Wayland, Dolphin 26.08), so other distributions and setups may need some work.
 
 ## Screenshots
 
-![<What the first screenshot shows>](assets/<screenshot-1>.png)
+![A picture previewed from Dolphin](assets/screenshot-1.png)
 
 ## Features
 
-- <Feature, written as what the user can do.>
-- <...>
+- Press Space in Dolphin to preview the selected file; ← and → go through the folder in Dolphin's order and Dolphin's selection follows along.
+- Pictures fill the preview window; small ones stay at their real size.
+- Text and code files show with syntax colours and line numbers; long files show their beginning.
+- PDFs show all their pages, fitted to the window.
+- Any other file shows a large thumbnail (as in Dolphin) or its type's icon, with its type, size and when it was changed.
+- An (i) panel with the file's details: name, type, size, dates, picture size and camera details, owner and permissions, plus “Show in Dolphin” and “Copy Path”.
+- “Open with…” and Share buttons in the preview's bar.
+- Preview files from the command line too: `kwiklook <files>`.
 
 ## Requirements
 
-- KDE Plasma 6 (Qt <6.x> or newer and KDE Frameworks 6).
-- <Runtime dependencies.>
-- Optional: <optional tools and what they enable>.
+- KDE Plasma 6 with Dolphin.
+- Qt 6.8 or newer, with Qt PDF (part of Qt WebEngine on Arch).
+- KDE Frameworks 6.19 or newer, including Kirigami, KIO, Purpose, KFileMetaData and KSyntaxHighlighting.
+- Kirigami Addons 1.0 or newer.
 
 ## Installation
 
 ### Arch Linux
 
+There's no AUR package yet. The repository has a PKGBUILD that builds the release:
+
 ```sh
-<install command>
+git clone https://github.com/strandzen/KwikLook.git
+cd KwikLook/packaging/arch
+makepkg -si
 ```
 
 ### Other distributions
@@ -45,57 +56,71 @@ sudo cmake --install build/release
 Arch:
 
 ```sh
-sudo pacman -S <packages>
+sudo pacman -S --needed cmake extra-cmake-modules qt6-base qt6-declarative qt6-webengine \
+    kconfig kcoreaddons ki18n kwindowsystem kio kservice purpose kfilemetadata \
+    kirigami kirigami-addons syntax-highlighting
 ```
 
-Fedora:
-
-```sh
-sudo dnf install <packages>
-```
-
-Debian and Ubuntu:
-
-```sh
-sudo apt install <packages>
-```
+Other distributions: the development packages of CMake, Extra CMake Modules, Qt 6 (Base, Declarative, PDF) and the KDE Frameworks 6 listed above (Config, CoreAddons, I18n, WindowSystem, KIO, Service, Purpose, FileMetaData, Kirigami, SyntaxHighlighting), plus Kirigami Addons. Package names differ between distributions.
 
 </details>
 
+After installing, close every Dolphin window (or log out and back in) so Dolphin picks up KwikLook.
+
 ## Usage
 
-<How to start it and the main things to do, one bullet each.>
+- In Dolphin, select a file and press Space. The preview opens; Dolphin's selection follows it as you go through the folder.
+- Drag the preview's bar to move the window, drag an edge or corner to resize it.
+- (i) shows the file's details; “Open with…” opens the file in another application and closes the preview.
 
 ### Keys
 
 | Key | What it does |
 |---|---|
-| <Key> | <Action> |
+| Space (in Dolphin) | Opens the preview of the selected file (the key can be changed in the settings) |
+| Space or Esc | Closes the preview |
+| ← and → | Previous and next file |
+
+Space keeps working as usual in Dolphin's location bar, while renaming, in type-ahead search and in selection mode, and on folders.
 
 ### From the command line
 
 | Command | What it does |
 |---|---|
 | `kwiklook <files>` | Shows a preview of the files; ← and → go between them, Space or Esc closes it |
+| `kwiklook --settings` | Opens the settings window |
 | `kwiklook --quit` | Stops KwikLook running in the background |
 
 ## Settings
 
-<Where settings are and what each page holds.>
+Open “KwikLook Settings” from the app launcher (or run `kwiklook --settings`):
+
+- **Corners:** like your Breeze window decoration, or a radius of your choice.
+- **Open key:** the key that opens the preview in Dolphin: Space, Shift+Space or Ctrl+Space.
+- **Close when you switch to another window:** on by default.
+- **Start in the background at login:** off by default. KwikLook starts with Dolphin anyway; this makes the very first preview after login open faster.
 
 ## Troubleshooting
 
-**<Problem as the user would describe it.>** <What to do.>
+**Space does nothing in Dolphin.** Close all Dolphin windows and open Dolphin again: it only picks up KwikLook when it starts. Also check the open key in the settings.
 
-Bugs and ideas are welcome in the [issue tracker](<https://github.com/strandzen/KwikLook/issues>).
+**Space previews only one file and ← → don't go through the folder.** KwikLook reads Dolphin's file list through Dolphin's internals, which a Dolphin update can change. Please report it with your Dolphin version.
+
+**Ctrl+Space no longer toggles the selection in Dolphin.** With Ctrl+Space as the open key, KwikLook takes it over. Choose another open key to get Dolphin's back.
+
+**I want to turn off the Dolphin part for a moment.** Start Dolphin with `KWIKLOOK_DISABLE_DOLPHIN_HOOK=1 dolphin`.
+
+Bugs and ideas are welcome in the [issue tracker](https://github.com/strandzen/KwikLook/issues).
 
 ## Uninstall
 
-<How to remove it, and what is left behind (settings, caches) if anything.>
+Turn off “Start in the background at login” first if you turned it on, then run `kwiklook --quit` and remove the package (`sudo pacman -R kwiklook`), or, if you installed with CMake, run `sudo xargs rm < build/release/install_manifest.txt` in the source folder.
+
+Left behind in your home folder: the settings in `~/.config/kwiklookrc` and the window state in `~/.local/state/kwiklookstaterc`. Delete them if you like.
 
 ## Translations
 
-<Which languages it ships in, and how to help translate.>
+KwikLook is in English only for now. Translations are welcome: [po/Messages.sh](po/Messages.sh) extracts the strings to translate.
 
 ## Credits
 

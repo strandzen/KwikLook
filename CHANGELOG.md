@@ -4,6 +4,10 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-19
+
+The first release.
+
 ### Added
 - Preview files from the command line with `kwiklook <files>`. KwikLook keeps running in the background after the first preview, so later ones open right away.
 - The preview window looks like your other windows: corners, outline and shadow follow your Breeze window decoration settings and colour scheme, also when you change them.
