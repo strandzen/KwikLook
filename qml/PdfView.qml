@@ -109,24 +109,34 @@ Item {
                 onScaleChanged: delta => view.zoomBy(delta, pages.mapFromItem(null, centroid.scenePosition))
             }
 
-            delegate: Rectangle {
-                id: page
+            // A row as wide as the content with the page centred in it: the list sets
+            // its delegates' x itself (back to 0 when it lays them out again), which
+            // would undo a binding on x.
+            delegate: Item {
+                id: row
 
                 required property int index
                 readonly property size pointSize: pdf.pagePointSize(index)
 
-                x: (pages.contentWidth - width) / 2
-                width: pages.pageWidth
-                height: pointSize.width > 0 ? width * pointSize.height / pointSize.width : width * 1.414
-                color: "white" // paper, also while the page renders
+                width: pages.contentWidth
+                height: page.height
 
-                PdfPageImage {
-                    anchors.fill: parent
-                    document: pdf
-                    currentFrame: page.index
-                    asynchronous: true
-                    sourceSize.width: page.width * Screen.devicePixelRatio
-                    sourceSize.height: page.height * Screen.devicePixelRatio
+                Rectangle {
+                    id: page
+                    objectName: "pdfPage"
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: pages.pageWidth
+                    height: row.pointSize.width > 0 ? width * row.pointSize.height / row.pointSize.width : width * 1.414
+                    color: "white" // paper, also while the page renders
+
+                    PdfPageImage {
+                        anchors.fill: parent
+                        document: pdf
+                        currentFrame: row.index
+                        asynchronous: true
+                        sourceSize.width: page.width * Screen.devicePixelRatio
+                        sourceSize.height: page.height * Screen.devicePixelRatio
+                    }
                 }
             }
         }

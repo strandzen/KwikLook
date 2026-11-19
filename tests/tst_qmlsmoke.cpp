@@ -25,6 +25,7 @@
 #include <KConfig>
 #include <KConfigGroup>
 
+#include <algorithm>
 #include <memory>
 #include <QtQml/qqmlextensionplugin.h>
 
@@ -34,6 +35,18 @@ using namespace Qt::StringLiterals;
 
 // A 4×4 GIF with two frames (red, blue), made with ImageMagick: Qt can't write animated GIFs.
 static const QByteArray TwoFrameGif = QByteArray::fromRawData("\x47\x49\x46\x38\x39\x61\x04\x00\x04\x00\xf0\x00\x00\xff\x00\x00\x00\x00\x00\x21\xff\x0b\x4e\x45\x54\x53\x43\x41\x50\x45\x32\x2e\x30\x03\x01\x00\x00\x00\x21\xf9\x04\x00\x00\x00\x00\x00\x2c\x00\x00\x00\x00\x04\x00\x04\x00\x00\x02\x04\x84\x8f\x09\x05\x00\x21\xf9\x04\x00\x00\x00\x00\x00\x2c\x00\x00\x00\x00\x04\x00\x04\x00\x80\x00\x00\xff\x00\x00\x00\x02\x04\x84\x8f\x09\x05\x00\x3b", 95);
+
+// Qt PDF renders pages on the engine's image thread and crashes if the engine (and
+// the PDF document) is deleted mid-render (SIGSEGV in the qpdf image plugin). Tests
+// with PDFs wait for their pages before the engine goes.
+static bool pdfPagesRendering(QQuickItem *item)
+{
+    if (item->inherits("QQuickPdfPageImage") && item->property("status").toInt() == 2 /* Image.Loading */) {
+        return true;
+    }
+    const auto children = item->childItems();
+    return std::any_of(children.begin(), children.end(), pdfPagesRendering);
+}
 
 class TstQmlSmoke : public QObject
 {
@@ -45,6 +58,14 @@ private Q_SLOTS:
     void initTestCase()
     {
         QStandardPaths::setTestModeEnabled(true); // remembered state goes to a test folder
+    }
+
+    void init()
+    {
+        // The viewer is shared by all tests: a window closed at the end of one test
+        // leaves the app without focus, and “close when you switch” would then close
+        // the next test's preview 150 ms later. Not under test here.
+        KwikLookSettings::self()->setCloseOnFocusLoss(false);
     }
 
     void loadsMainWindow()
@@ -246,7 +267,12 @@ private Q_SLOTS:
         QVERIFY(!before.isEmpty());
         QObject *flickable = area->parentItem()->parentItem(); // ScrollView's Flickable
         QVERIFY(flickable->setProperty("contentY", 100 * QFontMetricsF(area->property("font").value<QFont>()).lineSpacing()));
-        QTRY_VERIFY(!shown().contains(u"1"_s) && shown().contains(u"110"_s));
+        QTRY_VERIFY2(!shown().contains(u"1"_s) && shown().contains(u"110"_s),
+                     qPrintable(u"shown %1; contentY %2, contentHeight %3, height %4, visible %5"_s.arg(shown().join(u","_s))
+                                    .arg(flickable->property("contentY").toReal())
+                                    .arg(flickable->property("contentHeight").toReal())
+                                    .arg(flickable->property("height").toReal())
+                                    .arg(window->isVisible())));
         QCOMPARE(labels(), before);
         v->Close();
         v->setWindow(nullptr);
@@ -285,6 +311,7 @@ private Q_SLOTS:
         QTest::qWait(500); // pages render
         QTest::keyClick(window, Qt::Key_Right);
         QTRY_COMPARE(v->currentIndex(), 1);
+        QTRY_VERIFY(!pdfPagesRendering(window->contentItem()));
         v->Close();
         v->setWindow(nullptr);
         for (const QQmlError &e : std::as_const(errors)) {
@@ -386,6 +413,7 @@ private Q_SLOTS:
         QTest::keyClick(window, Qt::Key_Minus, Qt::ControlModifier);
         QCOMPARE(pdfView->property("zoom").toReal(), 1.25);
 
+        QTRY_VERIFY(!pdfPagesRendering(window->contentItem()));
         v->Close();
         QCOMPARE(v->property("textZoom").toReal(), 1.0);
         v->setWindow(nullptr);
@@ -393,6 +421,86 @@ private Q_SLOTS:
             qWarning().noquote() << e.toString();
         }
         QVERIFY(errors.isEmpty());
+    }
+
+    void pdfPagesStayCentredAndInside()
+    {
+        QQmlApplicationEngine engine;
+        KLocalization::setupLocalizedContext(&engine);
+        engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
+        engine.loadFromModule("kwiklook", "Main");
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+        QVERIFY(window);
+        QTemporaryDir dir;
+        const QString pdf = dir.filePath(u"pages.pdf"_s);
+        {
+            QPdfWriter writer(pdf);
+            QPainter painter(&writer);
+            for (int i = 0; i < 6; ++i) {
+                if (i > 0) {
+                    writer.newPage();
+                }
+                painter.drawText(QPointF(100, 100), u"Page %1"_s.arg(i + 1));
+            }
+        }
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open({pdf}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QQuickItem *pdfView = nullptr;
+        QTRY_VERIFY((pdfView = window->findChild<QQuickItem *>(u"pdfView"_s)));
+        QTRY_VERIFY(pdfView->property("zoomPercent").toInt() > 0);
+
+        QQuickItem *list = nullptr;
+        for (QQuickItem *item : pdfView->findChildren<QQuickItem *>()) {
+            if (item->inherits("QQuickListView")) {
+                list = item;
+            }
+        }
+        QVERIFY(list);
+        auto *content = list->property("contentItem").value<QQuickItem *>();
+        // Every page's centre is the centre of the list's content, whatever was scrolled.
+        const auto offCentre = [&] {
+            const qreal centre = list->property("contentWidth").toReal() / 2;
+            QStringList wrong;
+            int pages = 0;
+            QList<QQuickItem *> papers;
+            for (QQuickItem *row : content->childItems()) {
+                for (QQuickItem *child : row->childItems()) {
+                    if (child->objectName() == u"pdfPage"_s && row->isVisible()) {
+                        papers << child;
+                    }
+                }
+            }
+            for (QQuickItem *paper : std::as_const(papers)) {
+                ++pages;
+                const qreal x = paper->mapToItem(content, QPointF(paper->width() / 2, 0)).x();
+                if (qAbs(x - centre) > 1) {
+                    wrong << u"page centre %1, content centre %2"_s.arg(x).arg(centre);
+                }
+            }
+            return pages > 0 ? wrong.join(u"; "_s) : u"no pages"_s;
+        };
+        QTRY_COMPARE(offCentre(), QString());
+        for (int i = 0; i < 20; ++i) { // scroll down, pages get created and reused
+            QMetaObject::invokeMethod(list, "flick", Q_ARG(qreal, 0), Q_ARG(qreal, -3000));
+            QTest::qWait(50);
+        }
+        QTest::qWait(500);
+        QCOMPARE(offCentre(), QString()); // scrolled
+        QTest::keyClick(window, Qt::Key_Plus, Qt::ControlModifier);
+        QTest::keyClick(window, Qt::Key_Plus, Qt::ControlModifier);
+        QTest::qWait(300);
+        QCOMPARE(offCentre(), QString()); // zoomed
+        list->setProperty("contentY", 0);
+        QTest::qWait(300);
+        QCOMPARE(offCentre(), QString()); // zoomed, back at the top
+        // Pages scrolled up stay below the bar: the view area clips.
+        QQuickItem *area = pdfView->parentItem()->parentItem();
+        QVERIFY(area->clip());
+        QTRY_VERIFY(!pdfPagesRendering(window->contentItem()));
+        v->Close();
+        v->setWindow(nullptr);
     }
 
     void settingsWindowAppliesOnlyOnApply()

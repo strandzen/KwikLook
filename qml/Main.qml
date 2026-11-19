@@ -101,6 +101,8 @@ Kirigami.ApplicationWindow {
                 Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
+                    // Zoomed pictures and scrolled pages stay inside, not over the bar.
+                    clip: true
 
                     // The view Viewer picked for the current file's type (a QML file next to this one).
                     Loader {
