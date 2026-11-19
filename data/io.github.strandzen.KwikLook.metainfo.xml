@@ -18,6 +18,16 @@
   <launchable type="desktop-id">io.github.strandzen.KwikLook.desktop</launchable>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.2.0" date="2026-11-19">
+      <description>
+        <p>Office documents (through LibreOffice, sandboxed), video and audio, and zoom for pictures, text and PDFs.</p>
+        <ul>
+          <li>Animated pictures play.</li>
+          <li>Enter opens the file in its usual application; the bar shows the position, like “2 / 5”.</li>
+          <li>Long text files no longer freeze the preview; several smaller fixes.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-11-19">
       <description>
         <p>The first release: press Space in Dolphin to preview pictures, text and code, PDFs and the details of any file.</p>

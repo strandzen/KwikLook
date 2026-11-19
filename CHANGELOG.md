@@ -4,6 +4,10 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-19
+
+Office documents, video and audio, and zoom.
+
 ### Added
 - Enter opens the previewed file in its usual application and closes the preview.
 - With several files, the bar shows the position next to the file name, like “2 / 5”.
