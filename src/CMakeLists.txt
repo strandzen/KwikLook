@@ -7,6 +7,7 @@ set(KWIKLOOK_QML_FILES
     ${CMAKE_SOURCE_DIR}/qml/TitleBar.qml
     ${CMAKE_SOURCE_DIR}/qml/ResizeHandles.qml
     ${CMAKE_SOURCE_DIR}/qml/FallbackView.qml
+    ${CMAKE_SOURCE_DIR}/qml/FileThumbnail.qml
     ${CMAKE_SOURCE_DIR}/qml/ImageView.qml
     ${CMAKE_SOURCE_DIR}/qml/InfoPanel.qml
     ${CMAKE_SOURCE_DIR}/qml/TextView.qml

@@ -174,13 +174,14 @@ keeps running when its window closes, so the next preview opens instantly.
 | `renderShadow()` | `src/core/shadowimage.*` | Shadow nine-patch image + tile rects from layers, radius, colour |
 | `FileInfo`, `viewFor()` | `src/core/fileinfo.*` | A file's type (by content), icon, size, dates, owner, permissions, picture size, KFileMetaData details, the start of text files (`readTextStart()`, 256 KB) (`read()` may block: Viewer runs it with QtConcurrent); `viewFor()` picks the QML view: PDF → `PdfView`, what QImageReader reads → `ImageView`, types inheriting text/plain → `TextView`, else `FallbackView` |
 | `LineNumbers` | `src/gui/linenumbers.*` | QML element: line numbers for a TextArea (block positions from its QTextDocument layout, wrapped lines included, visible part only) |
-| `OfficeConverter` | `src/gui/officeconverter.*` | Office documents → PDF: `kwiklook-sandbox … soffice --convert-to pdf` (QProcess, fresh profile and scratch folder each time, /tmp as socket dir, 60 s timeout, cancel kills the process group); cache `~/.cache/kwiklook/office/<sha1 of path, size, date>.pdf`, 200 MB, least recently used pruned. Viewer shows the fallback with “Preparing preview…” (`previewNote`, `previewBusy`), then `PdfView` with `pdfUrl` |
+| `OfficeConverter` | `src/gui/officeconverter.*` | Office documents → PDF: `kwiklook-sandbox … soffice --convert-to pdf` (QProcess, fresh profile and scratch folder each time, /tmp as socket dir, 60 s timeout, cancel kills the process group; macros and link updates off in the profile, finalized; stale `work-*` folders removed); cache `~/.cache/kwiklook/office/<sha1 of path, size, date>.pdf`, 200 MB, least recently used pruned. Viewer shows the fallback with “Preparing preview…” (`previewNote`, `previewBusy`), then `PdfView` with `pdfUrl` |
 | `kwiklook-sandbox` | `src/sandbox/main.cpp` | Runs a program locked in: Landlock (system folders read-only, `--read`/`--write`/`--socket-dir`, UNIX sockets only to its own, scoped abstract sockets and signals) + seccomp (AF_UNIX only; no io_uring, ptrace, bpf, keyrings); empty environment, no inherited fds, own process group. Exit 77: kernel's Landlock too old (ABI < 6 or no RESOLVE_UNIX): caller refuses |
 | `ThumbnailProvider` | `src/gui/thumbnailprovider.*` | `image://thumbnail/<mime>/<url>` from `KIO::PreviewJob` (job on the main thread); 1×1 transparent image = no thumbnail |
 
 | QML file | Role |
 |---|---|
 | `qml/Main.qml` | The preview window: frameless, content clipped to the corner radius (`MultiEffect` mask), Breeze outline, keys; a `Loader` showing `Viewer.view` |
+| `qml/FileThumbnail.qml` | The current file's KDE thumbnail (or audio cover), else its type icon; used by FallbackView and MediaView |
 | `qml/FallbackView.qml` | Any file: thumbnail or type icon, name, one dimmed line (type · size · date) |
 | `qml/ImageView.qml` | Pictures: fit the area, never enlarged past real size; decoded at most at screen size; fallback when undecodable |
 | `qml/TextView.qml` | Text and code: read-only TextArea, KSyntaxHighlighting (dark/light theme by background), monospace, wrap, line numbers; note when only the start is shown |

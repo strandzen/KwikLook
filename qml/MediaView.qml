@@ -100,35 +100,11 @@ ColumnLayout {
             spacing: Kirigami.Units.largeSpacing
             visible: !player.hasVideo
 
-            Item {
-                readonly property int size: Math.max(Kirigami.Units.iconSizes.huge,
-                    Math.min(view.width - Kirigami.Units.gridUnit * 4, view.height - Kirigami.Units.gridUnit * 10, 384))
-
+            FileThumbnail {
                 Layout.alignment: Qt.AlignHCenter
-                implicitWidth: size
-                implicitHeight: size
-
-                Image {
-                    id: cover
-                    anchors.fill: parent
-                    fillMode: Image.PreserveAspectFit
-                    asynchronous: true
-                    cache: false
-                    sourceSize.width: parent.size * Screen.devicePixelRatio
-                    sourceSize.height: parent.size * Screen.devicePixelRatio
-                    source: Viewer.fileExists && !player.hasVideo
-                        ? "image://thumbnail/" + encodeURIComponent(Viewer.mimeType) + "/" + encodeURIComponent(Viewer.currentUrl.toString())
-                        : ""
-                    visible: status === Image.Ready && implicitWidth > 1 // 1×1: no thumbnail
-                }
-                Kirigami.Icon {
-                    anchors.centerIn: parent
-                    width: Math.min(parent.width, Kirigami.Units.iconSizes.enormous * 2)
-                    height: width
-                    source: Viewer.iconName
-                    fallback: "audio-x-generic"
-                    visible: !cover.visible
-                }
+                size: Math.max(Kirigami.Units.iconSizes.huge, Math.min(view.width - Kirigami.Units.gridUnit * 4, view.height - Kirigami.Units.gridUnit * 10, 384))
+                thumbnailEnabled: !player.hasVideo // the cover; a video shows itself
+                fallbackIcon: "audio-x-generic"
             }
 
             Kirigami.Heading {

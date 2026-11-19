@@ -38,6 +38,38 @@ using namespace Qt::StringLiterals;
 // A 4×4 GIF with two frames (red, blue), made with ImageMagick: Qt can't write animated GIFs.
 static const QByteArray TwoFrameGif = QByteArray::fromRawData("\x47\x49\x46\x38\x39\x61\x04\x00\x04\x00\xf0\x00\x00\xff\x00\x00\x00\x00\x00\x21\xff\x0b\x4e\x45\x54\x53\x43\x41\x50\x45\x32\x2e\x30\x03\x01\x00\x00\x00\x21\xf9\x04\x00\x00\x00\x00\x00\x2c\x00\x00\x00\x00\x04\x00\x04\x00\x00\x02\x04\x84\x8f\x09\x05\x00\x21\xf9\x04\x00\x00\x00\x00\x00\x2c\x00\x00\x00\x00\x04\x00\x04\x00\x80\x00\x00\xff\x00\x00\x00\x02\x04\x84\x8f\x09\x05\x00\x3b", 95);
 
+// The preview window as the app loads it, collecting QML warnings.
+struct MainWindow {
+    QQmlApplicationEngine engine;
+    QList<QQmlError> errors;
+
+    MainWindow()
+    {
+        KLocalization::setupLocalizedContext(&engine);
+        engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
+        QObject::connect(&engine, &QQmlApplicationEngine::warnings, &engine, [this](const QList<QQmlError> &w) {
+            errors << w;
+        });
+        engine.loadFromModule("kwiklook", "Main");
+    }
+    QObject *root() const
+    {
+        return engine.rootObjects().value(0);
+    }
+    QQuickWindow *window() const
+    {
+        return qobject_cast<QQuickWindow *>(root());
+    }
+    QString warnings() const
+    {
+        QStringList lines;
+        for (const QQmlError &e : errors) {
+            lines << e.toString();
+        }
+        return lines.join(u'\n');
+    }
+};
+
 class TstQmlSmoke : public QObject
 {
     Q_OBJECT
@@ -60,56 +92,30 @@ private Q_SLOTS:
 
     void loadsMainWindow()
     {
-        QQmlApplicationEngine engine;
-        KLocalization::setupLocalizedContext(&engine);
-        QList<QQmlError> errors;
-        connect(&engine, &QQmlApplicationEngine::warnings, this, [&errors](const QList<QQmlError> &w) {
-            errors << w;
-        });
-        engine.loadFromModule("kwiklook", "Main");
-        QCOMPARE(engine.rootObjects().size(), 1);
-        for (const QQmlError &e : std::as_const(errors)) {
-            qWarning().noquote() << e.toString();
-        }
-        QVERIFY(errors.isEmpty());
+        MainWindow main;
+        QCOMPARE(main.engine.rootObjects().size(), 1);
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 
     void loadsFallbackViewForAFile()
     {
-        QQmlApplicationEngine engine;
-        KLocalization::setupLocalizedContext(&engine);
-        engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
-        QList<QQmlError> errors;
-        connect(&engine, &QQmlApplicationEngine::warnings, this, [&errors](const QList<QQmlError> &w) {
-            errors << w;
-        });
-        engine.loadFromModule("kwiklook", "Main");
-        QCOMPARE(engine.rootObjects().size(), 1);
+        MainWindow main;
+        QCOMPARE(main.engine.rootObjects().size(), 1);
         QTemporaryFile file(QDir::tempPath() + QStringLiteral("/kwiklook-XXXXXX.bin"));
         QVERIFY(file.open());
         file.write(QByteArray(3000, '\x07')); // binary: no view of its own
         file.flush();
         Viewer::instance()->Open({file.fileName()}, 0, QString(), QString());
         QTRY_COMPARE(Viewer::instance()->view(), QStringLiteral("FallbackView"));
-        QTRY_VERIFY(engine.rootObjects().constFirst()->findChild<QQuickItem *>(QStringLiteral("fallbackView")));
+        QTRY_VERIFY(main.root()->findChild<QQuickItem *>(QStringLiteral("fallbackView")));
         QTest::qWait(200); // let the thumbnail request finish or fail
-        for (const QQmlError &e : std::as_const(errors)) {
-            qWarning().noquote() << e.toString();
-        }
-        QVERIFY(errors.isEmpty());
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 
     void loadsImageViewWithInfoPanel()
     {
-        QQmlApplicationEngine engine;
-        KLocalization::setupLocalizedContext(&engine);
-        engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
-        QList<QQmlError> errors;
-        connect(&engine, &QQmlApplicationEngine::warnings, this, [&errors](const QList<QQmlError> &w) {
-            errors << w;
-        });
-        engine.loadFromModule("kwiklook", "Main");
-        QCOMPARE(engine.rootObjects().size(), 1);
+        MainWindow main;
+        QCOMPARE(main.engine.rootObjects().size(), 1);
         QTemporaryDir dir;
         const QString path = dir.filePath(QStringLiteral("pic.png"));
         QImage img(40, 30, QImage::Format_RGB32);
@@ -117,29 +123,19 @@ private Q_SLOTS:
         QVERIFY(img.save(path));
         Viewer::instance()->setInfoOpen(true);
         Viewer::instance()->Open({path}, 0, QString(), QString());
-        QObject *root = engine.rootObjects().constFirst();
+        QObject *root = main.root();
         QTRY_VERIFY(root->findChild<QQuickItem *>(QStringLiteral("imageView")));
         QTRY_VERIFY(root->findChild<QQuickItem *>(QStringLiteral("infoPanel")));
         QTest::qWait(300);
         Viewer::instance()->setInfoOpen(false);
-        for (const QQmlError &e : std::as_const(errors)) {
-            qWarning().noquote() << e.toString();
-        }
-        QVERIFY(errors.isEmpty());
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 
 
     void playsAnimatedPictures()
     {
-        QQmlApplicationEngine engine;
-        KLocalization::setupLocalizedContext(&engine);
-        engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
-        QList<QQmlError> errors;
-        connect(&engine, &QQmlApplicationEngine::warnings, this, [&errors](const QList<QQmlError> &w) {
-            errors << w;
-        });
-        engine.loadFromModule("kwiklook", "Main");
-        QObject *root = engine.rootObjects().constFirst();
+        MainWindow main;
+        QObject *root = main.root();
         // Kept until the end: the viewer still points at it when the next test starts.
         QFile gif(m_keptDir.filePath(u"moving.gif"_s));
         QVERIFY(gif.open(QIODevice::WriteOnly));
@@ -151,23 +147,13 @@ private Q_SLOTS:
         QTRY_COMPARE(animated->property("frameCount").toInt(), 2);
         QVERIFY(animated->property("playing").toBool());
         QVERIFY(animated->width() > 0);
-        for (const QQmlError &e : std::as_const(errors)) {
-            qWarning().noquote() << e.toString();
-        }
-        QVERIFY(errors.isEmpty());
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 
     void loadsTextViewAndKeysStillNavigate()
     {
-        QQmlApplicationEngine engine;
-        KLocalization::setupLocalizedContext(&engine);
-        engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
-        QList<QQmlError> errors;
-        connect(&engine, &QQmlApplicationEngine::warnings, this, [&errors](const QList<QQmlError> &w) {
-            errors << w;
-        });
-        engine.loadFromModule("kwiklook", "Main");
-        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+        MainWindow main;
+        QQuickWindow *window = main.window();
         QVERIFY(window);
         QTemporaryDir dir;
         QStringList files;
@@ -197,19 +183,13 @@ private Q_SLOTS:
         QTest::keyClick(window, Qt::Key_Space);
         QTRY_VERIFY(!window->isVisible());
         v->setWindow(nullptr);
-        for (const QQmlError &e : std::as_const(errors)) {
-            qWarning().noquote() << e.toString();
-        }
-        QVERIFY(errors.isEmpty());
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 
     void textViewColoursScriptsAndKeepsLineNumbers()
     {
-        QQmlApplicationEngine engine;
-        KLocalization::setupLocalizedContext(&engine);
-        engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
-        engine.loadFromModule("kwiklook", "Main");
-        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+        MainWindow main;
+        QQuickWindow *window = main.window();
         QVERIFY(window);
         QTemporaryDir dir;
         // A shell script without an extension: coloured by its type, found from the content.
@@ -272,15 +252,8 @@ private Q_SLOTS:
 
     void loadsPdfView()
     {
-        QQmlApplicationEngine engine;
-        KLocalization::setupLocalizedContext(&engine);
-        engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
-        QList<QQmlError> errors;
-        connect(&engine, &QQmlApplicationEngine::warnings, this, [&errors](const QList<QQmlError> &w) {
-            errors << w;
-        });
-        engine.loadFromModule("kwiklook", "Main");
-        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+        MainWindow main;
+        QQuickWindow *window = main.window();
         QVERIFY(window);
         QTemporaryDir dir;
         const QString pdf = dir.filePath(QStringLiteral("doc.pdf"));
@@ -306,23 +279,13 @@ private Q_SLOTS:
         QVERIFY(v->finishRendering()); // the engine goes next: see Viewer::finishRendering()
         v->Close();
         v->setWindow(nullptr);
-        for (const QQmlError &e : std::as_const(errors)) {
-            qWarning().noquote() << e.toString();
-        }
-        QVERIFY(errors.isEmpty());
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 
     void zoomsPicturesTextAndPdf()
     {
-        QQmlApplicationEngine engine;
-        KLocalization::setupLocalizedContext(&engine);
-        engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
-        QList<QQmlError> errors;
-        connect(&engine, &QQmlApplicationEngine::warnings, this, [&errors](const QList<QQmlError> &w) {
-            errors << w;
-        });
-        engine.loadFromModule("kwiklook", "Main");
-        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+        MainWindow main;
+        QQuickWindow *window = main.window();
         QVERIFY(window);
         QTemporaryDir dir;
         QStringList files;
@@ -434,19 +397,13 @@ private Q_SLOTS:
         v->Close();
         QCOMPARE(v->property("textZoom").toReal(), 1.0);
         v->setWindow(nullptr);
-        for (const QQmlError &e : std::as_const(errors)) {
-            qWarning().noquote() << e.toString();
-        }
-        QVERIFY(errors.isEmpty());
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 
     void pdfPagesStayCentredAndInside()
     {
-        QQmlApplicationEngine engine;
-        KLocalization::setupLocalizedContext(&engine);
-        engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
-        engine.loadFromModule("kwiklook", "Main");
-        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+        MainWindow main;
+        QQuickWindow *window = main.window();
         QVERIFY(window);
         QTemporaryDir dir;
         const QString pdf = dir.filePath(u"pages.pdf"_s);
@@ -522,18 +479,11 @@ private Q_SLOTS:
 
     void officeDocumentBecomesAPdf()
     {
-        if (!Viewer::instance()->officePreviewsAvailable()) {
-            QSKIP("LibreOffice or kwiklook-sandbox not found");
+        if (!Viewer::instance()->officePreviewsAvailable() || !OfficeConverter::sandboxSupported()) {
+            QSKIP("LibreOffice, kwiklook-sandbox or a kernel that can lock LibreOffice in is missing");
         }
-        QQmlApplicationEngine engine;
-        KLocalization::setupLocalizedContext(&engine);
-        engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
-        QList<QQmlError> errors;
-        connect(&engine, &QQmlApplicationEngine::warnings, this, [&errors](const QList<QQmlError> &w) {
-            errors << w;
-        });
-        engine.loadFromModule("kwiklook", "Main");
-        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+        MainWindow main;
+        QQuickWindow *window = main.window();
         QVERIFY(window);
         // A new name each run: not in the converter's cache yet.
         QFile doc(m_keptDir.filePath(u"report-%1.fodt"_s.arg(QDateTime::currentMSecsSinceEpoch())));
@@ -562,23 +512,13 @@ private Q_SLOTS:
         QVERIFY(v->finishRendering());
         v->Close();
         v->setWindow(nullptr);
-        for (const QQmlError &e : std::as_const(errors)) {
-            qWarning().noquote() << e.toString();
-        }
-        QVERIFY(errors.isEmpty());
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 
     void playsAudio()
     {
-        QQmlApplicationEngine engine;
-        KLocalization::setupLocalizedContext(&engine);
-        engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
-        QList<QQmlError> errors;
-        connect(&engine, &QQmlApplicationEngine::warnings, this, [&errors](const QList<QQmlError> &w) {
-            errors << w;
-        });
-        engine.loadFromModule("kwiklook", "Main");
-        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+        MainWindow main;
+        QQuickWindow *window = main.window();
         QVERIFY(window);
         // Two seconds of silence as WAV (16-bit mono, 8 kHz).
         QFile wav(m_keptDir.filePath(u"silence.wav"_s));
@@ -613,10 +553,7 @@ private Q_SLOTS:
         v->Close();
         QTRY_COMPARE(player->property("playbackState").toInt(), 0); // StoppedState
         v->setWindow(nullptr);
-        for (const QQmlError &e : std::as_const(errors)) {
-            qWarning().noquote() << e.toString();
-        }
-        QVERIFY(errors.isEmpty());
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 
     void settingsWindowAppliesOnlyOnApply()

@@ -3,7 +3,6 @@
 import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
-import QtQuick.Window
 import org.kde.kirigami as Kirigami
 import kwiklook
 
@@ -23,34 +22,9 @@ Item {
         width: parent.width - Kirigami.Units.gridUnit * 4
         spacing: Kirigami.Units.largeSpacing
 
-        Item {
+        FileThumbnail {
             Layout.alignment: Qt.AlignHCenter
-            implicitWidth: view.previewSize
-            implicitHeight: view.previewSize
-
-            Image {
-                id: thumbnail
-                anchors.fill: parent
-                fillMode: Image.PreserveAspectFit
-                asynchronous: true
-                cache: false
-                sourceSize.width: view.previewSize * Screen.devicePixelRatio
-                sourceSize.height: view.previewSize * Screen.devicePixelRatio
-                source: Viewer.fileExists
-                    ? "image://thumbnail/" + encodeURIComponent(Viewer.mimeType) + "/" + encodeURIComponent(Viewer.currentUrl.toString())
-                    : ""
-                visible: status === Image.Ready && implicitWidth > 1 // 1×1: no thumbnail
-            }
-
-            // Until the thumbnail is there, and when there is none.
-            Kirigami.Icon {
-                anchors.centerIn: parent
-                width: Math.min(parent.width, Kirigami.Units.iconSizes.enormous * 2)
-                height: width
-                source: Viewer.iconName
-                fallback: "unknown"
-                visible: !thumbnail.visible && Viewer.iconName !== ""
-            }
+            size: view.previewSize
         }
 
         Kirigami.Heading {
