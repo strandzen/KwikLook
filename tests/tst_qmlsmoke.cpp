@@ -390,8 +390,8 @@ private Q_SLOTS:
         }
         QCOMPARE(image->property("zoom").toReal(), 8.0);
         QVERIFY(image->property("pannable").toBool());
-        // On Wayland the mouse and the touchpad are one device typed TouchPad: wheel
-        // steps zoom, pixel distances (touchpad scrolling) move the zoomed picture.
+        // Plain scrolling moves the zoomed picture, it doesn't zoom (on Wayland from a
+        // device typed TouchPad, also for a mouse wheel).
         QPointingDevice touchpad(u"test touchpad"_s, 1001, QInputDevice::DeviceType::TouchPad, QPointingDevice::PointerType::Finger,
                                  QInputDevice::Capability::Position | QInputDevice::Capability::Scroll | QInputDevice::Capability::PixelScroll, 1, 0);
         {
@@ -404,12 +404,13 @@ private Q_SLOTS:
             QCOMPARE(image->property("zoom").toReal(), 8.0);
             QCOMPARE(image->property("panY").toReal(), panY - 40);
         }
-        // A plain mouse wheel zooms, also from that device.
         {
             const QPointF pos = image->mapToScene(QPointF(image->width() / 2, image->height() / 2));
             QWheelEvent wheel(pos, window->mapToGlobal(pos), QPoint(), QPoint(0, -120), Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false, Qt::MouseEventNotSynthesized, &touchpad);
+            const qreal panY = image->property("panY").toReal();
             QCoreApplication::sendEvent(window, &wheel);
-            QCOMPARE(image->property("zoom").toReal(), 8.0 / 1.25);
+            QCOMPARE(image->property("zoom").toReal(), 8.0);
+            QVERIFY(image->property("panY").toReal() < panY);
         }
         // The next picture starts fitted.
         v->Next();

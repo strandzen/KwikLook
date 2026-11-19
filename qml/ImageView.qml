@@ -11,9 +11,8 @@ import kwiklook
 // the information panel. Animated ones (GIF, WebP, ...) play. A picture that can't
 // be decoded shows the fallback view.
 //
-// Zoom like Gwenview: the mouse wheel (or Ctrl+wheel, or pinch) towards the pointer,
-// double-click for real size and back; a picture larger than the view is moved by
-// dragging or by scrolling on a touchpad.
+// Zoom like Gwenview: Ctrl+wheel or pinch towards the pointer, double-click for real
+// size and back; a picture larger than the view is moved by dragging or scrolling.
 // Each picture starts fitted.
 Item {
     id: view
@@ -137,27 +136,26 @@ Item {
         }
     }
 
-    // A mouse wheel zooms; scrolling on a touchpad moves a zoomed picture (pinch
-    // zooms there). Told apart by the event, not the device: on Wayland Qt reports one
-    // pointer device for both, typed TouchPad. Touchpads give pixel distances, wheels
-    // only steps (as Kirigami's WheelHandler tells them apart). WheelHandler takes
-    // only mice by default: name the touchpad too, or Wayland's wheel never arrives.
-    WheelHandler {
-        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-        acceptedModifiers: Qt.NoModifier
-        onWheel: event => {
-            if (event.pixelDelta.x !== 0 || event.pixelDelta.y !== 0) {
-                view.panBy(event.pixelDelta.x, event.pixelDelta.y);
-            } else {
-                view.zoomBy(Math.pow(1.25, event.angleDelta.y / 120), Qt.point(event.x, event.y));
-            }
-        }
-    }
-    // Ctrl+wheel and Ctrl+scroll on a touchpad zoom.
+    // WheelHandler takes only mice by default, and on Wayland Qt reports the mouse
+    // as a touchpad: name both, or no wheel event arrives.
+    // Ctrl+wheel (and Ctrl+scroll on a touchpad) zooms.
     WheelHandler {
         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         acceptedModifiers: Qt.ControlModifier
         onWheel: event => view.zoomBy(Math.pow(1.25, event.angleDelta.y / 120), Qt.point(event.x, event.y))
+    }
+    // Plain scrolling moves a zoomed picture.
+    WheelHandler {
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        acceptedModifiers: Qt.NoModifier
+        enabled: view.pannable
+        onWheel: event => {
+            // Touchpads (and Wayland wheels) give pixels; otherwise steps of 120.
+            const step = Kirigami.Units.gridUnit * 3;
+            const dx = event.pixelDelta.x !== 0 ? event.pixelDelta.x : event.angleDelta.x / 120 * step;
+            const dy = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y / 120 * step;
+            view.panBy(dx, dy);
+        }
     }
     PinchHandler {
         target: null
