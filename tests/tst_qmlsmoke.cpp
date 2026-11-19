@@ -354,9 +354,12 @@ private Q_SLOTS:
         }
         files << pdf;
 
-        const auto ctrlWheel = [window](QQuickItem *over, int steps) {
+        // As on Wayland: the mouse wheel comes from a device typed TouchPad.
+        QPointingDevice waylandPointer(u"test pointer"_s, 1002, QInputDevice::DeviceType::TouchPad, QPointingDevice::PointerType::Finger,
+                                       QInputDevice::Capability::Position | QInputDevice::Capability::Scroll, 1, 0);
+        const auto ctrlWheel = [window, &waylandPointer](QQuickItem *over, int steps) {
             const QPointF pos = over->mapToScene(QPointF(over->width() / 2, over->height() / 2));
-            QWheelEvent event(pos, window->mapToGlobal(pos), QPoint(), QPoint(0, 120 * steps), Qt::NoButton, Qt::ControlModifier, Qt::NoScrollPhase, false);
+            QWheelEvent event(pos, window->mapToGlobal(pos), QPoint(), QPoint(0, 120 * steps), Qt::NoButton, Qt::ControlModifier, Qt::NoScrollPhase, false, Qt::MouseEventNotSynthesized, &waylandPointer);
             QCoreApplication::sendEvent(window, &event);
         };
         QObject *indicator = window->findChild<QObject *>(u"zoomIndicator"_s);
@@ -387,21 +390,24 @@ private Q_SLOTS:
         }
         QCOMPARE(image->property("zoom").toReal(), 8.0);
         QVERIFY(image->property("pannable").toBool());
-        // Touchpad scrolling moves the zoomed picture, it doesn't zoom.
+        // On Wayland the mouse and the touchpad are one device typed TouchPad: wheel
+        // steps zoom, pixel distances (touchpad scrolling) move the zoomed picture.
+        QPointingDevice touchpad(u"test touchpad"_s, 1001, QInputDevice::DeviceType::TouchPad, QPointingDevice::PointerType::Finger,
+                                 QInputDevice::Capability::Position | QInputDevice::Capability::Scroll | QInputDevice::Capability::PixelScroll, 1, 0);
         {
-            QPointingDevice touchpad(u"test touchpad"_s, 1001, QInputDevice::DeviceType::TouchPad, QPointingDevice::PointerType::Finger,
-                                     QInputDevice::Capability::Position | QInputDevice::Capability::Scroll | QInputDevice::Capability::PixelScroll, 1, 0);
             const QPointF pos = image->mapToScene(QPointF(image->width() / 2, image->height() / 2));
-            QWheelEvent scroll(pos, window->mapToGlobal(pos), QPoint(0, -40), QPoint(0, -120), Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false, Qt::MouseEventNotSynthesized, &touchpad);
             const qreal panY = image->property("panY").toReal();
-            QCoreApplication::sendEvent(window, &scroll);
+            for (const auto &[phase, pixels] : {std::pair{Qt::ScrollBegin, 0}, {Qt::ScrollUpdate, -40}, {Qt::ScrollEnd, 0}}) {
+                QWheelEvent scroll(pos, window->mapToGlobal(pos), QPoint(0, pixels), QPoint(0, pixels * 3), Qt::NoButton, Qt::NoModifier, phase, false, Qt::MouseEventNotSynthesized, &touchpad);
+                QCoreApplication::sendEvent(window, &scroll);
+            }
             QCOMPARE(image->property("zoom").toReal(), 8.0);
             QCOMPARE(image->property("panY").toReal(), panY - 40);
         }
-        // A plain mouse wheel zooms.
+        // A plain mouse wheel zooms, also from that device.
         {
             const QPointF pos = image->mapToScene(QPointF(image->width() / 2, image->height() / 2));
-            QWheelEvent wheel(pos, window->mapToGlobal(pos), QPoint(), QPoint(0, -120), Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+            QWheelEvent wheel(pos, window->mapToGlobal(pos), QPoint(), QPoint(0, -120), Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false, Qt::MouseEventNotSynthesized, &touchpad);
             QCoreApplication::sendEvent(window, &wheel);
             QCOMPARE(image->property("zoom").toReal(), 8.0 / 1.25);
         }

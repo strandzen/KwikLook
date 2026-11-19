@@ -137,27 +137,27 @@ Item {
         }
     }
 
-    // A mouse wheel zooms, with or without Ctrl; on a touchpad Ctrl+scroll zooms.
+    // A mouse wheel zooms; scrolling on a touchpad moves a zoomed picture (pinch
+    // zooms there). Told apart by the event, not the device: on Wayland Qt reports one
+    // pointer device for both, typed TouchPad. Touchpads give pixel distances, wheels
+    // only steps (as Kirigami's WheelHandler tells them apart). WheelHandler takes
+    // only mice by default: name the touchpad too, or Wayland's wheel never arrives.
     WheelHandler {
-        acceptedDevices: PointerDevice.Mouse
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         acceptedModifiers: Qt.NoModifier
-        onWheel: event => view.zoomBy(Math.pow(1.25, event.angleDelta.y / 120), Qt.point(event.x, event.y))
+        onWheel: event => {
+            if (event.pixelDelta.x !== 0 || event.pixelDelta.y !== 0) {
+                view.panBy(event.pixelDelta.x, event.pixelDelta.y);
+            } else {
+                view.zoomBy(Math.pow(1.25, event.angleDelta.y / 120), Qt.point(event.x, event.y));
+            }
+        }
     }
+    // Ctrl+wheel and Ctrl+scroll on a touchpad zoom.
     WheelHandler {
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         acceptedModifiers: Qt.ControlModifier
         onWheel: event => view.zoomBy(Math.pow(1.25, event.angleDelta.y / 120), Qt.point(event.x, event.y))
-    }
-    // Scrolling on a touchpad moves a zoomed picture (pinch zooms there).
-    WheelHandler {
-        acceptedDevices: PointerDevice.TouchPad
-        acceptedModifiers: Qt.NoModifier
-        enabled: view.pannable
-        onWheel: event => {
-            const step = Kirigami.Units.gridUnit * 3;
-            const dx = event.pixelDelta.x !== 0 ? event.pixelDelta.x : event.angleDelta.x / 120 * step;
-            const dy = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y / 120 * step;
-            view.panBy(dx, dy);
-        }
     }
     PinchHandler {
         target: null

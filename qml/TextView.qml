@@ -101,6 +101,7 @@ ColumnLayout {
 
             // On the text itself: the scroll view would take the wheel first.
             WheelHandler {
+                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad // Wayland types the mouse as a touchpad
                 acceptedModifiers: Qt.ControlModifier
                 onWheel: event => view.zoomBy(Math.pow(1.1, event.angleDelta.y / 120))
             }

@@ -101,6 +101,7 @@ Item {
             // In the list, which would otherwise take the wheel itself. Positions via the
             // scene: the list may give its handlers to its content item.
             WheelHandler {
+                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad // Wayland types the mouse as a touchpad
                 acceptedModifiers: Qt.ControlModifier
                 onWheel: event => view.zoomBy(Math.pow(1.25, event.angleDelta.y / 120), pages.mapFromItem(null, point.scenePosition))
             }
