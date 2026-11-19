@@ -3,6 +3,7 @@
 import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
+import QtQuick.Window
 import org.kde.kirigami as Kirigami
 import org.kde.syntaxhighlighting
 import kwiklook
@@ -125,7 +126,7 @@ ColumnLayout {
 
                 readonly property var lines: numbers.lines // one conversion per update, not one per label
 
-                model: Math.ceil(scroll.height / numberMetrics.lineSpacing) + 2
+                model: Math.ceil(Screen.height / numberMetrics.lineSpacing) + 2
 
                 QQC2.Label {
                     objectName: "lineNumber"

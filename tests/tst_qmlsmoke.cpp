@@ -11,6 +11,7 @@
 #include <QQmlComponent>
 #include <QDateTime>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFontMetricsF>
 #include <QPointingDevice>
 #include <QWheelEvent>
@@ -256,6 +257,40 @@ private Q_SLOTS:
         QCOMPARE(labels(), before);
         v->Close();
         v->setWindow(nullptr);
+    }
+
+    void longTextStaysResponsive()
+    {
+        // Like ~/.zcompdump: thousands of lines, some very long. The line numbers once
+        // made a label per line of the whole text (the view was briefly that tall)
+        // and froze the viewer.
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        QFile f(m_keptDir.filePath(u"long.txt"_s));
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        for (int i = 0; i < 3000; ++i) {
+            f.write(i % 10 ? QByteArray("'word' '_completion'\n") : QByteArray(QByteArray(1000, 'x') + '\n'));
+        }
+        f.close();
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        QElapsedTimer timer;
+        timer.start();
+        v->Open({f.fileName()}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QQuickItem *area = nullptr;
+        QTRY_VERIFY((area = window->findChild<QQuickItem *>(u"textArea"_s)));
+        QTRY_VERIFY(area->property("length").toInt() > 50000);
+        QVERIFY2(timer.elapsed() < 5000, qPrintable(u"took %1 ms"_s.arg(timer.elapsed())));
+        int labels = 0;
+        for (QQuickItem *item : area->childItems()) {
+            labels += item->objectName() == u"lineNumber"_s;
+        }
+        QVERIFY2(labels < 200, qPrintable(u"%1 line number labels"_s.arg(labels)));
+        v->Close();
+        v->setWindow(nullptr);
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 
     void loadsPdfView()

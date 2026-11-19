@@ -13,6 +13,7 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 - Zoom pictures, text and PDFs with Ctrl+wheel, Ctrl+plus and Ctrl+minus (Ctrl+0 goes back). Pictures zoom towards the mouse pointer, can be pinched on a touchpad and moved by dragging or scrolling, and a double-click switches between fitted and real size. Text keeps its size for the next files until the preview closes; pictures and PDFs start fitted again.
 
 ### Fixed
+- Long text files (thousands of lines, like zsh's `.zcompdump`) no longer freeze the preview.
 - An office document no longer shows “Preparing preview…” for a whole minute when LibreOffice can't be started.
 - Scratch folders left behind when KwikLook was stopped during an office preview are now cleaned up.
 - KwikLook could crash when it was stopped while a PDF preview was still drawing its pages.
