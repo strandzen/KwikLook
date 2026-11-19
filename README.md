@@ -129,6 +129,8 @@ A preview reads the file, so a file made to attack a bug in a picture, PDF or ot
 
 **Ctrl+Space no longer toggles the selection in Dolphin.** With Ctrl+Space as the open key, KwikLook takes it over. Choose another open key to get Dolphin's back.
 
+**The preview's corners and shadow don't match my other windows.** The preview draws its own frame, made to look like the Breeze window decoration (it follows Breeze's settings). With another window decoration (Oxygen, Klassy, an Aurorae theme) it still looks like Breeze. Buttons, colours, fonts and icons always follow your Application Style and colour scheme.
+
 **Office documents show only their icon and a note.** “LibreOffice couldn't convert this document”: the file may be damaged or password-protected. “This system can't run LibreOffice shut away…”: your kernel is too old for the sandbox, so KwikLook doesn't run LibreOffice at all. No note: check that LibreOffice is installed and “Preview office documents” is on in the settings.
 
 **I want to turn off the Dolphin part for a moment.** Start Dolphin with `KWIKLOOK_DISABLE_DOLPHIN_HOOK=1 dolphin`.
