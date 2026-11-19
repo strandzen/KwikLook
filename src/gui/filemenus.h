@@ -22,7 +22,7 @@ class Menu;
  * Share menus, as KDE's own menus (the applications for its type, KDE's share
  * plugins) shown below a button, and the information panel's actions.
  *
- *   FileMenus { id: menus; url: Viewer.currentUrl }
+ *   FileMenus { id: menus; url: Viewer.currentUrl; mimeType: Viewer.mimeType }
  *   ToolButton { onClicked: menus.showOpenWith(this) }
  */
 class FileMenus : public QObject
@@ -31,6 +31,8 @@ class FileMenus : public QObject
     QML_ELEMENT
 
     Q_PROPERTY(QUrl url MEMBER m_url NOTIFY urlChanged)
+    // The file's type, when already known (Viewer.mimeType); otherwise guessed from the name.
+    Q_PROPERTY(QString mimeType MEMBER m_mimeType NOTIFY mimeTypeChanged)
 
 public:
     explicit FileMenus(QObject *parent = nullptr);
@@ -45,6 +47,7 @@ public:
 
 Q_SIGNALS:
     void urlChanged();
+    void mimeTypeChanged();
     // An application (or the file manager) was started for the file.
     void launched();
     // Something to tell the user (a share failed, or gave a link).
@@ -53,8 +56,10 @@ Q_SIGNALS:
 private:
     void popup(QMenu *menu, QQuickItem *button);
     void launch(const QUrl &url, const QString &desktopEntry);
+    QString mimeType() const;
 
     QUrl m_url;
+    QString m_mimeType;
     // Kept after the menu closes: the share job (and any dialog it shows) runs on.
     std::unique_ptr<Purpose::Menu> m_shareMenu;
 };

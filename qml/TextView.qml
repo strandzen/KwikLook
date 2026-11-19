@@ -59,8 +59,14 @@ ColumnLayout {
             }
 
             SyntaxHighlighter {
+                objectName: "highlighter"
                 textEdit: area
-                definition: Repository.definitionForFileName(Viewer.fileName)
+                // By name first (Kate's choice for e.g. CMakeLists.txt), then by the type
+                // read from the content (scripts without an extension). "None": not known.
+                definition: {
+                    const byName = Repository.definitionForFileName(Viewer.fileName);
+                    return byName.name !== "None" ? byName : Repository.definitionForMimeType(Viewer.mimeType);
+                }
                 theme: Repository.defaultTheme(Kirigami.ColorUtils.brightnessForColor(Kirigami.Theme.backgroundColor) === Kirigami.ColorUtils.Dark
                     ? Repository.DarkTheme : Repository.LightTheme)
             }
@@ -77,18 +83,28 @@ ColumnLayout {
                 height: scroll.height
             }
 
+            // Enough labels for a screenful of one-row lines, kept while scrolling: only
+            // their numbers and positions change.
             Repeater {
-                model: numbers.lines
+                id: numberLabels
+
+                readonly property var lines: numbers.lines // one conversion per update, not one per label
+
+                model: Math.ceil(scroll.height / numberMetrics.lineSpacing) + 2
 
                 QQC2.Label {
-                    required property var modelData
+                    objectName: "lineNumber"
+                    required property int index
+                    readonly property var line: numberLabels.lines[index]
+
+                    visible: line !== undefined
                     x: 0
-                    y: area.topPadding + modelData.y
+                    y: line ? area.topPadding + line.y : 0
                     width: area.gutterWidth - Kirigami.Units.largeSpacing
                     horizontalAlignment: Text.AlignRight
                     font: area.font
                     color: Kirigami.Theme.disabledTextColor
-                    text: modelData.number
+                    text: line ? line.number : ""
                 }
             }
         }

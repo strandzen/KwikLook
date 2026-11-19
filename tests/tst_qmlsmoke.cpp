@@ -10,6 +10,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
 #include <QDir>
+#include <QFontMetricsF>
 #include <QPainter>
 #include <QPdfWriter>
 #include <QQuickItem>
@@ -155,6 +156,66 @@ private Q_SLOTS:
             qWarning().noquote() << e.toString();
         }
         QVERIFY(errors.isEmpty());
+    }
+
+    void textViewColoursScriptsAndKeepsLineNumbers()
+    {
+        QQmlApplicationEngine engine;
+        KLocalization::setupLocalizedContext(&engine);
+        engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
+        engine.loadFromModule("kwiklook", "Main");
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+        QVERIFY(window);
+        QTemporaryDir dir;
+        // A shell script without an extension: coloured by its type, found from the content.
+        QFile f(dir.filePath(u"run-me"_s));
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("#!/bin/sh\n");
+        for (int i = 0; i < 300; ++i) {
+            f.write("echo \"line\"\n");
+        }
+        f.close();
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open({f.fileName()}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QQuickItem *area = nullptr;
+        QTRY_VERIFY((area = window->findChild<QQuickItem *>(u"textArea"_s)));
+        QObject *highlighter = area->findChild<QObject *>(u"highlighter"_s);
+        QVERIFY(highlighter);
+        const QVariant definition = highlighter->property("definition");
+        const QMetaObject *meta = definition.metaType().metaObject();
+        QVERIFY(meta);
+        QTRY_COMPARE(meta->property(meta->indexOfProperty("name")).readOnGadget(highlighter->property("definition").constData()).toString(), u"Bash"_s);
+
+        // Scrolling moves the numbers, it doesn't make new labels.
+        const auto labels = [area] {
+            QList<QQuickItem *> found;
+            for (QQuickItem *item : area->childItems()) {
+                if (item->objectName() == u"lineNumber"_s) {
+                    found << item;
+                }
+            }
+            return found;
+        };
+        const auto shown = [&labels] {
+            QStringList numbers;
+            for (QQuickItem *label : labels()) {
+                if (label->isVisible()) {
+                    numbers << label->property("text").toString();
+                }
+            }
+            return numbers;
+        };
+        QTRY_VERIFY(shown().contains(u"1"_s));
+        const QList<QQuickItem *> before = labels();
+        QVERIFY(!before.isEmpty());
+        QObject *flickable = area->parentItem()->parentItem(); // ScrollView's Flickable
+        QVERIFY(flickable->setProperty("contentY", 100 * QFontMetricsF(area->property("font").value<QFont>()).lineSpacing()));
+        QTRY_VERIFY(!shown().contains(u"1"_s) && shown().contains(u"110"_s));
+        QCOMPARE(labels(), before);
+        v->Close();
+        v->setWindow(nullptr);
     }
 
     void loadsPdfView()

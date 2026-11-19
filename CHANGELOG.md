@@ -4,6 +4,9 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Fixed
+- Scripts and other text files without a file name extension now show syntax colours too.
+
 ## [0.1.0] - 2026-11-19
 
 The first release.

@@ -13,14 +13,9 @@ ColumnLayout {
     objectName: "infoPanel"
 
     required property Kirigami.ApplicationWindow window
+    required property FileMenus menus
 
     spacing: 0
-
-    FileMenus {
-        id: actions
-        url: Viewer.currentUrl
-        onLaunched: Viewer.Close()
-    }
 
     QQC2.ScrollView {
         Layout.fillWidth: true
@@ -103,14 +98,14 @@ ColumnLayout {
             Layout.fillWidth: true
             icon.name: "system-file-manager"
             text: i18nc("@action:button", "Show in Dolphin")
-            onClicked: actions.showInFileManager(this)
+            onClicked: panel.menus.showInFileManager(this)
         }
         QQC2.Button {
             Layout.fillWidth: true
             icon.name: "edit-copy-path"
             text: i18nc("@action:button", "Copy Path")
             onClicked: {
-                actions.copyPath();
+                panel.menus.copyPath();
                 panel.window.showPassiveNotification(i18n("Path copied"));
             }
         }

@@ -29,6 +29,15 @@ Kirigami.ApplicationWindow {
         window: root
     }
 
+    // “Open with…”, Share and the panel's actions, for the bar and the panel.
+    FileMenus {
+        id: fileMenus
+        url: Viewer.currentUrl
+        mimeType: Viewer.mimeType
+        onLaunched: Viewer.Close()
+        onMessage: text => root.showPassiveNotification(text)
+    }
+
     Shortcut {
         sequences: [KwikLookSettings.openKey, "Escape"] // the key that opened it closes it
         onActivated: Viewer.Close()
@@ -64,6 +73,7 @@ Kirigami.ApplicationWindow {
                 id: titleBar
                 Layout.fillWidth: true
                 window: root
+                menus: fileMenus
             }
 
             RowLayout {
@@ -101,6 +111,7 @@ Kirigami.ApplicationWindow {
                         width: Kirigami.Units.gridUnit * 18
                         height: parent.height
                         window: root
+                        menus: fileMenus
                     }
                 }
             }

@@ -27,21 +27,21 @@
 
 using namespace Qt::StringLiterals;
 
-namespace
-{
-QString mimeTypeOf(const QUrl &url)
-{
-    QMimeDatabase db;
-    return (url.isLocalFile() ? db.mimeTypeForFile(url.toLocalFile()) : db.mimeTypeForUrl(url)).name();
-}
-} // namespace
-
 FileMenus::FileMenus(QObject *parent)
     : QObject(parent)
 {
 }
 
 FileMenus::~FileMenus() = default;
+
+QString FileMenus::mimeType() const
+{
+    if (!m_mimeType.isEmpty()) {
+        return m_mimeType;
+    }
+    // Not read yet (just switched files): by name only, without reading the file here.
+    return QMimeDatabase().mimeTypeForFile(m_url.path(), QMimeDatabase::MatchExtension).name();
+}
 
 void FileMenus::showOpenWith(QQuickItem *button)
 {
@@ -51,7 +51,7 @@ void FileMenus::showOpenWith(QQuickItem *button)
     auto *menu = new QMenu;
     menu->setAttribute(Qt::WA_DeleteOnClose);
     const QUrl url = m_url;
-    const KService::List apps = KFileItemActions::associatedApplications({mimeTypeOf(url)});
+    const KService::List apps = KFileItemActions::associatedApplications({mimeType()});
     for (const KService::Ptr &app : apps) {
         QAction *action = menu->addAction(QIcon::fromTheme(app->icon()), app->name());
         const QString entry = app->desktopEntryName();
@@ -104,7 +104,7 @@ void FileMenus::showShare(QQuickItem *button)
     }
     m_shareMenu->model()->setInputData(QJsonObject{
         {u"urls"_s, QJsonArray{m_url.toString()}},
-        {u"mimeType"_s, mimeTypeOf(m_url)},
+        {u"mimeType"_s, mimeType()},
     });
     m_shareMenu->reload();
     popup(m_shareMenu.get(), button);

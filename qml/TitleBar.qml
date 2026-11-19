@@ -13,6 +13,7 @@ QQC2.ToolBar {
     id: bar
 
     required property Kirigami.ApplicationWindow window
+    required property FileMenus menus
 
     component BarButton: QQC2.ToolButton {
         display: QQC2.AbstractButton.IconOnly
@@ -34,13 +35,6 @@ QQC2.ToolBar {
             anchors.right: parent.right
             anchors.bottom: parent.bottom
         }
-    }
-
-    FileMenus {
-        id: menus
-        url: Viewer.currentUrl
-        onLaunched: Viewer.Close()
-        onMessage: text => bar.window.showPassiveNotification(text)
     }
 
     DragHandler {
@@ -90,12 +84,12 @@ QQC2.ToolBar {
             BarButton {
                 icon.name: "document-share"
                 text: i18nc("@action:button", "Share")
-                onClicked: menus.showShare(this)
+                onClicked: bar.menus.showShare(this)
             }
             BarButton {
                 icon.name: "document-open"
                 text: i18nc("@action:button", "Open With…")
-                onClicked: menus.showOpenWith(this)
+                onClicked: bar.menus.showOpenWith(this)
             }
             BarButton {
                 icon.name: "window-close"
