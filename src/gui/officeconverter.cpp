@@ -105,13 +105,15 @@ void OfficeConverter::convert(const QString &path)
         return;
     }
 
+    removeStaleWork();
     // A fresh scratch folder each time (profile included: nothing a document does
     // to LibreOffice's settings carries over to the next one).
     m_workDir = m_cacheDir + u"/work-"_s + QString::number(QCoreApplication::applicationPid());
     QDir(m_workDir).removeRecursively();
-    for (const char *sub : {"home", "tmp", "out"}) {
+    for (const char *sub : {"home", "tmp", "out", "profile/user"}) {
         QDir().mkpath(m_workDir + u'/' + QLatin1String(sub));
     }
+    writeProfileSettings(m_workDir + u"/profile/user/registrymodifications.xcu"_s);
     m_path = path;
 
     QStringList args{u"--read"_s, path, u"--write"_s, m_workDir,
@@ -140,9 +142,65 @@ void OfficeConverter::convert(const QString &path)
         }
         finish(status == QProcess::NormalExit ? exitCode : -1, false);
     });
+    // Couldn't be started at all: no finished() follows, so fail now, not at the timeout.
+    connect(process, &QProcess::errorOccurred, this, [this, process](QProcess::ProcessError error) {
+        if (process == m_process && error == QProcess::FailedToStart) {
+            qCWarning(lcOffice) << "could not start" << process->program() << process->errorString();
+            finish(-1, false);
+        }
+    });
     m_process = process;
-    process->start(sandbox, args);
     m_timeout.start();
+    process->start(sandbox, args);
+}
+
+void OfficeConverter::writeProfileSettings(const QString &file)
+{
+    // Belt and braces next to the sandbox: no macros, and no updating of linked
+    // files or data. (Writer: 2 = never; Calc's value 2 may mean “on request”, which
+    // a headless conversion can't ask, so never too.) Finalized: a document can't
+    // turn them back on.
+    QFile xcu(file);
+    if (!xcu.open(QIODevice::WriteOnly)) {
+        qCWarning(lcOffice) << "could not write" << file;
+        return;
+    }
+    xcu.write(R"(<?xml version="1.0" encoding="UTF-8"?>
+<oor:items xmlns:oor="http://openoffice.org/2001/registry" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<item oor:path="/org.openoffice.Office.Common/Security/Scripting"><prop oor:name="DisableMacrosExecution" oor:op="fuse" oor:finalized="true"><value>true</value></prop></item>
+<item oor:path="/org.openoffice.Office.Common/Security/Scripting"><prop oor:name="MacroSecurityLevel" oor:op="fuse" oor:finalized="true"><value>3</value></prop></item>
+<item oor:path="/org.openoffice.Office.Writer/Content/Update"><prop oor:name="Link" oor:op="fuse" oor:finalized="true"><value>2</value></prop></item>
+<item oor:path="/org.openoffice.Office.Calc/Content/Update"><prop oor:name="Link" oor:op="fuse" oor:finalized="true"><value>2</value></prop></item>
+</oor:items>
+)");
+}
+
+void OfficeConverter::removeStaleWork()
+{
+    // Scratch folders of earlier viewers that crashed or were killed mid-conversion
+    // (only one viewer runs at a time, so any other is stale).
+    const QString own = u"work-"_s + QString::number(QCoreApplication::applicationPid());
+    const QStringList dirs = QDir(m_cacheDir).entryList({u"work-*"_s}, QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString &dir : dirs) {
+        if (dir != own) {
+            QDir(m_cacheDir + u'/' + dir).removeRecursively(); // our own cache, not user files
+        }
+    }
+}
+
+bool OfficeConverter::sandboxSupported()
+{
+    // Asked once: the helper says 77 when this kernel's Landlock can't lock a program in.
+    static const bool supported = [] {
+        const QString sandbox = sandboxBinary();
+        if (sandbox.isEmpty()) {
+            return false;
+        }
+        QProcess process;
+        process.start(sandbox, {u"--"_s, u"true"_s});
+        return process.waitForFinished(5000) && process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0;
+    }();
+    return supported;
 }
 
 void OfficeConverter::cancel()
@@ -166,6 +224,9 @@ void OfficeConverter::cancel()
 
 void OfficeConverter::finish(int exitCode, bool timedOut)
 {
+    if (m_path.isEmpty()) {
+        return; // already finished (a start error, then the process's end)
+    }
     const QString path = m_path;
     const QString out = m_workDir + u"/out/"_s + QFileInfo(path).completeBaseName() + u".pdf"_s;
     const QString pdf = cachedPdf(path);

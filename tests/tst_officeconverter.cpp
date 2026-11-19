@@ -61,6 +61,9 @@ private Q_SLOTS:
         if (!OfficeConverter::available()) {
             QSKIP("LibreOffice or kwiklook-sandbox not found");
         }
+        if (!OfficeConverter::sandboxSupported()) {
+            QSKIP("this kernel's Landlock can't lock LibreOffice in");
+        }
     }
 
     void convertsAndCaches()
@@ -117,12 +120,31 @@ private Q_SLOTS:
         converter.convert(writeDocument(m_files.filePath(u"cancelled.fodt"_s), u"Never shown"_s));
         const QString work = converter.workDir();
         QVERIFY(!work.isEmpty());
+        // The fresh profile has macros and link updates turned off.
+        QFile settings(work + u"/profile/user/registrymodifications.xcu"_s);
+        QVERIFY(settings.open(QIODevice::ReadOnly));
+        const QByteArray xcu = settings.readAll();
+        QVERIFY(xcu.contains("DisableMacrosExecution"));
+        QVERIFY(xcu.contains("oor:finalized=\"true\"><value>true</value>"));
         QTRY_VERIFY_WITH_TIMEOUT(processesMentioning(work) > 0, 5000); // LibreOffice runs
         converter.cancel();
         QCOMPARE(processesMentioning(work), 0); // all of it, not only the first process
         QVERIFY(!QDir(work).exists());
         QTest::qWait(200);
         QCOMPARE(converted.size(), 0);
+    }
+
+    void staleScratchFoldersGo()
+    {
+        // Left by a viewer that was killed mid-conversion.
+        QTemporaryDir cache;
+        QVERIFY(QDir().mkpath(cache.filePath(u"work-1/profile/user"_s)));
+        OfficeConverter converter;
+        converter.setCacheDir(cache.path());
+        QSignalSpy converted(&converter, &OfficeConverter::converted);
+        converter.convert(writeDocument(m_files.filePath(u"stale.fodt"_s), u"Stale"_s));
+        QVERIFY(!QDir(cache.filePath(u"work-1"_s)).exists());
+        QVERIFY(converted.wait(60000));
     }
 
     void cacheIsKeptSmall()

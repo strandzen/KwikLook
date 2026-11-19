@@ -39,6 +39,8 @@ public:
 
     // LibreOffice (soffice) is installed and the sandbox helper is there.
     static bool available();
+    // The kernel lets the helper lock a program in (runs it once, then remembers).
+    static bool sandboxSupported();
 
     // Starts converting `path` (a local file) unless it's cached; emits converted() or
     // failed() for it, possibly before returning. Stops a running conversion.
@@ -61,6 +63,8 @@ private:
     QString cachedPdf(const QString &path) const;
     void finish(int exitCode, bool timedOut);
     void prune();
+    void removeStaleWork();
+    static void writeProfileSettings(const QString &file);
 
     QString m_cacheDir;
     qint64 m_cacheLimit = CacheLimit;

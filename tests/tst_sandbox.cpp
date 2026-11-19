@@ -56,6 +56,17 @@ class TstSandbox : public QObject
     }
 
 private Q_SLOTS:
+    void initTestCase()
+    {
+        QProcess process;
+        process.start(QStringLiteral(SANDBOX_BINARY), {u"--"_s, u"true"_s});
+        QVERIFY(process.waitForFinished(5000));
+        if (process.exitCode() == 77) {
+            QSKIP("this kernel's Landlock can't lock a program in (ABI 6 and RESOLVE_UNIX needed)");
+        }
+        QCOMPARE(process.exitCode(), 0);
+    }
+
     void readsOnlyWhatItIsGiven()
     {
         QCOMPARE(probe({u"read"_s, write(m_readable.filePath(u"in.docx"_s))}), u"ok"_s);
