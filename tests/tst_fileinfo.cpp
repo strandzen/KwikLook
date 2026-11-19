@@ -126,6 +126,42 @@ private Q_SLOTS:
         QCOMPARE(readTextStart(path, 1000, &truncated), u"café\n"_s);
     }
 
+    void textWithAByteOrderMark()
+    {
+        QTemporaryDir dir;
+        const QString path = dir.filePath(u"utf16.txt"_s);
+        QFile f(path);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        const QString text = u"Hej æøå\nanden linje\n"_s;
+        f.write("\xff\xfe"); // UTF-16 little endian
+        f.write(reinterpret_cast<const char *>(text.utf16()), text.size() * 2);
+        f.close();
+        bool truncated = false;
+        QCOMPARE(readTextStart(path, 1000, &truncated), text);
+        QVERIFY(!truncated);
+        // Cut inside the second line: ends after the first.
+        QCOMPARE(readTextStart(path, 2 + 2 * 10, &truncated), u"Hej æøå\n"_s);
+        QVERIFY(truncated);
+        QCOMPARE(viewFor(FileInfo::read(QUrl::fromLocalFile(path))), u"TextView"_s);
+    }
+
+    void cutInsideACharacter()
+    {
+        // One long line: the cut lands inside a two-byte character.
+        QTemporaryDir dir;
+        const QString path = dir.filePath(u"long.txt"_s);
+        QFile f(path);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("a");
+        for (int i = 0; i < 100; ++i) {
+            f.write("æ");
+        }
+        f.close();
+        bool truncated = false;
+        QCOMPARE(readTextStart(path, 4, &truncated), u"aæ"_s); // "a", "æ", half an "æ"
+        QVERIFY(truncated);
+    }
+
     void otherFilesFallBack()
     {
         QCOMPARE(viewFor(FileInfo()), u"FallbackView"_s);

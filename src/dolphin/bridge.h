@@ -82,6 +82,7 @@ private:
     QPointer<QWidget> m_sessionView;
     QString m_sessionId; // empty: no preview from this process
     quint64 m_sessionCounter = 0;
+    QString m_tokenSession; // session waiting for its activation token (Wayland)
     QHash<QString, QUrl> m_localToModelUrl; // the viewer gets local URLs, Dolphin's model may not
     QStringList m_sessionUrls; // list sent to the viewer
     QString m_viewerCurrent; // file the viewer shows

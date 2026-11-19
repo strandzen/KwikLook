@@ -107,19 +107,24 @@ QString readTextStart(const QString &path, qint64 limit, bool *truncated)
         return QString();
     }
     QByteArray data = file.read(limit + 1);
-    if (data.size() > limit) {
-        *truncated = true;
+    *truncated = data.size() > limit;
+    if (*truncated) {
         data.truncate(limit);
-        // End at a line end (which also keeps a UTF-8 character whole).
-        const qsizetype lineEnd = data.lastIndexOf('\n');
-        if (lineEnd > 0) {
-            data.truncate(lineEnd + 1);
-        }
     }
-    QStringDecoder utf8(QStringDecoder::Utf8, QStringDecoder::Flag::Stateless);
-    QString text = utf8.decode(data);
-    if (utf8.hasError()) {
+    // A byte order mark names the encoding (UTF-16, UTF-32, UTF-8); without one, UTF-8.
+    const auto encoding = QStringConverter::encodingForData(data).value_or(QStringConverter::Utf8);
+    // Not stateless: a character cut at the limit stays in the decoder instead of
+    // counting as an error.
+    QStringDecoder decoder(encoding);
+    QString text = decoder.decode(data);
+    if (decoder.hasError() && encoding == QStringConverter::Utf8) {
         text = QString::fromLatin1(data);
+    }
+    if (*truncated) {
+        const qsizetype lineEnd = text.lastIndexOf(u'\n');
+        if (lineEnd > 0) {
+            text.truncate(lineEnd + 1);
+        }
     }
     return text;
 }

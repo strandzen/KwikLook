@@ -197,7 +197,13 @@ bool Bridge::trigger(QWidget *view)
     // Space again in the view that has a preview open closes it (when Dolphin
     // kept the focus; normally the preview has it and closes itself).
     if (m_sessionView == view && !m_sessionId.isEmpty()) {
-        callViewer(u"Close"_s, {});
+        if (m_tokenSession == m_sessionId) {
+            // The preview hasn't been asked to open yet (waiting for the
+            // activation token): drop the open instead of closing.
+            endSession();
+        } else {
+            callViewer(u"Close"_s, {});
+        }
         return true;
     }
 
@@ -243,7 +249,11 @@ bool Bridge::trigger(QWidget *view)
     QWindow *window = view->window()->windowHandle();
     if (KWindowSystem::isPlatformWayland() && window) {
         const QString session = m_sessionId;
+        m_tokenSession = session;
         KWaylandExtras::xdgActivationToken(window, QLatin1String(AppId)).then(this, [this, session, index](const QString &token) {
+            if (session == m_tokenSession) {
+                m_tokenSession.clear();
+            }
             if (session == m_sessionId) {
                 open(index, token);
             }
