@@ -100,6 +100,13 @@ Open “KwikLook Settings” from the app launcher (or run `kwiklook --settings`
 - **Close when you switch to another window:** on by default.
 - **Start in the background at login:** off by default. KwikLook starts with Dolphin anyway; this makes the very first preview after login open faster.
 
+## Security
+
+A preview reads the file, so a file made to attack a bug in a picture, PDF or other file reader could do harm when you preview it. What KwikLook does about that:
+
+- **Not sandboxed:** pictures, PDFs, text and file details are read inside KwikLook itself, with the same rights as you; thumbnails come from KDE's thumbnail service, also unsandboxed. Dolphin already reads the same files the same way when it shows thumbnails or indexes files for search, whether you preview them or not. The protection here is keeping your system up to date.
+- **Sandboxed:** external programs KwikLook runs on a file are locked in a sandbox: no network, no access to anything but that one file, and they can only write to KwikLook's cache. Version 0.1.0 runs no external programs yet; this applies to office documents (through LibreOffice) and anything similar added later.
+
 ## Troubleshooting
 
 **Space does nothing in Dolphin.** Close all Dolphin windows and open Dolphin again: it only picks up KwikLook when it starts. Also check the open key in the settings.
