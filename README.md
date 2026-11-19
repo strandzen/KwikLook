@@ -8,7 +8,7 @@ The latest release is 0.1.0. The main branch has more since then (office documen
 
 ## Screenshots
 
-![A picture previewed from Dolphin](assets/screenshot-1.png)
+![A photo previewed from Dolphin, with the information panel open](assets/screenshot-1.png)
 
 ## Features
 
