@@ -2,9 +2,9 @@
 
 KwikLook shows a quick preview of a file when you press Space in Dolphin, on KDE Plasma 6. Press Space or Esc again and it's gone; ← and → go through the folder.
 
-It keeps running in the background, so previews open at once, and the preview window looks like your other windows: corners, outline, shadow and colours follow your Breeze and colour scheme settings. It shows pictures, text and code, PDFs and the details of any file, without starting a full application.
+It keeps running in the background, so previews open at once. It shows pictures, text and code, PDFs, office documents, videos and audio, and the details of any file, without starting a full application. The preview window fits in with Plasma: its corners, outline and shadow follow your Breeze window decoration settings, and its buttons, colours and fonts follow your application style and colour scheme.
 
-This is version 0.1.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my own machine (Arch Linux, Plasma 6 on Wayland, Dolphin 26.08), so other distributions and setups may need some work.
+The latest release is 0.1.0. The main branch has more since then (office documents, video and audio, zoom and more); see “Unreleased” in [CHANGELOG.md](CHANGELOG.md). I mostly test it on my own machine (Arch Linux, Plasma 6 on Wayland, Dolphin 26.08), so other distributions and setups may need some work.
 
 ## Screenshots
 
@@ -13,7 +13,7 @@ This is version 0.1.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my
 ## Features
 
 - Press Space in Dolphin to preview the selected file; ← and → go through the folder in Dolphin's order and Dolphin's selection follows along, and the bar shows where you are (“2 / 5”). Enter opens the file in its usual application.
-- Pictures fill the preview window; small ones stay at their real size.
+- Pictures fill the preview window; small ones stay at their real size. Animated GIFs and WebPs play.
 - Text and code files show with syntax colours and line numbers; long files show their beginning.
 - PDFs show all their pages, fitted to the window.
 - Office documents (Word, Excel, PowerPoint and OpenDocument files) show like PDFs, when LibreOffice is installed.
@@ -30,7 +30,7 @@ This is version 0.1.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my
 - Qt 6.8 or newer, with Qt PDF (part of Qt WebEngine on Arch) and Qt Multimedia with its FFmpeg backend.
 - KDE Frameworks 6.19 or newer, including Kirigami, KIO, Purpose, KFileMetaData and KSyntaxHighlighting.
 - Kirigami Addons 1.0 or newer.
-- libseccomp, and a Linux kernel from 2025 or later (for the sandbox around office previews).
+- libseccomp, and a recent Linux kernel for the sandbox around office previews (Landlock with its newer rules for local sockets). If the kernel is too old, office documents just show their details and a note says why.
 - Optional: LibreOffice, for previews of office documents.
 
 ## Installation
@@ -119,7 +119,7 @@ A preview reads the file, so a file made to attack a bug in a picture, PDF or ot
 
 - **Not sandboxed:** pictures, PDFs, text and file details are read inside KwikLook itself, with the same rights as you; thumbnails come from KDE's thumbnail service, also unsandboxed. Dolphin already reads the same files the same way when it shows thumbnails or indexes files for search, whether you preview them or not. The protection here is keeping your system up to date.
 - **Sandboxed:** external programs KwikLook runs on a file are locked in a sandbox: no network, no connection to other programs, read access only to that one file (plus the system's programs and fonts), and they can only write to a scratch folder in KwikLook's cache. In `/tmp` they may only create and remove entries, because LibreOffice puts its own connection there. This applies to office documents, which LibreOffice turns into PDFs, and anything similar added later. The PDF it makes is then shown like any PDF, unsandboxed.
-- **No sandbox, no conversion:** on systems whose kernel can't lock LibreOffice in this way (Linux older than about 2025), office documents aren't converted; the preview says so.
+- **No sandbox, no conversion:** on systems whose kernel can't lock LibreOffice in this way, office documents aren't converted; the preview says so.
 
 ## Troubleshooting
 
