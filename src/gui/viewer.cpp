@@ -16,6 +16,7 @@
 
 #include <QCoreApplication>
 #include <QDeadlineTimer>
+#include <QElapsedTimer>
 #include <QFileInfo>
 #include <QFontDatabase>
 #include <QMimeDatabase>
@@ -184,12 +185,19 @@ bool Viewer::finishRendering(int timeoutMs)
     }
     window->hide();
     const QDeadlineTimer deadline(timeoutMs);
-    while (pdfPagesRendering(window->contentItem())) {
+    // Quiet for a while, not just once: a layout queued with Qt.callLater (after a
+    // zoom, say) can start another page a moment after a first check came out clear.
+    QElapsedTimer quiet;
+    quiet.start();
+    while (quiet.elapsed() < 100) {
+        if (pdfPagesRendering(window->contentItem())) {
+            quiet.restart();
+        }
         if (deadline.hasExpired()) {
             qCWarning(lcViewer) << "quitting while a PDF page still renders";
             return false;
         }
-        QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
     }
     return true;
 }
