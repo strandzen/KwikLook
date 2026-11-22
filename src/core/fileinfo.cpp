@@ -98,6 +98,12 @@ FileInfo FileInfo::read(const QUrl &url)
         if (info.isText) {
             info.text = readTextStart(path, TextLimit, &info.textTruncated);
         }
+        if (isFont(info.mimeType) && info.size <= FontLimit) {
+            QFile file(path);
+            if (file.open(QIODevice::ReadOnly)) {
+                info.fontData = file.readAll();
+            }
+        }
     }
     return info;
 }
@@ -130,6 +136,21 @@ QString readTextStart(const QString &path, qint64 limit, bool *truncated)
         }
     }
     return text;
+}
+
+bool isFont(const QString &mimeType)
+{
+    static const QStringList types = {
+        u"font/ttf"_s,
+        u"font/otf"_s,
+        u"font/collection"_s,
+        u"font/woff"_s,
+        u"font/woff2"_s,
+        u"application/x-font-type1"_s,
+        u"application/x-font-pcf"_s,
+        u"application/x-font-bdf"_s,
+    };
+    return types.contains(mimeType);
 }
 
 bool isOfficeDocument(const QString &mimeType)
@@ -165,6 +186,9 @@ QString viewFor(const FileInfo &info)
     }
     if (info.isText) {
         return u"TextView"_s;
+    }
+    if (!info.fontData.isEmpty()) {
+        return u"FontView"_s; // Viewer turns it into the fallback if Qt can't load the font
     }
     // After text: playlists (audio/x-mpegurl) are text files and read best as such.
     if (info.mimeType.startsWith(u"video/"_s) || info.mimeType.startsWith(u"audio/"_s)) {

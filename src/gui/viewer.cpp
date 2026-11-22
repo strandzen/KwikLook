@@ -14,6 +14,8 @@
 
 #include <QCoreApplication>
 #include <QDeadlineTimer>
+#include <QFontDatabase>
+#include <QRawFont>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QDBusConnection>
@@ -75,6 +77,8 @@ QVariantMap section(const QString &title, const QVariantList &rows)
 Viewer::Viewer(QObject *parent)
     : QObject(parent)
     , m_infoOpen(stateGroup().readEntry("InfoPanelOpen", false))
+    , m_mediaVolume(std::clamp(stateGroup().readEntry("MediaVolume", 1.0), 0.0, 1.0))
+    , m_showFormatted(stateGroup().readEntry("ShowFormatted", true))
     , m_office(new OfficeConverter(this))
 {
     connect(m_office, &OfficeConverter::converted, this, [this](const QString &path, const QUrl &pdf) {
@@ -136,6 +140,8 @@ void Viewer::setWindow(QWindow *window)
         // Closed by the window manager (Alt+F4) or hidden from QML: same as Close().
         connect(window, &QWindow::visibleChanged, this, [this](bool visible) {
             if (!visible) {
+                // Closed while a video was fullscreen: open as a normal window next time.
+                m_window->setWindowStates(Qt::WindowNoState);
                 markClosed();
             }
         });
@@ -352,6 +358,80 @@ void Viewer::setInfoOpen(bool open)
     Q_EMIT infoOpenChanged();
 }
 
+qreal Viewer::mediaVolume() const
+{
+    return m_mediaVolume;
+}
+
+void Viewer::setMediaVolume(qreal volume)
+{
+    volume = std::clamp(volume, 0.0, 1.0);
+    if (qFuzzyCompare(volume, m_mediaVolume)) {
+        return;
+    }
+    m_mediaVolume = volume;
+    // Written now, saved to disk when the preview closes (a slider moves in many steps).
+    stateGroup().writeEntry("MediaVolume", volume);
+    Q_EMIT mediaVolumeChanged();
+}
+
+void Viewer::loadFont()
+{
+    unloadFont();
+    if (m_view != u"FontView"_s) {
+        return;
+    }
+    // FreeType parses the font here, on the main thread: a few milliseconds.
+    m_fontId = QFontDatabase::addApplicationFontFromData(m_info.fontData);
+    const QRawFont raw(m_info.fontData, 12);
+    m_info.fontData.clear(); // Qt keeps its own copy
+    if (m_fontId < 0 || !raw.isValid()) {
+        qCWarning(lcViewer) << "could not load the font" << currentUrl();
+        unloadFont();
+        m_view = u"FallbackView"_s;
+        return;
+    }
+    m_fontFamily = raw.familyName();
+    m_fontStyle = raw.styleName();
+}
+
+void Viewer::unloadFont()
+{
+    if (m_fontId >= 0) {
+        QFontDatabase::removeApplicationFont(m_fontId);
+        m_fontId = -1;
+    }
+    m_fontFamily.clear();
+    m_fontStyle.clear();
+}
+
+QString Viewer::fontFamily() const
+{
+    return m_fontFamily;
+}
+
+QString Viewer::fontStyle() const
+{
+    return m_fontStyle;
+}
+
+bool Viewer::showFormatted() const
+{
+    return m_showFormatted;
+}
+
+void Viewer::setShowFormatted(bool formatted)
+{
+    if (formatted == m_showFormatted) {
+        return;
+    }
+    m_showFormatted = formatted;
+    KConfigGroup group = stateGroup();
+    group.writeEntry("ShowFormatted", formatted);
+    group.sync();
+    Q_EMIT showFormattedChanged();
+}
+
 bool Viewer::fileExists() const
 {
     return m_info.exists;
@@ -467,6 +547,7 @@ void Viewer::readFileInfo(int generation)
         }
         m_info = watcher->result();
         m_view = viewFor(m_info);
+        loadFont();
         startOfficePreview(); // the fallback view meanwhile, then the PDF view
         Q_EMIT fileInfoChanged();
     });
@@ -494,9 +575,27 @@ void Viewer::markClosed()
     }
     m_open = false;
     m_office->cancel();
+    unloadFont();
+    if (!m_fontSampleText.isEmpty()) {
+        m_fontSampleText.clear();
+        Q_EMIT fontSampleTextChanged();
+    }
+    if (m_searchOpen) {
+        m_searchOpen = false;
+        Q_EMIT searchOpenChanged();
+    }
+    if (!m_searchText.isEmpty()) {
+        m_searchText.clear();
+        Q_EMIT searchTextChanged();
+    }
     if (m_textZoom != 1) {
         m_textZoom = 1;
         Q_EMIT textZoomChanged();
     }
+    if (m_mediaRepeat) {
+        m_mediaRepeat = false;
+        Q_EMIT mediaRepeatChanged();
+    }
+    stateGroup().sync();
     Q_EMIT Closed(m_sessionId);
 }

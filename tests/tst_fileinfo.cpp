@@ -6,6 +6,9 @@
 #include <QFile>
 #include <QImage>
 #include <QTemporaryDir>
+#include <QDirIterator>
+#include <QFileInfo>
+#include <QTemporaryFile>
 #include <QTest>
 
 using namespace Qt::StringLiterals;
@@ -199,6 +202,31 @@ private Q_SLOTS:
         playlist.mimeType = u"audio/x-mpegurl"_s;
         playlist.isText = true;
         QCOMPARE(viewFor(playlist), u"TextView"_s);
+    }
+
+    void fonts()
+    {
+        QVERIFY(isFont(u"font/ttf"_s));
+        QVERIFY(isFont(u"font/woff2"_s));
+        QVERIFY(isFont(u"application/x-font-type1"_s));
+        QVERIFY(!isFont(u"application/x-font-afm"_s)); // metrics only, no glyphs
+        QVERIFY(!isFont(u"text/plain"_s));
+        // A real font file: read whole, shown by the font view.
+        QDirIterator it(u"/usr/share/fonts"_s, {u"*.ttf"_s, u"*.otf"_s}, QDir::Files, QDirIterator::Subdirectories);
+        if (!it.hasNext()) {
+            QSKIP("no TrueType or OpenType font in /usr/share/fonts");
+        }
+        const QString path = it.next();
+        const FileInfo font = FileInfo::read(QUrl::fromLocalFile(path));
+        QVERIFY2(isFont(font.mimeType), qPrintable(font.mimeType));
+        QCOMPARE(font.fontData.size(), QFileInfo(path).size());
+        QCOMPARE(viewFor(font), u"FontView"_s);
+        // Other files carry no font data.
+        QTemporaryFile text;
+        QVERIFY(text.open());
+        text.write("text\n");
+        text.close();
+        QVERIFY(FileInfo::read(QUrl::fromLocalFile(text.fileName())).fontData.isEmpty());
     }
 
     void officeDocuments()

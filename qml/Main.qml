@@ -22,12 +22,28 @@ Kirigami.ApplicationWindow {
     minimumWidth: Kirigami.Units.gridUnit * 18
     minimumHeight: Kirigami.Units.gridUnit * 10
 
+    // Videos can go fullscreen: then only the video shows, no frame.
+    readonly property bool fullScreen: visibility === Window.FullScreen
+    readonly property int radius: fullScreen ? 0 : frame.radius
+    // A text field has the focus (font sample, search): keys type, they don't move.
+    readonly property bool typing: activeFocusItem !== null && activeFocusItem.echoMode !== undefined
+
     Kirigami.Theme.colorSet: Kirigami.Theme.Window
     Kirigami.Theme.inherit: false
 
     WindowFrame {
         id: frame
-        window: root
+        window: root.fullScreen ? null : root // no shadow spilling onto another screen
+    }
+
+    // Fullscreen belongs to one video: the next file shows in the window again.
+    Connections {
+        target: Viewer
+        function onCurrentChanged() {
+            if (root.fullScreen) {
+                root.showNormal();
+            }
+        }
     }
 
     // “Open with…”, Share and the panel's actions, for the bar and the panel.
@@ -40,20 +56,56 @@ Kirigami.ApplicationWindow {
     }
 
     Shortcut {
-        sequences: [KwikLookSettings.openKey, "Escape"] // the key that opened it closes it
+        sequence: KwikLookSettings.openKey // the key that opened it closes it
+        enabled: !root.typing
         onActivated: Viewer.Close()
+    }
+    // Esc leaves fullscreen or closes the find bar first, then closes.
+    Shortcut {
+        sequence: "Escape"
+        onActivated: {
+            if (root.fullScreen) {
+                root.showNormal();
+            } else if (Viewer.searchOpen && viewLoader.searchable) {
+                Viewer.searchOpen = false;
+            } else {
+                Viewer.Close();
+            }
+        }
+    }
+    // Find, for the views that have it (text, PDF).
+    Shortcut {
+        sequences: [StandardKey.Find]
+        enabled: viewLoader.searchable
+        onActivated: {
+            Viewer.searchOpen = true;
+            viewLoader.item.focusSearch();
+        }
+    }
+    Shortcut {
+        sequences: [StandardKey.FindNext]
+        enabled: viewLoader.searchable && Viewer.searchOpen
+        onActivated: viewLoader.item.findNext()
+    }
+    Shortcut {
+        sequences: [StandardKey.FindPrevious]
+        enabled: viewLoader.searchable && Viewer.searchOpen
+        onActivated: viewLoader.item.findPrevious()
     }
     Shortcut {
         sequence: "Left"
+        enabled: !root.typing
         onActivated: Viewer.Previous()
     }
     Shortcut {
         sequence: "Right"
+        enabled: !root.typing
         onActivated: Viewer.Next()
     }
     // Enter: open the file in its usual application (the preview then closes).
     Shortcut {
         sequences: ["Return", "Enter"]
+        enabled: !root.typing
         onActivated: fileMenus.openWithDefault()
     }
     // Zoom, for the views that have it (pictures, text, PDF).
@@ -79,7 +131,7 @@ Kirigami.ApplicationWindow {
         anchors.fill: parent
         color: Kirigami.Theme.backgroundColor
 
-        layer.enabled: frame.radius > 0
+        layer.enabled: root.radius > 0
         layer.effect: MultiEffect {
             maskEnabled: true
             maskSource: mask
@@ -93,7 +145,9 @@ Kirigami.ApplicationWindow {
 
             TitleBar {
                 id: titleBar
+                objectName: "titleBar"
                 Layout.fillWidth: true
+                visible: !root.fullScreen
                 window: root
                 menus: fileMenus
             }
@@ -114,6 +168,7 @@ Kirigami.ApplicationWindow {
                         id: viewLoader
 
                         readonly property bool zoomable: item !== null && typeof item.zoomBy === "function"
+                        readonly property bool searchable: item !== null && typeof item.findNext === "function"
 
                         anchors.fill: parent
                         source: Viewer.view ? Qt.resolvedUrl(Viewer.view + ".qml") : ""
@@ -167,7 +222,7 @@ Kirigami.ApplicationWindow {
                 Item {
                     id: infoPanel
                     Layout.fillHeight: true
-                    Layout.preferredWidth: Viewer.infoOpen ? Kirigami.Units.gridUnit * 18 : 0
+                    Layout.preferredWidth: Viewer.infoOpen && !root.fullScreen ? Kirigami.Units.gridUnit * 18 : 0
                     Behavior on Layout.preferredWidth {
                         NumberAnimation {
                             duration: Kirigami.Units.longDuration
@@ -196,7 +251,7 @@ Kirigami.ApplicationWindow {
         layer.enabled: true
         Rectangle {
             anchors.fill: parent
-            radius: frame.radius
+            radius: root.radius
             antialiasing: true
         }
     }
@@ -209,9 +264,9 @@ Kirigami.ApplicationWindow {
         readonly property color fg: titleBar.Kirigami.Theme.textColor
 
         anchors.fill: parent
-        visible: frame.outline
+        visible: frame.outline && !root.fullScreen
         color: "transparent"
-        radius: frame.radius
+        radius: root.radius
         antialiasing: true
         border.width: 1
         border.color: Qt.rgba(bg.r + (fg.r - bg.r) * 0.2, bg.g + (fg.g - bg.g) * 0.2, bg.b + (fg.b - bg.b) * 0.2, 1)
@@ -220,5 +275,6 @@ Kirigami.ApplicationWindow {
     ResizeHandles {
         anchors.fill: parent
         window: root
+        visible: !root.fullScreen
     }
 }

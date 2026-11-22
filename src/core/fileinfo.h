@@ -29,6 +29,7 @@ struct FileInfo {
     bool isText = false; // plain text, source code, Markdown, ... (type inherits text/plain)
     QString text; // text files: the start of the file (see TextLimit)
     bool textTruncated = false; // the file is longer than `text`
+    QByteArray fontData; // font files (up to FontLimit): the whole file, for the font preview
 
     // What KFileMetaData finds in the file (EXIF, page count, artist, ...), as
     // translated label and display text, in its order. Width and height are left
@@ -49,6 +50,8 @@ struct FileInfo {
     // Text files show at most this much: more makes the preview slow to lay out.
     // Measured 2026-11-18: 1 MB took 0.46 s to lay out and colour, 256 KB 0.11 s.
     static constexpr qint64 TextLimit = 256 * 1024;
+    // Larger font files show the fallback view (the largest CJK fonts are about 20 MB).
+    static constexpr qint64 FontLimit = 64 * 1024 * 1024;
 
     bool operator==(const FileInfo &) const = default;
 };
@@ -60,6 +63,10 @@ QString readTextStart(const QString &path, qint64 limit, bool *truncated);
 // Office documents LibreOffice can convert to PDF: OpenDocument, Office Open XML,
 // and the older Microsoft Office formats.
 bool isOfficeDocument(const QString &mimeType);
+
+// Font files Qt can load (through FreeType): TrueType, OpenType, collections, WOFF,
+// Type 1, PCF, BDF.
+bool isFont(const QString &mimeType);
 
 // The QML file (component name in the kwiklook module) that previews this file.
 QString viewFor(const FileInfo &info);

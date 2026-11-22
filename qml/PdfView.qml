@@ -3,6 +3,7 @@
 import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Pdf
+import QtQuick.Shapes
 import QtQuick.Window
 import org.kde.kirigami as Kirigami
 import kwiklook
@@ -12,7 +13,7 @@ import kwiklook
 // A list of PdfPageImage in KDE's ScrollView rather than Qt's PdfMultiPageView,
 // which always scrolls sideways and puts pages off-centre (its rows are wider than
 // the view). A PDF that can't be opened (damaged, password-protected) shows the
-// fallback view.
+// fallback view. Ctrl+F finds text (FindBar below); matches are marked on the pages.
 Item {
     id: view
     objectName: "pdfView"
@@ -57,6 +58,33 @@ Item {
         zoomed();
     }
 
+    function focusSearch() {
+        findBar.focusField();
+    }
+    function findNext() {
+        if (search.matchCount > 0) {
+            showResult((search.currentResult + 1) % search.matchCount);
+        }
+    }
+    function findPrevious() {
+        if (search.matchCount > 0) {
+            showResult((search.currentResult - 1 + search.matchCount) % search.matchCount);
+        }
+    }
+    // Makes `index` the current match and scrolls its page there, the match a third down.
+    function showResult(index) {
+        search.currentResult = index;
+        const link = search.currentResultLink;
+        const points = pdf.pagePointSize(link.page);
+        if (!link.valid || points.width <= 0) {
+            return;
+        }
+        pages.positionViewAtIndex(link.page, ListView.Beginning);
+        const scale = pages.pageWidth / points.width;
+        pages.contentY = Math.max(pages.originY, Math.min(pages.originY + pages.contentHeight - pages.height,
+            pages.contentY + link.location.y * scale - pages.height / 3));
+    }
+
     Connections {
         target: Viewer
         function onCurrentChanged() {
@@ -66,6 +94,30 @@ Item {
 
     PdfDocument {
         id: pdf // not “document”: PdfPageImage.document would bind to itself
+    }
+    // Finds page by page in the background; the first match shows as soon as it's found.
+    // QML doesn't get the model's count and status properties (newer than its QML
+    // registration): the count comes from the model's rows.
+    PdfSearchModel {
+        id: search
+
+        property int matchCount: 0
+        property bool showFirst: true
+
+        function updateCount() {
+            matchCount = rowCount();
+            if (matchCount > 0 && showFirst) {
+                showFirst = false;
+                view.showResult(0);
+            }
+        }
+
+        document: pdf
+        searchString: Viewer.searchOpen ? Viewer.searchText : ""
+        onSearchStringChanged: showFirst = true
+        onRowsInserted: updateCount()
+        onRowsRemoved: updateCount()
+        onModelReset: updateCount()
     }
     // The PDF itself, or an office document converted to one; only once the file's
     // details say so (not the previous file's type). Kept, not cleared, when the next
@@ -80,7 +132,10 @@ Item {
 
     QQC2.ScrollView {
         id: scroll
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: findBar.visible ? findBar.top : parent.bottom
         visible: pdf.status === PdfDocument.Ready
         // Sideways only when zoomed in beyond the width.
         QQC2.ScrollBar.horizontal.policy: view.zoom > 1 ? QQC2.ScrollBar.AsNeeded : QQC2.ScrollBar.AlwaysOff
@@ -139,9 +194,58 @@ Item {
                         sourceSize.width: page.width * Screen.devicePixelRatio
                         sourceSize.height: page.height * Screen.devicePixelRatio
                     }
+
+                    // Matches on this page (in page points), the current one stronger.
+                    Shape {
+                        anchors.fill: parent
+                        visible: search.matchCount > 0
+
+                        ShapePath {
+                            strokeWidth: -1
+                            fillColor: Qt.alpha(Kirigami.Theme.highlightColor, 0.3)
+                            scale: Qt.size(page.width / row.pointSize.width, page.width / row.pointSize.width)
+                            PathMultiline {
+                                id: pageMatches
+                                objectName: "pdfMatches"
+                                function update() {
+                                    paths = search.boundingPolygonsOnPage(row.index);
+                                }
+                                Component.onCompleted: update()
+                            }
+                        }
+                        ShapePath {
+                            strokeWidth: -1
+                            fillColor: Qt.alpha(Kirigami.Theme.highlightColor, 0.5)
+                            scale: Qt.size(page.width / row.pointSize.width, page.width / row.pointSize.width)
+                            PathMultiline {
+                                paths: search.currentPage === row.index ? search.currentResultBoundingPolygons : []
+                            }
+                        }
+                    }
+                    // As Qt's PDF views do: when the matches change, every page asks again.
+                    Connections {
+                        target: search
+                        function onCurrentPageBoundingPolygonsChanged() {
+                            pageMatches.update();
+                        }
+                        function onMatchCountChanged() {
+                            pageMatches.update();
+                        }
+                    }
                 }
             }
         }
+    }
+
+    FindBar {
+        id: findBar
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        count: search.matchCount
+        current: search.currentResult
+        onNext: view.findNext()
+        onPrevious: view.findPrevious()
     }
 
     Loader {

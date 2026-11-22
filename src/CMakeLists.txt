@@ -13,6 +13,10 @@ set(KWIKLOOK_QML_FILES
     ${CMAKE_SOURCE_DIR}/qml/TextView.qml
     ${CMAKE_SOURCE_DIR}/qml/PdfView.qml
     ${CMAKE_SOURCE_DIR}/qml/MediaView.qml
+    ${CMAKE_SOURCE_DIR}/qml/FontView.qml
+    ${CMAKE_SOURCE_DIR}/qml/FindBar.qml
+    ${CMAKE_SOURCE_DIR}/qml/BarItems.qml
+    ${CMAKE_SOURCE_DIR}/qml/BarEditor.qml
     ${CMAKE_SOURCE_DIR}/qml/SettingsWindow.qml
 )
 
@@ -25,6 +29,7 @@ add_library(kwiklook_core STATIC
 target_include_directories(kwiklook_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/core)
 target_link_libraries(kwiklook_core PUBLIC Qt6::Gui KF6::ConfigCore KF6::ConfigGui) # ConfigGui: QColor entries
 target_link_libraries(kwiklook_core PRIVATE KF6::FileMetaData) # details like EXIF, page count
+set_source_files_properties(${CMAKE_SOURCE_DIR}/qml/BarItems.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 foreach(qml_file ${KWIKLOOK_QML_FILES})
     get_filename_component(qml_name ${qml_file} NAME)
     set_source_files_properties(${qml_file} PROPERTIES QT_RESOURCE_ALIAS ${qml_name})
@@ -51,6 +56,8 @@ qt_add_qml_module(kwiklook_qml
         gui/autostart.cpp
         gui/officeconverter.h
         gui/officeconverter.cpp
+        gui/offlinenetwork.h
+        gui/offlinenetwork.cpp
     RESOURCE_PREFIX "/qt/qml" # Qt searches here by default
     OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/kwiklook"
 )
@@ -72,6 +79,7 @@ target_link_libraries(kwiklook_qml PUBLIC
     KF6::I18n
     KF6::ConfigCore # settings
     Qt6::Concurrent # reading file details off the main thread
+    Qt6::Network # gui/offlinenetwork
     KF6::KIOWidgets # “Open with…”: applications for a file, the “Other Application” dialog
     KF6::Service
     KF6::Purpose # Share

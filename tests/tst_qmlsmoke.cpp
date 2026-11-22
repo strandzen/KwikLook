@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
 #include "gui/autostart.h"
+#include "gui/offlinenetwork.h"
 #include "gui/thumbnailprovider.h"
 #include "gui/viewer.h"
 #include "kwiklooksettings.h"
@@ -27,6 +28,10 @@
 
 #include <KConfig>
 #include <KConfigGroup>
+#include <KSharedConfig>
+#include <QDirIterator>
+#include <QScopeGuard>
+#include <QTcpServer>
 
 #include <algorithm>
 #include <memory>
@@ -48,6 +53,7 @@ struct MainWindow {
     {
         KLocalization::setupLocalizedContext(&engine);
         engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
+        engine.setNetworkAccessManagerFactory(OfflineNetworkFactory::instance());
         QObject::connect(&engine, &QQmlApplicationEngine::warnings, &engine, [this](const QList<QQmlError> &w) {
             errors << w;
         });
@@ -70,6 +76,20 @@ struct MainWindow {
         return lines.join(u'\n');
     }
 };
+
+// Items a Repeater or Loader made aren't QObject children of the window: walk the items.
+static QQuickItem *findItem(QQuickWindow *window, const QString &name)
+{
+    QList<QQuickItem *> todo{window->contentItem()};
+    while (!todo.isEmpty()) {
+        QQuickItem *item = todo.takeFirst();
+        if (item->objectName() == name) {
+            return item;
+        }
+        todo << item->childItems();
+    }
+    return nullptr;
+}
 
 class TstQmlSmoke : public QObject
 {
@@ -257,6 +277,225 @@ private Q_SLOTS:
         QCOMPARE(labels(), before);
         v->Close();
         v->setWindow(nullptr);
+    }
+
+    void markdownRendersWithoutFetching()
+    {
+        // Stands in for a web server: no connection may arrive.
+        QTcpServer web;
+        QVERIFY(web.listen(QHostAddress::LocalHost));
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        QTemporaryDir dir;
+        QFile f(dir.filePath(u"notes.md"_s));
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write(u"# Title\n\nSome *text* and a [link](https://kde.org).\n\n![remote](http://127.0.0.1:%1/picture.png)\n\n<img src=\"http://127.0.0.1:%1/html.png\">\n"_s
+                    .arg(web.serverPort())
+                    .toUtf8());
+        f.close();
+        Viewer *v = Viewer::instance();
+        v->setShowFormatted(true);
+        v->setWindow(window);
+        v->Open({f.fileName()}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QQuickItem *area = nullptr;
+        QTRY_VERIFY((area = window->findChild<QQuickItem *>(u"textArea"_s)));
+        QTRY_COMPARE(area->property("textFormat").toInt(), int(Qt::MarkdownText));
+        QVERIFY(!area->findChild<QObject *>(u"highlighter"_s)); // no source colours over it
+        QTRY_VERIFY(!area->property("text").toString().isEmpty());
+        // Pictures refused (Qt's Markdown may drop the HTML one), and nothing reached the server.
+        QTRY_VERIFY(main.warnings().count(u"Protocol \"%1\" is unknown"_s.arg(QLatin1String(OfflineNetworkFactory::BlockedScheme))) >= 1);
+        QTest::qWait(200);
+        QVERIFY2(!web.hasPendingConnections(), "the preview fetched a picture from the network");
+        main.errors.clear();
+        // Source: plain text with colours; the choice is remembered.
+        // The bar's toggle shows for Markdown only.
+        QQuickItem *toggle = findItem(window, u"barViewMode"_s);
+        QVERIFY(toggle && toggle->isVisible());
+        QCOMPARE(toggle->property("checked").toBool(), true);
+        QMetaObject::invokeMethod(toggle, "clicked");
+        QCOMPARE(v->showFormatted(), false);
+        QTRY_COMPARE(area->property("textFormat").toInt(), int(Qt::PlainText));
+        QTRY_VERIFY(area->findChild<QObject *>(u"highlighter"_s));
+        KConfig state(KSharedConfig::openStateConfig()->name(), KConfig::SimpleConfig, QStandardPaths::GenericStateLocation);
+        QCOMPARE(state.group(u"Viewer"_s).readEntry("ShowFormatted", true), false);
+        // The viewer is shared: leave a plain file current, or the next test's new
+        // window renders notes.md first (and logs its refused pictures).
+        QFile plain(m_keptDir.filePath(u"after-markdown.txt"_s));
+        QVERIFY(plain.open(QIODevice::WriteOnly));
+        plain.close();
+        v->Open({plain.fileName()}, 0, QString(), QString());
+        QTRY_VERIFY(!toggle->isVisible());
+        v->Close();
+        v->setWindow(nullptr);
+        v->setShowFormatted(true);
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+    }
+
+    void showsFontsAndTypedText()
+    {
+        QDirIterator it(u"/usr/share/fonts"_s, {u"*.ttf"_s, u"*.otf"_s}, QDir::Files, QDirIterator::Subdirectories);
+        if (!it.hasNext()) {
+            QSKIP("no TrueType or OpenType font in /usr/share/fonts");
+        }
+        const QString fontPath = it.next();
+        // Not a font, though named like one: the fallback view.
+        QFile broken(m_keptDir.filePath(u"broken.ttf"_s));
+        QVERIFY(broken.open(QIODevice::WriteOnly));
+        broken.write(QByteArray(4096, '\x01'));
+        broken.close();
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open({fontPath, broken.fileName()}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QTRY_VERIFY(window->findChild<QQuickItem *>(u"fontView"_s));
+        QVERIFY(!v->fontFamily().isEmpty());
+        QQuickItem *sample = findItem(window, u"fontSample"_s); // a Repeater row
+        QVERIFY(sample);
+        QCOMPARE(sample->property("font").value<QFont>().family(), v->fontFamily());
+        // Typing: the samples show the text; Enter and ← → don't act on the preview.
+        auto *field = window->findChild<QQuickItem *>(u"fontSampleField"_s);
+        QVERIFY(field);
+        field->forceActiveFocus();
+        for (const char c : {'H', 'e', 'l', 'l', 'o'}) {
+            QTest::keyClick(window, c); // no keyClicks() for QWindow
+        }
+        QCOMPARE(v->property("fontSampleText").toString(), u"Hello"_s);
+        QCOMPARE(sample->property("text").toString(), u"Hello"_s);
+        QTest::keyClick(window, Qt::Key_Right);
+        QTest::keyClick(window, Qt::Key_Return);
+        QCOMPARE(v->currentIndex(), 0);
+        QVERIFY(window->isVisible());
+        // The text stays for the next file; a broken font shows the fallback.
+        v->Next();
+        QTRY_VERIFY(window->findChild<QQuickItem *>(u"fallbackView"_s));
+        QVERIFY(v->fontFamily().isEmpty());
+        QCOMPARE(v->property("fontSampleText").toString(), u"Hello"_s);
+        // Closing forgets it.
+        v->Close();
+        QCOMPARE(v->property("fontSampleText").toString(), QString());
+        v->setWindow(nullptr);
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+    }
+
+    void findsInText()
+    {
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        QFile f(m_keptDir.filePath(u"fruit.txt"_s));
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("apple banana\nApple cherry\napple\n");
+        f.close();
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open({f.fileName()}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QTRY_VERIFY(window->findChild<QQuickItem *>(u"textArea"_s));
+        QQuickItem *text = window->findChild<QQuickItem *>(u"textView"_s);
+        QTRY_COMPARE(text->property("matches").toList().size(), 0);
+        // Ctrl+F opens the bar with the field focused; typing finds, ignoring case.
+        QTest::keyClick(window, Qt::Key_F, Qt::ControlModifier);
+        QVERIFY(v->property("searchOpen").toBool());
+        auto *field = window->findChild<QQuickItem *>(u"findField"_s);
+        QVERIFY(field);
+        QTRY_VERIFY(field->hasActiveFocus());
+        for (const char c : {'a', 'p', 'p', 'l', 'e'}) {
+            QTest::keyClick(window, c);
+        }
+        QCOMPARE(v->property("searchText").toString(), u"apple"_s);
+        QQuickItem *count = window->findChild<QQuickItem *>(u"findCount"_s);
+        QTRY_COMPARE(count->property("text").toString(), u"1 of 3"_s);
+        QCOMPARE(text->property("matches").toList(), QVariantList({0, 13, 26}));
+        // Enter: the next match, not “open the file”.
+        QTest::keyClick(window, Qt::Key_Return);
+        QCOMPARE(count->property("text").toString(), u"2 of 3"_s);
+        QTest::keyClick(window, Qt::Key_Return, Qt::ShiftModifier);
+        QCOMPARE(count->property("text").toString(), u"1 of 3"_s);
+        QVERIFY(window->isVisible());
+        // Marks on screen, one per match.
+        int marks = 0;
+        QList<QQuickItem *> todo{window->contentItem()};
+        while (!todo.isEmpty()) {
+            QQuickItem *item = todo.takeFirst();
+            marks += item->objectName() == u"matchMark"_s && item->isVisible();
+            todo << item->childItems();
+        }
+        QCOMPARE(marks, 3);
+        // Not found.
+        QTest::keyClick(window, 'x');
+        QTRY_COMPARE(count->property("text").toString(), u"Not found"_s);
+        // Esc closes the bar, the next Esc the preview; closing forgets the search.
+        QTest::keyClick(window, Qt::Key_Escape);
+        QVERIFY(!v->property("searchOpen").toBool());
+        QVERIFY(window->isVisible());
+        QTRY_COMPARE(text->property("matches").toList().size(), 0);
+        QTest::keyClick(window, Qt::Key_Escape);
+        QTRY_VERIFY(!window->isVisible());
+        QCOMPARE(v->property("searchText").toString(), QString());
+        v->setWindow(nullptr);
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+    }
+
+    void findsInPdfsAndKeepsTheSearch()
+    {
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        QTemporaryDir dir;
+        QFile txt(dir.filePath(u"list.txt"_s));
+        QVERIFY(txt.open(QIODevice::WriteOnly));
+        txt.write("one apple\n");
+        txt.close();
+        const QString pdf = dir.filePath(u"fruit.pdf"_s);
+        {
+            QPdfWriter writer(pdf);
+            QPainter painter(&writer);
+            painter.drawText(QPointF(100, 100), u"An apple a day"_s);
+            writer.newPage();
+            painter.drawText(QPointF(100, 100), u"No fruit here"_s);
+            writer.newPage();
+            painter.drawText(QPointF(100, 100), u"Apple pie"_s);
+            painter.drawText(QPointF(100, 400), u"apple tree"_s);
+        }
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open({txt.fileName(), pdf}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QTRY_VERIFY(window->findChild<QQuickItem *>(u"textArea"_s));
+        v->setProperty("searchOpen", true);
+        v->setProperty("searchText", u"apple"_s);
+        QQuickItem *count = nullptr;
+        QTRY_VERIFY((count = window->findChild<QQuickItem *>(u"findCount"_s)));
+        QTRY_COMPARE(count->property("text").toString(), u"1 of 1"_s);
+        // The next file keeps the bar and the search: the PDF finds its three, on pages 1 and 3.
+        v->Next();
+        QQuickItem *pdfView = nullptr;
+        QTRY_VERIFY((pdfView = window->findChild<QQuickItem *>(u"pdfView"_s)));
+        QTRY_VERIFY((count = pdfView->findChild<QQuickItem *>(u"findCount"_s)));
+        QTRY_COMPARE(count->property("text").toString(), u"1 of 3"_s);
+        QMetaObject::invokeMethod(pdfView, "findNext");
+        QMetaObject::invokeMethod(pdfView, "findNext");
+        QCOMPARE(count->property("text").toString(), u"3 of 3"_s);
+        QObject *search = nullptr;
+        for (QObject *o : pdfView->findChildren<QObject *>()) {
+            if (o->inherits("QPdfSearchModel")) {
+                search = o;
+            }
+        }
+        QVERIFY(search);
+        QCOMPARE(search->property("currentPage").toInt(), 2);
+        QMetaObject::invokeMethod(pdfView, "findNext"); // round to the first
+        QCOMPARE(count->property("text").toString(), u"1 of 3"_s);
+        QCOMPARE(search->property("currentPage").toInt(), 0);
+        QVERIFY(v->finishRendering());
+        v->Close();
+        v->setWindow(nullptr);
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 
     void longTextStaysResponsive()
@@ -592,11 +831,186 @@ private Q_SLOTS:
         QTRY_COMPARE(player->property("playbackState").toInt(), 2); // PausedState
         QMetaObject::invokeMethod(play, "clicked");
         QTRY_COMPARE(player->property("playbackState").toInt(), 1);
-        // Closing the preview stops it.
+        // Repeat: the player loops until the preview closes.
+        QQuickItem *repeat = window->findChild<QQuickItem *>(u"repeatButton"_s);
+        QVERIFY(repeat);
+        QMetaObject::invokeMethod(repeat, "toggle");
+        QMetaObject::invokeMethod(repeat, "toggled");
+        QCOMPARE(v->property("mediaRepeat").toBool(), true);
+        QCOMPARE(player->property("loops").toInt(), -1); // MediaPlayer.Infinite
+        // Volume: the slider is perceived loudness, the output gets it cubed.
+        auto *audio = player->property("audioOutput").value<QObject *>();
+        QVERIFY(audio);
+        v->setMediaVolume(0.5);
+        QCOMPARE(audio->property("volume").toFloat(), 0.125f);
+        // No fullscreen for audio.
+        QQuickItem *fullScreen = window->findChild<QQuickItem *>(u"fullScreenButton"_s);
+        QVERIFY(fullScreen);
+        QVERIFY(!fullScreen->isVisible());
+        // Closing the preview stops it, ends repeat and keeps the volume.
         v->Close();
         QTRY_COMPARE(player->property("playbackState").toInt(), 0); // StoppedState
+        QCOMPARE(v->property("mediaRepeat").toBool(), false);
+        KConfig state(KSharedConfig::openStateConfig()->name(), KConfig::SimpleConfig, QStandardPaths::GenericStateLocation); // read from disk
+        QCOMPARE(state.group(u"Viewer"_s).readEntry("MediaVolume", 1.0), 0.5);
+        v->setMediaVolume(1);
         v->setWindow(nullptr);
         QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+    }
+
+    void escLeavesFullScreenFirst()
+    {
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        QFile file(m_keptDir.filePath(u"fullscreen.txt"_s));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write("text\n");
+        file.close();
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open({file.fileName()}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QQuickItem *bar = window->findChild<QQuickItem *>(u"titleBar"_s);
+        QVERIFY(bar);
+        // (Videos go fullscreen; the window's behaviour doesn't depend on the view.)
+        window->showFullScreen();
+        QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
+        QVERIFY(!bar->isVisible());
+        QTest::keyClick(window, Qt::Key_Escape);
+        QTRY_COMPARE(window->visibility(), QWindow::Windowed);
+        QVERIFY(window->isVisible());
+        QVERIFY(bar->isVisible());
+        // Closed while fullscreen: opens as a normal window.
+        window->showFullScreen();
+        QTRY_COMPARE(window->visibility(), QWindow::FullScreen);
+        v->Close();
+        QVERIFY(!window->isVisible());
+        v->Open({file.fileName()}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QCOMPARE(window->visibility(), QWindow::Windowed);
+        QTest::keyClick(window, Qt::Key_Escape);
+        QTRY_VERIFY(!window->isVisible());
+        v->setWindow(nullptr);
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+    }
+
+    void barFollowsTheSettings()
+    {
+        KwikLookSettings *settings = KwikLookSettings::self();
+        settings->setBarLeft({u"Close"_s});
+        settings->setBarRight({u"Spacer"_s, u"CopyPath"_s, u"Open"_s});
+        const auto restore = qScopeGuard([settings] {
+            settings->setBarLeft(settings->defaultBarLeftValue());
+            settings->setBarRight(settings->defaultBarRightValue());
+        });
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        QFile f(m_keptDir.filePath(u"bar.txt"_s));
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.close();
+        v->Open({f.fileName()}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QTRY_VERIFY(findItem(window, u"barCopyPath"_s));
+        QVERIFY(findItem(window, u"barOpen"_s));
+        QVERIFY(!findItem(window, u"barPrevious"_s));
+        QQuickItem *close = findItem(window, u"barClose"_s);
+        QVERIFY(close);
+        QQuickItem *bar = window->findChild<QQuickItem *>(u"titleBar"_s);
+        QVERIFY(close->mapToItem(bar, QPointF()).x() < bar->width() / 2); // on the left now
+        // Changes show at once (the settings window applies in the same process).
+        settings->setBarLeft(settings->defaultBarLeftValue());
+        settings->setBarRight(settings->defaultBarRightValue());
+        QTRY_VERIFY(findItem(window, u"barPrevious"_s));
+        QTRY_VERIFY(!findItem(window, u"barCopyPath"_s));
+        // A button does its job.
+        QQuickItem *info = findItem(window, u"barInformation"_s);
+        QVERIFY(info);
+        const bool open = v->infoOpen();
+        QMetaObject::invokeMethod(info, "clicked");
+        QCOMPARE(v->infoOpen(), !open);
+        v->setInfoOpen(open);
+        v->Close();
+        v->setWindow(nullptr);
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+    }
+
+    void settingsBarEditorMovesItems()
+    {
+        QQmlApplicationEngine engine;
+        KLocalization::setupLocalizedContext(&engine);
+        QList<QQmlError> errors;
+        connect(&engine, &QQmlApplicationEngine::warnings, this, [&errors](const QList<QQmlError> &w) {
+            errors << w;
+        });
+        QQmlComponent component(&engine, "kwiklook", "SettingsWindow");
+        std::unique_ptr<QObject> object(component.create());
+        QVERIFY2(object, qPrintable(component.errorString()));
+        auto *window = qobject_cast<QQuickWindow *>(object.get());
+        QVERIFY(window);
+        window->resize(700, 900);
+        window->show();
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        KwikLookSettings *settings = KwikLookSettings::self();
+        QObject *editor = window->findChild<QObject *>(u"barEditor"_s);
+        QVERIFY(editor);
+        const auto items = [editor](const char *name) {
+            return editor->property(name).toStringList();
+        };
+        const auto move = [editor](const QString &from, int fromIndex, const QString &to, int toIndex) {
+            QMetaObject::invokeMethod(editor, "move", Q_ARG(QVariant, from), Q_ARG(QVariant, fromIndex), Q_ARG(QVariant, to), Q_ARG(QVariant, toIndex));
+        };
+        QCOMPARE(items("leftItems"), settings->barLeft());
+        QVERIFY(!items("available").contains(u"Previous"_s));
+        QCOMPARE(items("available").last(), u"Spacer"_s);
+        // Out of the bar, along it, into it; the flexible space is copied, not moved.
+        move(u"right"_s, 4, u"available"_s, 0); // Close out
+        QCOMPARE(items("rightItems"), QStringList({u"ViewMode"_s, u"Information"_s, u"Share"_s, u"OpenWith"_s}));
+        QVERIFY(items("available").contains(u"Close"_s));
+        move(u"left"_s, 0, u"left"_s, 2); // Previous after Next
+        QCOMPARE(items("leftItems"), QStringList({u"Next"_s, u"Previous"_s}));
+        const int spacer = items("available").indexOf(u"Spacer"_s);
+        move(u"available"_s, spacer, u"right"_s, 0);
+        move(u"available"_s, items("available").indexOf(u"Spacer"_s), u"right"_s, 0);
+        QCOMPARE(items("rightItems").count(u"Spacer"_s), 2);
+        QVERIFY(items("available").contains(u"Spacer"_s));
+        QCOMPARE(window->property("changed").toBool(), true);
+        QCOMPARE(settings->barRight().size(), 5); // not until Apply
+
+        // A real drag: Copy Path from below into the bar's left side (once the rows have
+        // been laid out again after the moves above).
+        QTest::qWait(200);
+        QQuickItem *chip = findItem(window, u"chipavailableCopyPath"_s);
+        QQuickItem *zone = window->findChild<QQuickItem *>(u"zoneLeft"_s);
+        QVERIFY(chip && zone);
+        const QPoint from = chip->mapToScene(QPointF(chip->width() / 2, chip->height() / 2)).toPoint();
+        const QPoint to = zone->mapToScene(QPointF(4, zone->height() / 2)).toPoint();
+        QTest::mousePress(window, Qt::LeftButton, {}, from);
+        for (int i = 1; i <= 10; ++i) {
+            QTest::mouseMove(window, from + (to - from) * i / 10);
+        }
+        QTest::mouseRelease(window, Qt::LeftButton, {}, to);
+        QTRY_COMPARE(items("leftItems"), QStringList({u"CopyPath"_s, u"Next"_s, u"Previous"_s}));
+
+        // Apply saves; Reset brings the defaults back (until Apply).
+        QVariant ok;
+        QVERIFY(QMetaObject::invokeMethod(window, "apply", Q_RETURN_ARG(QVariant, ok)));
+        QCOMPARE(settings->barLeft(), QStringList({u"CopyPath"_s, u"Next"_s, u"Previous"_s}));
+        QQuickItem *reset = window->findChild<QQuickItem *>(u"barReset"_s);
+        QVERIFY(reset);
+        QMetaObject::invokeMethod(reset, "clicked");
+        QCOMPARE(items("leftItems"), settings->defaultBarLeftValue());
+        QCOMPARE(items("rightItems"), settings->defaultBarRightValue());
+        QVERIFY(QMetaObject::invokeMethod(window, "apply", Q_RETURN_ARG(QVariant, ok)));
+        QCOMPARE(settings->barRight(), settings->defaultBarRightValue());
+
+        for (const QQmlError &e : std::as_const(errors)) {
+            qWarning().noquote() << e.toString();
+        }
+        QVERIFY(errors.isEmpty());
     }
 
     void settingsWindowAppliesOnlyOnApply()

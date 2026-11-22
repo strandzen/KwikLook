@@ -6,9 +6,10 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import kwiklook
 
-// The preview's only bar: ← →, the file name, Share, Open with…, close. Dragging it
-// moves the window. A standard toolbar (as a Kirigami app's header) in the title bar
-// (Header) colours, since it stands in for the title bar.
+// The preview's only bar: the file name, centred, and the buttons chosen in the
+// settings left and right of it (by default ← →; information, Share, Open with…,
+// close). Dragging it moves the window. A standard toolbar (as a Kirigami app's
+// header) in the title bar (Header) colours, since it stands in for the title bar.
 QQC2.ToolBar {
     id: bar
 
@@ -43,6 +44,55 @@ QQC2.ToolBar {
         onActiveChanged: if (active) bar.window.startSystemMove()
     }
 
+    // One item from the settings: a button, or a stretching gap.
+    component BarItem: Loader {
+        id: slot
+        required property string modelData
+        Layout.fillWidth: modelData === "Spacer"
+        visible: modelData !== "ViewMode" || BarItems.hasFormattedView(Viewer.mimeType)
+        sourceComponent: modelData === "Spacer" ? spacer : button
+
+        Component {
+            id: spacer
+            Item {}
+        }
+        Component {
+            id: button
+            BarButton {
+                objectName: "bar" + slot.modelData
+                icon.name: BarItems.iconName(slot.modelData)
+                text: BarItems.text(slot.modelData)
+                checkable: slot.modelData === "Information" || slot.modelData === "ViewMode"
+                checked: slot.modelData === "Information" ? Viewer.infoOpen
+                    : slot.modelData === "ViewMode" ? Viewer.showFormatted
+                    : false
+                enabled: slot.modelData === "Previous" ? Viewer.currentIndex > 0
+                    : slot.modelData === "Next" ? Viewer.currentIndex + 1 < Viewer.count
+                    : true
+                onClicked: bar.activate(slot.modelData, this)
+            }
+        }
+    }
+
+    function activate(item, button) {
+        switch (item) {
+        case "Previous": Viewer.Previous(); break;
+        case "Next": Viewer.Next(); break;
+        case "Information": Viewer.infoOpen = !Viewer.infoOpen; break;
+        case "ViewMode": Viewer.showFormatted = !Viewer.showFormatted; break;
+        case "Share": bar.menus.showShare(button); break;
+        case "OpenWith": bar.menus.showOpenWith(button); break;
+        case "Open": bar.menus.openWithDefault(); break;
+        case "ShowInDolphin": bar.menus.showInFileManager(button); break;
+        case "CopyPath":
+            bar.menus.copyPath();
+            bar.window.showPassiveNotification(i18n("Path copied")); // as in the panel
+            break;
+        case "Close": Viewer.Close(); break;
+        }
+    }
+
+    // The items left and right of the name, from the settings.
     RowLayout {
         id: row
         anchors.fill: parent
@@ -50,19 +100,12 @@ QQC2.ToolBar {
 
         RowLayout {
             id: leftButtons
+            Layout.fillWidth: KwikLookSettings.barLeft.includes("Spacer")
             spacing: parent.spacing
 
-            BarButton {
-                icon.name: "go-previous"
-                text: i18nc("@action:button", "Previous File")
-                enabled: Viewer.currentIndex > 0
-                onClicked: Viewer.Previous()
-            }
-            BarButton {
-                icon.name: "go-next"
-                text: i18nc("@action:button", "Next File")
-                enabled: Viewer.currentIndex + 1 < Viewer.count
-                onClicked: Viewer.Next()
+            Repeater {
+                model: KwikLookSettings.barLeft
+                delegate: BarItem {}
             }
         }
 
@@ -72,29 +115,12 @@ QQC2.ToolBar {
 
         RowLayout {
             id: rightButtons
+            Layout.fillWidth: KwikLookSettings.barRight.includes("Spacer")
             spacing: parent.spacing
 
-            BarButton {
-                icon.name: "documentinfo"
-                text: i18nc("@action:button", "Information")
-                checkable: true
-                checked: Viewer.infoOpen
-                onToggled: Viewer.infoOpen = checked
-            }
-            BarButton {
-                icon.name: "document-share"
-                text: i18nc("@action:button", "Share")
-                onClicked: bar.menus.showShare(this)
-            }
-            BarButton {
-                icon.name: "document-open"
-                text: i18nc("@action:button", "Open With…")
-                onClicked: bar.menus.showOpenWith(this)
-            }
-            BarButton {
-                icon.name: "window-close"
-                text: i18nc("@action:button", "Close")
-                onClicked: Viewer.Close()
+            Repeater {
+                model: KwikLookSettings.barRight
+                delegate: BarItem {}
             }
         }
     }
@@ -103,7 +129,8 @@ QQC2.ToolBar {
     // files, the position follows, dimmed (“2 / 5”).
     RowLayout {
         anchors.centerIn: parent
-        width: Math.min(implicitWidth, parent.width - 2 * (Math.max(leftButtons.width, rightButtons.width) + Kirigami.Units.largeSpacing))
+        // Room left by the wider side's buttons (not its stretching gaps).
+        width: Math.min(implicitWidth, parent.width - 2 * (Math.max(leftButtons.implicitWidth, rightButtons.implicitWidth) + Kirigami.Units.largeSpacing))
         spacing: Kirigami.Units.largeSpacing
 
         Kirigami.Heading {

@@ -59,6 +59,23 @@ class Viewer : public QObject
     Q_PROPERTY(bool infoOpen READ infoOpen WRITE setInfoOpen NOTIFY infoOpenChanged)
     // Text font size factor (Ctrl+wheel in text): kept from file to file until the preview closes.
     Q_PROPERTY(qreal textZoom MEMBER m_textZoom NOTIFY textZoomChanged)
+    // Video and audio volume, 0-1 as the slider shows it (perceived loudness); remembered.
+    Q_PROPERTY(qreal mediaVolume READ mediaVolume WRITE setMediaVolume NOTIFY mediaVolumeChanged)
+    // Play videos and audio again and again: kept from file to file until the preview closes.
+    Q_PROPERTY(bool mediaRepeat MEMBER m_mediaRepeat NOTIFY mediaRepeatChanged)
+    // Font files: the loaded font's family and style name (for QML's font.family and
+    // font.styleName); empty for other files.
+    Q_PROPERTY(QString fontFamily READ fontFamily NOTIFY fileInfoChanged)
+    Q_PROPERTY(QString fontStyle READ fontStyle NOTIFY fileInfoChanged)
+    // The font preview's own text, typed by the user: kept until the preview closes.
+    Q_PROPERTY(QString fontSampleText MEMBER m_fontSampleText NOTIFY fontSampleTextChanged)
+    // Find in text and PDFs (Ctrl+F): the bar is open, and what it looks for; kept from
+    // file to file until the preview closes.
+    Q_PROPERTY(bool searchOpen MEMBER m_searchOpen NOTIFY searchOpenChanged)
+    Q_PROPERTY(QString searchText MEMBER m_searchText NOTIFY searchTextChanged)
+    // Files that can show two ways (Markdown for now) show formatted, else as source
+    // with syntax colours; the bar's view toggle switches. Remembered.
+    Q_PROPERTY(bool showFormatted READ showFormatted WRITE setShowFormatted NOTIFY showFormattedChanged)
 
 public:
     static constexpr auto ServiceName = KwikLookDBus::Service;
@@ -104,6 +121,12 @@ public:
     QVariantList infoSections() const;
     bool infoOpen() const;
     void setInfoOpen(bool open);
+    qreal mediaVolume() const;
+    void setMediaVolume(qreal volume);
+    QString fontFamily() const;
+    QString fontStyle() const;
+    bool showFormatted() const;
+    void setShowFormatted(bool formatted);
 
 public Q_SLOTS:
     // Shows `urls[index]` (local paths or URLs), with the others reachable by Next/Previous.
@@ -124,6 +147,12 @@ Q_SIGNALS:
     void fileInfoChanged();
     void infoOpenChanged();
     void textZoomChanged();
+    void mediaVolumeChanged();
+    void mediaRepeatChanged();
+    void showFormattedChanged();
+    void fontSampleTextChanged();
+    void searchOpenChanged();
+    void searchTextChanged();
     // main.cpp creates the settings window on the first request and shows it.
     void settingsRequested(const QString &activationToken);
 
@@ -134,6 +163,9 @@ private:
     void readFileInfo(int generation);
     void closeIfFocusLeft();
     void startOfficePreview();
+    // Font files: adds the current font to the app's fonts (the previous one goes).
+    void loadFont();
+    void unloadFont();
 
     QList<QUrl> m_urls;
     int m_index = -1;
@@ -144,6 +176,15 @@ private:
     QString m_view; // kept while the next file's details load, so the view doesn't flicker
     bool m_infoOpen = false;
     qreal m_textZoom = 1;
+    qreal m_mediaVolume = 1;
+    bool m_mediaRepeat = false;
+    bool m_showFormatted = true;
+    int m_fontId = -1; // QFontDatabase application font of the current file
+    QString m_fontFamily;
+    QString m_fontStyle;
+    QString m_fontSampleText;
+    bool m_searchOpen = false;
+    QString m_searchText;
     int m_generation = 0; // drops details read for a file that's no longer current
     OfficeConverter *m_office = nullptr;
     QUrl m_convertedPdf; // the current office document as PDF

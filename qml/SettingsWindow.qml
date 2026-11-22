@@ -32,6 +32,8 @@ Kirigami.ApplicationWindow {
         || officePreviews !== KwikLookSettings.officePreviews
         || autoplayMedia !== KwikLookSettings.autoplayMedia
         || startMuted !== KwikLookSettings.startMuted
+        || JSON.stringify(barEditor.leftItems) !== JSON.stringify(KwikLookSettings.barLeft)
+        || JSON.stringify(barEditor.rightItems) !== JSON.stringify(KwikLookSettings.barRight)
 
     function reset() {
         matchBreeze = KwikLookSettings.matchBreezeCorners;
@@ -42,6 +44,8 @@ Kirigami.ApplicationWindow {
         officePreviews = KwikLookSettings.officePreviews;
         autoplayMedia = KwikLookSettings.autoplayMedia;
         startMuted = KwikLookSettings.startMuted;
+        barEditor.leftItems = KwikLookSettings.barLeft;
+        barEditor.rightItems = KwikLookSettings.barRight;
         officeAvailable = Viewer.officePreviewsAvailable();
         errorMessage.visible = false;
     }
@@ -54,6 +58,8 @@ Kirigami.ApplicationWindow {
         KwikLookSettings.officePreviews = officePreviews;
         KwikLookSettings.autoplayMedia = autoplayMedia;
         KwikLookSettings.startMuted = startMuted;
+        KwikLookSettings.barLeft = barEditor.leftItems;
+        KwikLookSettings.barRight = barEditor.rightItems;
         KwikLookSettings.save();
         if (!autostart.setEnabled(startAtLogin)) {
             startAtLogin = autostart.enabled;
@@ -65,7 +71,7 @@ Kirigami.ApplicationWindow {
 
     title: i18nc("@title:window", "Settings") // Kirigami adds “— KwikLook”
     width: Kirigami.Units.gridUnit * 28
-    height: Kirigami.Units.gridUnit * 44 // all settings without scrolling
+    height: Kirigami.Units.gridUnit * 44 // fits most screens; the page scrolls for the rest
     minimumWidth: Kirigami.Units.gridUnit * 20
     minimumHeight: Kirigami.Units.gridUnit * 16
     visible: false
@@ -112,6 +118,28 @@ Kirigami.ApplicationWindow {
                 to: 20
                 value: root.radius
                 onValueModified: root.radius = value
+            }
+        }
+
+        FormCard.FormHeader {
+            title: i18nc("@title:group", "Bar")
+        }
+        FormCard.FormCard {
+            BarEditor {
+                id: barEditor
+                objectName: "barEditor"
+                Layout.fillWidth: true
+                Layout.margins: Kirigami.Units.largeSpacing
+            }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormButtonDelegate {
+                objectName: "barReset"
+                icon.name: "edit-reset"
+                text: i18nc("@action:button", "Reset Bar to Defaults")
+                onClicked: {
+                    barEditor.leftItems = KwikLookSettings.defaultBarLeftValue;
+                    barEditor.rightItems = KwikLookSettings.defaultBarRightValue;
+                }
             }
         }
 

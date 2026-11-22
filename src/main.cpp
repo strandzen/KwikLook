@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
+#include "gui/offlinenetwork.h"
 #include "gui/thumbnailprovider.h"
 #include "kwiklooksettings.h"
 #include "gui/viewer.h"
@@ -131,6 +132,7 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
     KLocalization::setupLocalizedContext(&engine);
     engine.addImageProvider(QLatin1String(ThumbnailProvider::Name), new ThumbnailProvider);
+    engine.setNetworkAccessManagerFactory(OfflineNetworkFactory::instance()); // nothing fetched from the internet
     engine.loadFromModule("kwiklook", "Main");
     if (engine.rootObjects().isEmpty()) {
         return 1;

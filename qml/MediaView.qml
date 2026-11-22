@@ -10,12 +10,18 @@ import kwiklook
 
 // Videos and audio: the picture (or, for audio, the cover or type icon with title and
 // artist) above a standard footer toolbar: play/pause, elapsed time, seek bar, length,
-// mute. Plays at once unless turned off in the settings; can start muted. Stops when
-// the preview closes or the next file comes. Media keys play and pause; clicking a
-// video does too. A file that can't be played shows the fallback view.
-ColumnLayout {
+// repeat, mute, volume, fullscreen. Plays at once unless turned off in the settings;
+// can start muted. Stops when the preview closes or the next file comes. Media keys
+// play and pause; clicking a video does too. Fullscreen (button, double-click, F) shows
+// only the video, the controls appear while the mouse moves. A file that can't be
+// played shows the fallback view.
+Item {
     id: view
     objectName: "mediaView"
+
+    readonly property bool fullScreen: Window.window !== null && Window.window.visibility === Window.FullScreen
+    // Fullscreen: the controls show while the mouse moves (or is over them).
+    property bool controlsShown: true
 
     // The file being played: cleared on every file change (also reopening the same
     // file), so it loads and starts again.
@@ -28,6 +34,18 @@ ColumnLayout {
         const seconds = String(total % 60).padStart(2, "0");
         return hours > 0 ? hours + ":" + String(minutes).padStart(2, "0") + ":" + seconds : minutes + ":" + seconds;
     }
+    function toggleFullScreen() {
+        const window = view.Window.window;
+        if (fullScreen) {
+            window.showNormal();
+        } else if (player.hasVideo) {
+            window.showFullScreen();
+        }
+    }
+    function showControls() {
+        controlsShown = true;
+        hideControlsTimer.restart();
+    }
     function togglePlayback() {
         if (player.playbackState === MediaPlayer.PlayingState) {
             player.pause();
@@ -36,8 +54,8 @@ ColumnLayout {
         }
     }
 
-    spacing: 0
     Component.onCompleted: mediaUrl = Viewer.currentUrl
+    onFullScreenChanged: showControls()
 
     Connections {
         target: Viewer
@@ -66,9 +84,12 @@ ColumnLayout {
         objectName: "mediaPlayer"
         source: view.mediaUrl
         videoOutput: videoOutput
+        loops: Viewer.mediaRepeat ? MediaPlayer.Infinite : 1
         audioOutput: AudioOutput {
             id: audio
             muted: KwikLookSettings.startMuted
+            // The slider shows perceived loudness; cubic, as PulseAudio and PipeWire map it.
+            volume: Math.pow(Viewer.mediaVolume, 3)
         }
         onMediaStatusChanged: {
             if (mediaStatus === MediaPlayer.LoadedMedia && KwikLookSettings.autoplayMedia && view.Window.window && view.Window.window.visible) {
@@ -82,10 +103,23 @@ ColumnLayout {
         sequences: ["Media Play", "Media Pause", "Toggle Media Play/Pause"]
         onActivated: view.togglePlayback()
     }
+    Shortcut {
+        sequence: "F"
+        enabled: player.hasVideo
+        onActivated: view.toggleFullScreen()
+    }
+    Timer {
+        id: hideControlsTimer
+        interval: 2000
+        onTriggered: view.controlsShown = !view.fullScreen || controlsHover.hovered
+    }
 
     Item {
-        Layout.fillWidth: true
-        Layout.fillHeight: true
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        // Fullscreen: the video takes the whole screen, the controls float over it.
+        anchors.bottom: view.fullScreen ? parent.bottom : footer.top
 
         VideoOutput {
             id: videoOutput
@@ -132,6 +166,12 @@ ColumnLayout {
         TapHandler {
             enabled: player.hasVideo
             onTapped: view.togglePlayback()
+            onDoubleTapped: view.toggleFullScreen()
+        }
+        HoverHandler {
+            enabled: view.fullScreen
+            cursorShape: view.controlsShown ? Qt.ArrowCursor : Qt.BlankCursor
+            onPointChanged: view.showControls()
         }
 
         // Can't be played (unsupported or damaged).
@@ -143,9 +183,22 @@ ColumnLayout {
     }
 
     QQC2.ToolBar {
-        Layout.fillWidth: true
+        id: footer
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
         position: QQC2.ToolBar.Footer
-        visible: player.error === MediaPlayer.NoError
+        opacity: player.error === MediaPlayer.NoError && (!view.fullScreen || view.controlsShown) ? 1 : 0
+        visible: opacity > 0
+        Behavior on opacity {
+            NumberAnimation {
+                duration: Kirigami.Units.longDuration
+            }
+        }
+
+        HoverHandler {
+            id: controlsHover
+        }
 
         RowLayout {
             anchors.fill: parent
@@ -180,13 +233,52 @@ ColumnLayout {
                 font.features: { "tnum": 1 }
             }
             QQC2.ToolButton {
+                objectName: "repeatButton"
+                display: QQC2.AbstractButton.IconOnly
+                checkable: true
+                checked: Viewer.mediaRepeat
+                icon.name: "media-playlist-repeat"
+                text: i18nc("@action:button", "Repeat")
+                onToggled: Viewer.mediaRepeat = checked
+                QQC2.ToolTip.text: text
+                QQC2.ToolTip.visible: hovered
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+            }
+            QQC2.ToolButton {
                 objectName: "muteButton"
                 display: QQC2.AbstractButton.IconOnly
                 checkable: true
                 checked: audio.muted
-                icon.name: audio.muted ? "audio-volume-muted" : "audio-volume-high"
+                icon.name: audio.muted || Viewer.mediaVolume === 0 ? "audio-volume-muted"
+                    : Viewer.mediaVolume < 0.34 ? "audio-volume-low"
+                    : Viewer.mediaVolume < 0.67 ? "audio-volume-medium" : "audio-volume-high"
                 text: audio.muted ? i18nc("@action:button", "Sound On") : i18nc("@action:button", "Mute")
                 onToggled: audio.muted = checked
+                QQC2.ToolTip.text: text
+                QQC2.ToolTip.visible: hovered
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+            }
+            QQC2.Slider {
+                objectName: "volumeSlider"
+                Layout.preferredWidth: Kirigami.Units.gridUnit * 5
+                from: 0
+                to: 1
+                value: Viewer.mediaVolume
+                onMoved: {
+                    Viewer.mediaVolume = value;
+                    audio.muted = false;
+                }
+                QQC2.ToolTip.text: i18nc("@info:tooltip volume in percent", "Volume: %1%", Math.round(value * 100))
+                QQC2.ToolTip.visible: hovered || pressed
+                QQC2.ToolTip.delay: pressed ? 0 : Kirigami.Units.toolTipDelay
+            }
+            QQC2.ToolButton {
+                objectName: "fullScreenButton"
+                display: QQC2.AbstractButton.IconOnly
+                visible: player.hasVideo
+                icon.name: view.fullScreen ? "view-restore" : "view-fullscreen"
+                text: view.fullScreen ? i18nc("@action:button", "Exit Full Screen") : i18nc("@action:button", "Full Screen")
+                onClicked: view.toggleFullScreen()
                 QQC2.ToolTip.text: text
                 QQC2.ToolTip.visible: hovered
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
