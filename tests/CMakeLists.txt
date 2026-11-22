@@ -72,3 +72,14 @@ ecm_add_test(tst_videoeditor.cpp
     LINK_LIBRARIES Qt6::Test kwiklook_qml
     NAME_PREFIX "kwiklook-"
 )
+
+# Cropping and turning pictures, metadata kept, Replace (with a stand-in Trash: KIO's
+# would use the user's).
+ecm_add_test(tst_imageeditor.cpp
+    TEST_NAME tst_imageeditor
+    LINK_LIBRARIES Qt6::Test kwiklook_qml Exiv2::exiv2lib
+    NAME_PREFIX "kwiklook-"
+)
+kde_source_files_enable_exceptions(tst_imageeditor.cpp) # exiv2, to write the test photo's metadata
+target_compile_definitions(tst_imageeditor PRIVATE TEST_SCRATCH="${CMAKE_CURRENT_BINARY_DIR}/imageeditor-scratch")
+set_tests_properties(kwiklook-tst_imageeditor PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

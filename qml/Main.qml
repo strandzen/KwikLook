@@ -66,6 +66,8 @@ Kirigami.ApplicationWindow {
         onActivated: {
             if (root.fullScreen) {
                 root.showNormal();
+            } else if (Viewer.pictureEditing) {
+                Viewer.pictureEditing = false;
             } else if (Viewer.indexOpen) {
                 Viewer.indexOpen = false;
             } else if (Viewer.searchOpen && viewLoader.searchable) {
@@ -78,7 +80,7 @@ Kirigami.ApplicationWindow {
     // The index sheet: all files as a grid.
     Shortcut {
         sequences: ["Ctrl+Return", "Ctrl+Enter"]
-        enabled: Viewer.count > 1
+        enabled: Viewer.count > 1 && !Viewer.pictureEditing
         onActivated: Viewer.indexOpen = !Viewer.indexOpen
     }
     // Find, for the views that have it (text, PDF).
@@ -102,18 +104,18 @@ Kirigami.ApplicationWindow {
     }
     Shortcut {
         sequence: "Left"
-        enabled: !root.typing && !Viewer.indexOpen // the index sheet moves itself
+        enabled: !root.typing && !Viewer.indexOpen && !Viewer.pictureEditing // the index sheet moves itself; an edit stays on its picture
         onActivated: Viewer.Previous()
     }
     Shortcut {
         sequence: "Right"
-        enabled: !root.typing && !Viewer.indexOpen
+        enabled: !root.typing && !Viewer.indexOpen && !Viewer.pictureEditing
         onActivated: Viewer.Next()
     }
     // Enter: open the file in its usual application (the preview then closes).
     Shortcut {
         sequences: ["Return", "Enter"]
-        enabled: !root.typing && !Viewer.indexOpen
+        enabled: !root.typing && !Viewer.indexOpen && !Viewer.pictureEditing
         onActivated: fileMenus.openWithDefault()
     }
     // Zoom, for the views that have it (pictures, text, PDF).
@@ -176,11 +178,19 @@ Kirigami.ApplicationWindow {
                     Loader {
                         id: viewLoader
 
-                        readonly property bool zoomable: item !== null && typeof item.zoomBy === "function"
+                        readonly property bool zoomable: item !== null && typeof item.zoomBy === "function" && !Viewer.pictureEditing
                         readonly property bool searchable: item !== null && typeof item.findNext === "function"
 
                         anchors.fill: parent
                         source: Viewer.view ? Qt.resolvedUrl(Viewer.view + ".qml") : ""
+                    }
+
+                    // Crop and rotate, over the picture, while editing.
+                    Loader {
+                        anchors.fill: parent
+                        z: 2
+                        active: Viewer.pictureEditing && Viewer.imageEditable
+                        sourceComponent: PictureEditor {}
                     }
 
                     // The index sheet over the view, while open.

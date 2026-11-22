@@ -40,7 +40,7 @@
     </entry>
     <entry name="BarRight" type="StringList">
       <label>Items right of the file name in the preview's bar</label>
-      <default>ViewMode,Information,Share,OpenWith,Close</default>
+      <default>ViewMode,CropRotate,Information,Share,OpenWith,Close</default>
     </entry>
     <entry name="OfficePreviews" type="Bool">
       <label>Preview office documents by converting them with LibreOffice (sandboxed)</label>

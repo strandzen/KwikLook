@@ -1242,8 +1242,8 @@ private Q_SLOTS:
         QVERIFY(!items("available").contains(u"Previous"_s));
         QCOMPARE(items("available").last(), u"Spacer"_s);
         // Out of the bar, along it, into it; the flexible space is copied, not moved.
-        move(u"right"_s, 4, u"available"_s, 0); // Close out
-        QCOMPARE(items("rightItems"), QStringList({u"ViewMode"_s, u"Information"_s, u"Share"_s, u"OpenWith"_s}));
+        move(u"right"_s, 5, u"available"_s, 0); // Close out
+        QCOMPARE(items("rightItems"), QStringList({u"ViewMode"_s, u"CropRotate"_s, u"Information"_s, u"Share"_s, u"OpenWith"_s}));
         QVERIFY(items("available").contains(u"Close"_s));
         move(u"left"_s, 0, u"left"_s, 2); // Previous after Next
         QCOMPARE(items("leftItems"), QStringList({u"Next"_s, u"Previous"_s, u"IndexSheet"_s, u"Pages"_s}));
@@ -1253,7 +1253,7 @@ private Q_SLOTS:
         QCOMPARE(items("rightItems").count(u"Spacer"_s), 2);
         QVERIFY(items("available").contains(u"Spacer"_s));
         QCOMPARE(window->property("changed").toBool(), true);
-        QCOMPARE(settings->barRight().size(), 5); // not until Apply
+        QCOMPARE(settings->barRight().size(), 6); // not until Apply
 
         // A real drag: Copy Path from below into the bar's left side (once the rows have
         // been laid out again after the moves above).
@@ -1376,6 +1376,79 @@ private Q_SLOTS:
         v->Close();
         v->setWindow(nullptr);
         KwikLookSettings::self()->setAutoplayMedia(true);
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+    }
+
+    void cropsAndTurnsAPicture()
+    {
+        QTemporaryDir dir;
+        QImage image(400, 200, QImage::Format_RGB32);
+        image.fill(Qt::darkCyan);
+        const QString png = dir.filePath(u"picture.png"_s);
+        QVERIFY(image.save(png));
+        QFile gif(dir.filePath(u"moving.gif"_s));
+        QVERIFY(gif.open(QIODevice::WriteOnly));
+        gif.write(TwoFrameGif);
+        gif.close();
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        window->resize(800, 600);
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open({png, gif.fileName()}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QTRY_VERIFY(window->findChild<QQuickItem *>(u"imageView"_s));
+        QQuickItem *button = nullptr;
+        QTRY_VERIFY((button = findItem(window, u"barCropRotate"_s)) && button->isVisible());
+        QMetaObject::invokeMethod(button, "clicked");
+        QVERIFY(v->property("pictureEditing").toBool());
+        QQuickItem *editor = nullptr;
+        QTRY_VERIFY((editor = window->findChild<QQuickItem *>(u"pictureEditor"_s)));
+        QQuickItem *size = window->findChild<QQuickItem *>(u"cropSize"_s);
+        QCOMPARE(size->property("text").toString(), u"400 × 200"_s);
+        // Drag the bottom-right handle up and left: a smaller part.
+        QQuickItem *handle = nullptr;
+        QTRY_VERIFY((handle = findItem(window, u"cropHandle22"_s)) && handle->width() > 0);
+        QTest::qWait(100);
+        const QPoint from = handle->mapToScene(QPointF(handle->width() / 2, handle->height() / 2)).toPoint();
+        const QPoint to = from - QPoint(150, 60);
+        QTest::mousePress(window, Qt::LeftButton, {}, from);
+        for (int i = 1; i <= 10; ++i) {
+            QTest::mouseMove(window, from + (to - from) * i / 10);
+        }
+        QTest::mouseRelease(window, Qt::LeftButton, {}, to);
+        QTRY_VERIFY(editor->property("cropW").toReal() < 0.9 && editor->property("cropH").toReal() < 0.9);
+        // Square: the part's pixels are square.
+        QQuickItem *ratio = window->findChild<QQuickItem *>(u"cropRatio"_s);
+        QMetaObject::invokeMethod(ratio, "activated", Q_ARG(int, 2));
+        QCOMPARE(editor->property("pixelWidth").toInt(), editor->property("pixelHeight").toInt());
+        QVERIFY(!findItem(window, u"cropHandle12"_s)->isVisible()); // with a ratio: corners only
+        // Free again, all of it, a quarter turn left: 200 × 400.
+        QMetaObject::invokeMethod(ratio, "activated", Q_ARG(int, 0));
+        editor->setProperty("cropX", 0.0);
+        editor->setProperty("cropY", 0.0);
+        editor->setProperty("cropW", 1.0);
+        editor->setProperty("cropH", 1.0);
+        QMetaObject::invokeMethod(window->findChild<QQuickItem *>(u"pictureRotateLeft"_s), "clicked");
+        QCOMPARE(size->property("text").toString(), u"200 × 400"_s);
+        // Crop the top half of the turned picture and save a copy.
+        editor->setProperty("cropH", 0.5);
+        QMetaObject::invokeMethod(window->findChild<QQuickItem *>(u"pictureSaveCopy"_s), "clicked");
+        QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(dir.filePath(u"picture (edited).png"_s)), 15000);
+        QCOMPARE(QImage(dir.filePath(u"picture (edited).png"_s)).size(), QSize(200, 200));
+        QTRY_VERIFY(!v->property("pictureEditing").toBool()); // done: the editor closes
+        // Esc cancels an edit; an animated picture has no button.
+        QMetaObject::invokeMethod(button, "clicked");
+        QTRY_VERIFY(window->findChild<QQuickItem *>(u"pictureEditor"_s));
+        QTest::keyClick(window, Qt::Key_Escape);
+        QVERIFY(!v->property("pictureEditing").toBool());
+        QVERIFY(window->isVisible());
+        v->Next();
+        QTRY_VERIFY(window->findChild<QQuickItem *>(u"animatedImage"_s));
+        QTRY_VERIFY(!button->isVisible());
+        v->Close();
+        v->setWindow(nullptr);
         QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 

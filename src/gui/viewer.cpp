@@ -556,6 +556,23 @@ void Viewer::showFile(int index)
     }
 }
 
+bool Viewer::imageEditable() const
+{
+    return m_view == u"ImageView"_s && m_info.exists && currentUrl().isLocalFile() && !m_info.animated && m_info.imageSize.isValid()
+        && m_info.formattedKind.isEmpty(); // SVG: a drawing, not pixels
+}
+
+void Viewer::replaceCurrent(const QUrl &url)
+{
+    if (m_index < 0 || m_index >= m_urls.size()) {
+        return;
+    }
+    m_urls[m_index] = url;
+    const int index = m_index;
+    m_index = -1; // read again even when the name is the same
+    setCurrent(index);
+}
+
 bool Viewer::pagesOpen() const
 {
     return m_pagesOpen;
@@ -664,6 +681,10 @@ void Viewer::setCurrent(int index)
         return;
     }
     m_index = index;
+    if (m_pictureEditing) {
+        m_pictureEditing = false; // an edit belongs to its picture
+        Q_EMIT pictureEditingChanged();
+    }
     // The previous file's details go first: QML must never see the new URL with
     // the old type (it asked the JPEG thumbnailer for a PNG that way).
     const int generation = ++m_generation;
@@ -733,6 +754,10 @@ void Viewer::markClosed()
     if (m_indexOpen) {
         m_indexOpen = false;
         Q_EMIT indexOpenChanged();
+    }
+    if (m_pictureEditing) {
+        m_pictureEditing = false;
+        Q_EMIT pictureEditingChanged();
     }
     if (!m_searchText.isEmpty()) {
         m_searchText.clear();

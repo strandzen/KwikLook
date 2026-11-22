@@ -21,6 +21,7 @@ set(KWIKLOOK_QML_FILES
     ${CMAKE_SOURCE_DIR}/qml/CsvView.qml
     ${CMAKE_SOURCE_DIR}/qml/CardsView.qml
     ${CMAKE_SOURCE_DIR}/qml/IndexSheet.qml
+    ${CMAKE_SOURCE_DIR}/qml/PictureEditor.qml
     ${CMAKE_SOURCE_DIR}/qml/SettingsWindow.qml
 )
 
@@ -69,9 +70,15 @@ qt_add_qml_module(kwiklook_qml
         gui/sandbox.cpp
         gui/videoeditor.h
         gui/videoeditor.cpp
+        gui/imageeditor.h
+        gui/imageeditor.cpp
+        gui/imagemetadata.h
+        gui/imagemetadata.cpp
     RESOURCE_PREFIX "/qt/qml" # Qt searches here by default
     OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/kwiklook"
 )
+# exiv2 reports errors as exceptions: allowed in that one file only.
+kde_source_files_enable_exceptions(gui/imagemetadata.cpp)
 # Where kwiklook-sandbox is installed (the build tree's copy is found next to the binary).
 target_compile_definitions(kwiklook_qml PRIVATE KWIKLOOK_LIBEXECDIR="${KDE_INSTALL_FULL_LIBEXECDIR}")
 target_include_directories(kwiklook_qml PUBLIC
@@ -91,6 +98,7 @@ target_link_libraries(kwiklook_qml PUBLIC
     KF6::ConfigCore # settings
     Qt6::Concurrent # reading file details off the main thread
     Qt6::Network # gui/offlinenetwork
+    Exiv2::exiv2lib # photo metadata kept when a picture is edited
     KF6::KIOWidgets # “Open with…”: applications for a file, the “Other Application” dialog
     KF6::Service
     KF6::Purpose # Share

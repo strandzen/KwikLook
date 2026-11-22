@@ -10,6 +10,7 @@ url='https://github.com/strandzen/KwikLook'
 license=('GPL-3.0-or-later')
 depends=(
   'dolphin'
+  'exiv2'  # photo metadata kept when a picture is edited
   'gcc-libs'
   'glibc'
   'kcalendarcore'  # event cards (.ics)

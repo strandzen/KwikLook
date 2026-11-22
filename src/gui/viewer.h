@@ -62,6 +62,10 @@ class Viewer : public QObject
     Q_PROPERTY(bool pagesOpen READ pagesOpen WRITE setPagesOpen NOTIFY pagesOpenChanged)
     // The index sheet (all files as a grid, to pick one) is shown; until the preview closes.
     Q_PROPERTY(bool indexOpen MEMBER m_indexOpen NOTIFY indexOpenChanged)
+    // A still picture on this computer that can be cropped and turned (not animated,
+    // not SVG); and whether that is happening (until the file changes or the preview closes).
+    Q_PROPERTY(bool imageEditable READ imageEditable NOTIFY fileInfoChanged)
+    Q_PROPERTY(bool pictureEditing MEMBER m_pictureEditing NOTIFY pictureEditingChanged)
     // Text font size factor (Ctrl+wheel in text): kept from file to file until the preview closes.
     Q_PROPERTY(qreal textZoom MEMBER m_textZoom NOTIFY textZoomChanged)
     // Video and audio volume, 0-1 as the slider shows it (perceived loudness); remembered.
@@ -146,6 +150,9 @@ public:
     Q_INVOKABLE QVariantMap fileAt(int index) const;
     // Shows the file at `index` (the index sheet's choice).
     Q_INVOKABLE void showFile(int index);
+    bool imageEditable() const;
+    // The current file was replaced by an edited one (perhaps under a new name): read again.
+    Q_INVOKABLE void replaceCurrent(const QUrl &url);
     bool pagesOpen() const;
     void setPagesOpen(bool open);
     qreal mediaVolume() const;
@@ -185,6 +192,7 @@ Q_SIGNALS:
     void infoOpenChanged();
     void pagesOpenChanged();
     void indexOpenChanged();
+    void pictureEditingChanged();
     void textZoomChanged();
     void mediaVolumeChanged();
     void mediaRepeatChanged();
@@ -217,6 +225,7 @@ private:
     bool m_infoOpen = false;
     bool m_pagesOpen = false;
     bool m_indexOpen = false;
+    bool m_pictureEditing = false;
     qreal m_textZoom = 1;
     qreal m_mediaVolume = 1;
     bool m_mediaRepeat = false;

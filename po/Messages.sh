@@ -11,6 +11,8 @@ $XGETTEXT \
     src/gui/viewer.cpp \
     src/gui/filemenus.cpp \
     src/gui/autostart.cpp \
+    src/gui/videoeditor.cpp \
+    src/gui/imageeditor.cpp \
     --keyword=i18n:1 \
     --keyword=i18nc:1c,2 \
     --keyword=i18np:1,2 \
@@ -34,6 +36,7 @@ $XGETTEXT \
     qml/CsvView.qml \
     qml/CardsView.qml \
     qml/IndexSheet.qml \
+    qml/PictureEditor.qml \
     qml/SettingsWindow.qml \
     --keyword=i18n:1 \
     --keyword=i18nc:1c,2 \
