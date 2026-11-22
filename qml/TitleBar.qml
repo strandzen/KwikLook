@@ -53,6 +53,7 @@ QQC2.ToolBar {
         Layout.fillWidth: modelData === "Spacer"
         visible: modelData === "ViewMode" ? Viewer.formattedKind !== ""
             : modelData === "Pages" ? bar.pdfPages > 1
+            : modelData === "IndexSheet" ? Viewer.count > 1
             : true
         sourceComponent: modelData === "Spacer" ? spacer : button
 
@@ -66,10 +67,11 @@ QQC2.ToolBar {
                 objectName: "bar" + slot.modelData
                 icon.name: BarItems.iconName(slot.modelData)
                 text: BarItems.text(slot.modelData)
-                checkable: slot.modelData === "Information" || slot.modelData === "ViewMode" || slot.modelData === "Pages"
+                checkable: slot.modelData === "Information" || slot.modelData === "ViewMode" || slot.modelData === "Pages" || slot.modelData === "IndexSheet"
                 checked: slot.modelData === "Information" ? Viewer.infoOpen
                     : slot.modelData === "ViewMode" ? Viewer.showFormatted
                     : slot.modelData === "Pages" ? Viewer.pagesOpen
+                    : slot.modelData === "IndexSheet" ? Viewer.indexOpen
                     : false
                 enabled: slot.modelData === "Previous" ? Viewer.currentIndex > 0
                     : slot.modelData === "Next" ? Viewer.currentIndex + 1 < Viewer.count
@@ -86,6 +88,7 @@ QQC2.ToolBar {
         case "Information": Viewer.infoOpen = !Viewer.infoOpen; break;
         case "ViewMode": Viewer.showFormatted = !Viewer.showFormatted; break;
         case "Pages": Viewer.pagesOpen = !Viewer.pagesOpen; break;
+        case "IndexSheet": Viewer.indexOpen = !Viewer.indexOpen; break;
         case "Share": bar.menus.showShare(button); break;
         case "OpenWith": bar.menus.showOpenWith(button); break;
         case "Open": bar.menus.openWithDefault(); break;

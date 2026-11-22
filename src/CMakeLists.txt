@@ -20,6 +20,7 @@ set(KWIKLOOK_QML_FILES
     ${CMAKE_SOURCE_DIR}/qml/DesktopView.qml
     ${CMAKE_SOURCE_DIR}/qml/CsvView.qml
     ${CMAKE_SOURCE_DIR}/qml/CardsView.qml
+    ${CMAKE_SOURCE_DIR}/qml/IndexSheet.qml
     ${CMAKE_SOURCE_DIR}/qml/SettingsWindow.qml
 )
 

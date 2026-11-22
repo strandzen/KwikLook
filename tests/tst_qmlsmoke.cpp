@@ -704,6 +704,59 @@ private Q_SLOTS:
         QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 
+    void indexSheetPicksAFile()
+    {
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        QTemporaryDir dir;
+        QStringList files;
+        for (const QString &name : {u"a.txt"_s, u"b.txt"_s, u"c.txt"_s}) {
+            QFile f(dir.filePath(name));
+            QVERIFY(f.open(QIODevice::WriteOnly));
+            files << f.fileName();
+        }
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open(files, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QTRY_VERIFY(window->findChild<QQuickItem *>(u"textArea"_s));
+        QVERIFY(findItem(window, u"barIndexSheet"_s)->isVisible());
+        // Ctrl+Enter: the sheet, on the current file, with the keyboard.
+        QTest::keyClick(window, Qt::Key_Return, Qt::ControlModifier);
+        QVERIFY(v->property("indexOpen").toBool());
+        QQuickItem *grid = nullptr;
+        QTRY_VERIFY((grid = findItem(window, u"indexGrid"_s)) && grid->hasActiveFocus());
+        QCOMPARE(grid->property("currentIndex").toInt(), 0);
+        QCOMPARE(v->fileAt(2).value(u"name"_s).toString(), u"c.txt"_s);
+        // Arrows move in the grid, not between files; Enter shows the chosen one.
+        QTest::keyClick(window, Qt::Key_Right);
+        QTest::keyClick(window, Qt::Key_Right);
+        QCOMPARE(grid->property("currentIndex").toInt(), 2);
+        QCOMPARE(v->currentIndex(), 0);
+        QTest::keyClick(window, Qt::Key_Return);
+        QCOMPARE(v->currentIndex(), 2);
+        QVERIFY(!v->property("indexOpen").toBool());
+        QVERIFY(window->isVisible());
+        // Esc closes the sheet first, then the preview.
+        QTest::keyClick(window, Qt::Key_Return, Qt::ControlModifier);
+        QTRY_VERIFY(findItem(window, u"indexGrid"_s));
+        QTest::keyClick(window, Qt::Key_Escape);
+        QVERIFY(!v->property("indexOpen").toBool());
+        QVERIFY(window->isVisible());
+        QTest::keyClick(window, Qt::Key_Escape);
+        QTRY_VERIFY(!window->isVisible());
+        // One file: no sheet.
+        v->Open({files.first()}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QTest::keyClick(window, Qt::Key_Return, Qt::ControlModifier);
+        QVERIFY(!v->property("indexOpen").toBool());
+        QVERIFY(!findItem(window, u"barIndexSheet"_s)->isVisible());
+        v->Close();
+        v->setWindow(nullptr);
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+    }
+
     void longTextStaysResponsive()
     {
         // Like ~/.zcompdump: thousands of lines, some very long. The line numbers once
@@ -1177,7 +1230,7 @@ private Q_SLOTS:
         QCOMPARE(items("rightItems"), QStringList({u"ViewMode"_s, u"Information"_s, u"Share"_s, u"OpenWith"_s}));
         QVERIFY(items("available").contains(u"Close"_s));
         move(u"left"_s, 0, u"left"_s, 2); // Previous after Next
-        QCOMPARE(items("leftItems"), QStringList({u"Next"_s, u"Previous"_s, u"Pages"_s}));
+        QCOMPARE(items("leftItems"), QStringList({u"Next"_s, u"Previous"_s, u"IndexSheet"_s, u"Pages"_s}));
         const int spacer = items("available").indexOf(u"Spacer"_s);
         move(u"available"_s, spacer, u"right"_s, 0);
         move(u"available"_s, items("available").indexOf(u"Spacer"_s), u"right"_s, 0);
@@ -1199,12 +1252,12 @@ private Q_SLOTS:
             QTest::mouseMove(window, from + (to - from) * i / 10);
         }
         QTest::mouseRelease(window, Qt::LeftButton, {}, to);
-        QTRY_COMPARE(items("leftItems"), QStringList({u"CopyPath"_s, u"Next"_s, u"Previous"_s, u"Pages"_s}));
+        QTRY_COMPARE(items("leftItems"), QStringList({u"CopyPath"_s, u"Next"_s, u"Previous"_s, u"IndexSheet"_s, u"Pages"_s}));
 
         // Apply saves; Reset brings the defaults back (until Apply).
         QVariant ok;
         QVERIFY(QMetaObject::invokeMethod(window, "apply", Q_RETURN_ARG(QVariant, ok)));
-        QCOMPARE(settings->barLeft(), QStringList({u"CopyPath"_s, u"Next"_s, u"Previous"_s, u"Pages"_s}));
+        QCOMPARE(settings->barLeft(), QStringList({u"CopyPath"_s, u"Next"_s, u"Previous"_s, u"IndexSheet"_s, u"Pages"_s}));
         QQuickItem *reset = window->findChild<QQuickItem *>(u"barReset"_s);
         QVERIFY(reset);
         QMetaObject::invokeMethod(reset, "clicked");

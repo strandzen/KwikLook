@@ -66,12 +66,20 @@ Kirigami.ApplicationWindow {
         onActivated: {
             if (root.fullScreen) {
                 root.showNormal();
+            } else if (Viewer.indexOpen) {
+                Viewer.indexOpen = false;
             } else if (Viewer.searchOpen && viewLoader.searchable) {
                 Viewer.searchOpen = false;
             } else {
                 Viewer.Close();
             }
         }
+    }
+    // The index sheet: all files as a grid.
+    Shortcut {
+        sequences: ["Ctrl+Return", "Ctrl+Enter"]
+        enabled: Viewer.count > 1
+        onActivated: Viewer.indexOpen = !Viewer.indexOpen
     }
     // Find, for the views that have it (text, PDF).
     Shortcut {
@@ -94,18 +102,18 @@ Kirigami.ApplicationWindow {
     }
     Shortcut {
         sequence: "Left"
-        enabled: !root.typing
+        enabled: !root.typing && !Viewer.indexOpen // the index sheet moves itself
         onActivated: Viewer.Previous()
     }
     Shortcut {
         sequence: "Right"
-        enabled: !root.typing
+        enabled: !root.typing && !Viewer.indexOpen
         onActivated: Viewer.Next()
     }
     // Enter: open the file in its usual application (the preview then closes).
     Shortcut {
         sequences: ["Return", "Enter"]
-        enabled: !root.typing
+        enabled: !root.typing && !Viewer.indexOpen
         onActivated: fileMenus.openWithDefault()
     }
     // Zoom, for the views that have it (pictures, text, PDF).
@@ -173,6 +181,15 @@ Kirigami.ApplicationWindow {
 
                         anchors.fill: parent
                         source: Viewer.view ? Qt.resolvedUrl(Viewer.view + ".qml") : ""
+                    }
+
+                    // The index sheet over the view, while open.
+                    Loader {
+                        anchors.fill: parent
+                        z: 1
+                        active: Viewer.indexOpen && Viewer.count > 1
+                        sourceComponent: IndexSheet {}
+                        onLoaded: item.focusGrid()
                     }
 
                     // The zoom level, shown briefly while zooming.

@@ -60,6 +60,8 @@ class Viewer : public QObject
     Q_PROPERTY(bool infoOpen READ infoOpen WRITE setInfoOpen NOTIFY infoOpenChanged)
     // The PDF view's page sidebar is open; remembered across previews and restarts.
     Q_PROPERTY(bool pagesOpen READ pagesOpen WRITE setPagesOpen NOTIFY pagesOpenChanged)
+    // The index sheet (all files as a grid, to pick one) is shown; until the preview closes.
+    Q_PROPERTY(bool indexOpen MEMBER m_indexOpen NOTIFY indexOpenChanged)
     // Text font size factor (Ctrl+wheel in text): kept from file to file until the preview closes.
     Q_PROPERTY(qreal textZoom MEMBER m_textZoom NOTIFY textZoomChanged)
     // Video and audio volume, 0-1 as the slider shows it (perceived loudness); remembered.
@@ -136,6 +138,11 @@ public:
     QVariantList infoSections() const;
     bool infoOpen() const;
     void setInfoOpen(bool open);
+    // For the index sheet: the file at `index` as {url, name, mimeType, iconName}, its
+    // type found from the name only (cheap, for the tiles on screen).
+    Q_INVOKABLE QVariantMap fileAt(int index) const;
+    // Shows the file at `index` (the index sheet's choice).
+    Q_INVOKABLE void showFile(int index);
     bool pagesOpen() const;
     void setPagesOpen(bool open);
     qreal mediaVolume() const;
@@ -174,6 +181,7 @@ Q_SIGNALS:
     void fileInfoChanged();
     void infoOpenChanged();
     void pagesOpenChanged();
+    void indexOpenChanged();
     void textZoomChanged();
     void mediaVolumeChanged();
     void mediaRepeatChanged();
@@ -204,6 +212,7 @@ private:
     QString m_view; // kept while the next file's details load, so the view doesn't flicker
     bool m_infoOpen = false;
     bool m_pagesOpen = false;
+    bool m_indexOpen = false;
     qreal m_textZoom = 1;
     qreal m_mediaVolume = 1;
     bool m_mediaRepeat = false;

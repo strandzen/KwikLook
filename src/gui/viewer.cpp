@@ -18,6 +18,7 @@
 #include <QDeadlineTimer>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QMimeDatabase>
 #include <QProcess>
 #include <QStandardPaths>
 #include <QRawFont>
@@ -521,6 +522,32 @@ void Viewer::setShowFormatted(bool formatted)
     Q_EMIT fileInfoChanged();
 }
 
+QVariantMap Viewer::fileAt(int index) const
+{
+    const QUrl url = m_urls.value(index);
+    if (url.isEmpty()) {
+        return {};
+    }
+    const QMimeType mime = QMimeDatabase().mimeTypeForFile(url.path(), QMimeDatabase::MatchExtension);
+    return {
+        {u"url"_s, url},
+        {u"name"_s, url.fileName()},
+        {u"mimeType"_s, mime.name()},
+        {u"iconName"_s, mime.iconName()},
+    };
+}
+
+void Viewer::showFile(int index)
+{
+    if (m_open && index >= 0 && index < m_urls.size()) {
+        setCurrent(index);
+        if (m_indexOpen) {
+            m_indexOpen = false; // the sheet's choice shows
+            Q_EMIT indexOpenChanged();
+        }
+    }
+}
+
 bool Viewer::pagesOpen() const
 {
     return m_pagesOpen;
@@ -690,6 +717,10 @@ void Viewer::markClosed()
     if (m_searchOpen) {
         m_searchOpen = false;
         Q_EMIT searchOpenChanged();
+    }
+    if (m_indexOpen) {
+        m_indexOpen = false;
+        Q_EMIT indexOpenChanged();
     }
     if (!m_searchText.isEmpty()) {
         m_searchText.clear();
