@@ -5,6 +5,7 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 ## [Unreleased]
 
 ### Added
+- With several files selected in Dolphin, the preview goes through just those (← →), and Dolphin keeps your selection.
 - “Open With…” offers Spectacle for pictures when it is installed, to draw on them, crop them or add text in Spectacle's editor.
 - Videos and audio: a volume slider (remembered), a repeat button (stays on until the preview closes) and, for videos, full screen (button, double-click or F). In full screen only the video shows; the controls appear when you move the mouse. Esc leaves full screen first.
 - Markdown files show formatted; a button in the bar (only for Markdown files) switches to the source text, and the choice is remembered. Links open in your web browser. Only pictures stored on your computer are shown: the preview never loads anything from the internet.

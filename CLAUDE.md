@@ -207,7 +207,8 @@ Dolphin hook / kwiklook <files> / dbus-send
 **Dolphin hook** (`src/dolphin/`, based on KDEGlance's; ported files keep its SPDX line). Dolphin
 loads every `kf6/overlayicon` plugin; ours adds no icons and only creates a `Bridge` once per
 Dolphin process. `DolphinAccess` reads the view's files in display order and the selection, and
-selects a file, through libdolphinprivate functions looked up by mangled name (`dlsym`), checked
+selects a file (with two or more files selected, only those go to the viewer and the
+bridge leaves Dolphin's selection alone: `Snapshot::selectionOnly`), through libdolphinprivate functions looked up by mangled name (`dlsym`), checked
 on load. Without them, Space previews the selected file alone. Space is taken only when the focus
 is in a file view with a file selected and Dolphin is not in type-ahead or selection mode. The
 bridge starts the viewer when Dolphin starts (`StartServiceByName`), asks for a Wayland activation
@@ -284,7 +285,7 @@ turns it off.
 5. Space or Esc closes the preview; `kwiklook <file>` again opens it at once (viewer still running).
 6. System Settings → Window Decorations → Breeze: change shadow size, outline or rounded corners; an open preview follows within a moment.
 7. `kwiklook --quit` stops the background viewer.
-8. Dolphin (after installing, or `QT_PLUGIN_PATH=build/dev/plugins dolphin` with no other Dolphin running): Space on a file opens the preview, ← → move Dolphin's selection along, Space/Esc closes and Dolphin has the focus again. Space still works in the location bar, while renaming, in type-ahead search and in selection mode; on a folder it does what Dolphin does.
+8. Dolphin (after installing, or `QT_PLUGIN_PATH=build/dev/plugins dolphin` with no other Dolphin running): Space on a file opens the preview, ← → move Dolphin's selection along, Space/Esc closes and Dolphin has the focus again. Space still works in the location bar, while renaming, in type-ahead search and in selection mode; on a folder it does what Dolphin does. With three files selected (Ctrl+click), Space shows just those, ← → stay within them, and Dolphin's selection is unchanged afterwards.
 9. The bar's buttons are normal toolbar size, easy to hit.
 10. Open with…: lists the file's apps; one opens the file and the preview closes; “Other Application…” shows KDE's chooser. For a picture, “Spectacle” is listed and opens it in Spectacle's editor.
 11. A picture, a text file, a folder and an unknown file each show a thumbnail or icon with type, size and date.

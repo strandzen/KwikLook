@@ -55,13 +55,17 @@ public:
         QList<QUrl> urls; // files (no folders) in display order, as local URLs
         QList<QUrl> modelUrls; // the same items as the model knows them
         int current = -1; // index into urls of the file to preview
+        // Several files were selected: `urls` holds just those (like Quick Look),
+        // and Dolphin's selection is left alone while going through them.
+        bool selectionOnly = false;
     };
 
     /*
      * Files of the view and the one to preview: `preferred` (context menu)
      * if given, else the current item if it is selected (or nothing is
-     * selected), else the first selected item. nullopt if there is nothing
-     * to preview or the target is a folder.
+     * selected), else the first selected item. With two or more files
+     * selected, only those; else every file of the view. nullopt if there is
+     * nothing to preview or the target is a folder.
      */
     std::optional<Snapshot> snapshot(QWidget *view, const std::optional<QUrl> &preferred = std::nullopt) const;
     // Cheap check used before taking the key away from Dolphin.
@@ -76,7 +80,7 @@ private:
     DolphinAccess();
     void resolve();
     int targetIndex(const QObject *model, const QObject *selection, const std::optional<QUrl> &preferred) const;
-    Snapshot collect(const QObject *model, int target) const;
+    Snapshot collect(const QObject *model, const QObject *selection, int target) const;
 
     struct Api;
     Api *m_api;

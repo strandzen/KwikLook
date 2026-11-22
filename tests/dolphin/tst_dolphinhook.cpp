@@ -231,6 +231,30 @@ private Q_SLOTS:
         closeFromViewer();
     }
 
+    void severalSelectedFilesAreTheList()
+    {
+        // y2.png and w4.png selected (and the folder: folders never count), w4 current.
+        KItemListSelectionManager *sel = m_view->container()->selectionManager();
+        m_view->selectOnly(4);
+        sel->setSelected(2);
+        sel->setSelected(0);
+        pressSpace(m_view);
+        const FakeViewer::Call call = nextCall();
+        QCOMPARE(call.method, u"Open"_s);
+        QCOMPARE(call.urls, (QStringList{url(u"y2.png"_s).toString(), url(u"w4.png"_s).toString()}));
+        QCOMPARE(call.index, 1);
+        // Going through them leaves Dolphin's selection as it was.
+        m_viewer.emitSignal(u"CurrentChanged"_s, {session(), url(u"y2.png"_s).toString(), 0});
+        QTest::qWait(200);
+        QCOMPARE(sel->selection(), (QSet<int>{0, 2, 4}));
+        closeFromViewer();
+        // One file selected again: the whole folder, as before.
+        m_view->selectOnly(2);
+        pressSpace(m_view);
+        QCOMPARE(nextCall().urls.size(), 4);
+        closeFromViewer();
+    }
+
     void folderKeepsDolphinBehaviour()
     {
         m_view->selectOnly(0);

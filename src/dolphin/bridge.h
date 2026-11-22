@@ -87,6 +87,7 @@ private:
     QStringList m_sessionUrls; // list sent to the viewer
     QString m_viewerCurrent; // file the viewer shows
     bool m_applyingSync = false; // selection changes caused by us
+    bool m_selectionOnly = false; // the preview goes through Dolphin's selection: don't change it
 
     QElapsedTimer m_lastTypeAheadKey;
     QHash<QWidget *, KFileItemList> m_fallbackSelection;

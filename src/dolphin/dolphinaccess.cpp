@@ -272,16 +272,28 @@ int DolphinAccess::targetIndex(const QObject *model, const QObject *selection, c
     return target;
 }
 
-DolphinAccess::Snapshot DolphinAccess::collect(const QObject *model, int target) const
+DolphinAccess::Snapshot DolphinAccess::collect(const QObject *model, const QObject *selection, int target) const
 {
     const Api &a = *m_api;
     const int count = a.modelCount(model);
     Snapshot s;
+    // Two or more selected files: only those. The target is one of them (the
+    // current item if selected, else the first selected).
+    int selectedFiles = 0;
+    if (a.selHasSelection(selection)) {
+        for (int i = 0; i < count && selectedFiles < 2; ++i) {
+            if (a.selIsSelected(selection, i)) {
+                const KFileItem item = a.modelFileItem(model, i);
+                selectedFiles += !item.isNull() && !item.isDir();
+            }
+        }
+    }
+    s.selectionOnly = selectedFiles >= 2 && a.selIsSelected(selection, target);
     s.urls.reserve(count);
     s.modelUrls.reserve(count);
     for (int i = 0; i < count; ++i) {
         const KFileItem item = a.modelFileItem(model, i);
-        if (item.isNull() || item.isDir()) {
+        if (item.isNull() || item.isDir() || (s.selectionOnly && !a.selIsSelected(selection, i))) {
             continue;
         }
         if (i == target) {
@@ -307,7 +319,7 @@ std::optional<DolphinAccess::Snapshot> DolphinAccess::snapshot(QWidget *view, co
     if (target < 0) {
         return std::nullopt;
     }
-    Snapshot s = collect(model, target);
+    Snapshot s = collect(model, selection, target);
     if (s.current < 0) {
         return std::nullopt;
     }

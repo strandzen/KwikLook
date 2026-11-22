@@ -211,6 +211,7 @@ bool Bridge::trigger(QWidget *view)
     QStringList urls;
     QHash<QString, QUrl> localToModel;
     int index = 0;
+    bool selectionOnly = false;
     if (auto snap = access.snapshot(view)) {
         urls.reserve(snap->urls.size());
         for (int i = 0; i < snap->urls.size(); ++i) {
@@ -219,6 +220,7 @@ bool Bridge::trigger(QWidget *view)
             localToModel.insert(local, snap->modelUrls.at(i));
         }
         index = snap->current;
+        selectionOnly = snap->selectionOnly;
     } else if (!access.hasModelAccess()) {
         const KFileItemList selection = m_fallbackSelection.value(view);
         for (const KFileItem &item : selection) {
@@ -240,6 +242,7 @@ bool Bridge::trigger(QWidget *view)
     m_sessionUrls = urls;
     m_localToModelUrl = localToModel;
     m_viewerCurrent = urls.value(index);
+    m_selectionOnly = selectionOnly;
     // If Dolphin keeps the keyboard focus (e.g. the compositor refused to
     // activate the preview), the preview follows Dolphin's selection.
     connect(view, SIGNAL(selectionChanged(KFileItemList)), this, SLOT(onSessionSelectionChanged(KFileItemList)), Qt::UniqueConnection);
@@ -282,7 +285,8 @@ void Bridge::callViewer(const QString &method, const QVariantList &args)
 
 void Bridge::syncSelection(const QString &url)
 {
-    if (!m_sessionView) {
+    // Going through a selection of files keeps that selection in Dolphin.
+    if (!m_sessionView || m_selectionOnly) {
         return;
     }
     const QUrl modelUrl = m_localToModelUrl.value(url, QUrl(url));
