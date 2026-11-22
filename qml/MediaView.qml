@@ -13,8 +13,10 @@ import kwiklook
 // repeat, mute, volume, fullscreen. Plays at once unless turned off in the settings;
 // can start muted. Stops when the preview closes or the next file comes. Media keys
 // play and pause; clicking a video does too. Fullscreen (button, double-click, F) shows
-// only the video, the controls appear while the mouse moves. A file that can't be
-// played shows the fallback view.
+// only the video, the controls appear while the mouse moves. Edit (videos, with
+// ffmpeg) trims and rotates, saved as a copy next to the original: the cut starts on
+// a keyframe, nothing is re-encoded (VideoEditor). A file that can't be played shows
+// the fallback view.
 Item {
     id: view
     objectName: "mediaView"
@@ -22,6 +24,9 @@ Item {
     readonly property bool fullScreen: Window.window !== null && Window.window.visibility === Window.FullScreen
     // Fullscreen: the controls show while the mouse moves (or is over them).
     property bool controlsShown: true
+    // Trimming and rotating: the edit bar is open; quarter turns counterclockwise.
+    property bool editing: false
+    property int turn: 0
 
     // The file being played: cleared on every file change (also reopening the same
     // file), so it loads and starts again.
@@ -42,6 +47,27 @@ Item {
             window.showFullScreen();
         }
     }
+    function startEditing() {
+        if (fullScreen) {
+            view.Window.window.showNormal();
+        }
+        turn = 0;
+        range.first.value = 0;
+        range.second.value = player.duration;
+        editing = true;
+        editor.probe();
+    }
+    function stopEditing() {
+        editor.cancel();
+        editing = false;
+        turn = 0;
+    }
+    function notify(text) {
+        const window = view.QQC2.ApplicationWindow.window;
+        if (window) {
+            window.showPassiveNotification(text);
+        }
+    }
     function showControls() {
         controlsShown = true;
         hideControlsTimer.restart();
@@ -60,6 +86,7 @@ Item {
     Connections {
         target: Viewer
         function onCurrentChanged() {
+            view.stopEditing();
             player.stop();
             view.mediaUrl = "";
         }
@@ -77,6 +104,16 @@ Item {
                 player.stop();
             }
         }
+    }
+
+    VideoEditor {
+        id: editor
+        source: view.mediaUrl
+        onSaved: copy => {
+            view.stopEditing();
+            view.notify(i18nc("@info", "Saved as “%1”.", decodeURIComponent(copy.toString().split("/").pop())));
+        }
+        onFailed: message => view.notify(message)
     }
 
     MediaPlayer {
@@ -97,6 +134,13 @@ Item {
             }
         }
         onSourceChanged: audio.muted = KwikLookSettings.startMuted
+        // While editing, playing stays within the chosen part.
+        onPositionChanged: {
+            if (view.editing && playbackState === MediaPlayer.PlayingState && position >= range.second.value) {
+                pause();
+                position = range.first.value;
+            }
+        }
     }
 
     Shortcut {
@@ -119,12 +163,15 @@ Item {
         anchors.right: parent.right
         anchors.top: parent.top
         // Fullscreen: the video takes the whole screen, the controls float over it.
-        anchors.bottom: view.fullScreen ? parent.bottom : footer.top
+        anchors.bottom: view.fullScreen ? parent.bottom : view.editing ? editBar.top : footer.top
 
         VideoOutput {
             id: videoOutput
             anchors.fill: parent
             visible: player.hasVideo
+            // The turn being edited, before it's saved. Qt turns clockwise, ffmpeg's
+            // rotation (what is saved) counterclockwise: checked side by side.
+            orientation: (360 - view.turn) % 360
         }
 
         // Audio: cover (KDE's thumbnail, as in Dolphin) or the type icon, title, artist.
@@ -179,6 +226,91 @@ Item {
             anchors.fill: parent
             active: player.error !== MediaPlayer.NoError
             sourceComponent: FallbackView {}
+        }
+    }
+
+    // Trim and rotate: which part to keep (the start snaps to keyframes), quarter turns,
+    // Save Copy, Cancel.
+    QQC2.ToolBar {
+        id: editBar
+        objectName: "editBar"
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: footer.top
+        position: QQC2.ToolBar.Footer
+        visible: view.editing && !view.fullScreen
+
+        RowLayout {
+            anchors.fill: parent
+            spacing: Kirigami.Units.smallSpacing
+
+            QQC2.ToolButton {
+                objectName: "rotateLeft"
+                display: QQC2.AbstractButton.IconOnly
+                icon.name: "object-rotate-left"
+                text: i18nc("@action:button", "Rotate Left")
+                enabled: !editor.saving
+                onClicked: view.turn = (view.turn + 90) % 360
+                QQC2.ToolTip.text: text
+                QQC2.ToolTip.visible: hovered
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+            }
+            QQC2.ToolButton {
+                objectName: "rotateRight"
+                display: QQC2.AbstractButton.IconOnly
+                icon.name: "object-rotate-right"
+                text: i18nc("@action:button", "Rotate Right")
+                enabled: !editor.saving
+                onClicked: view.turn = (view.turn + 270) % 360
+                QQC2.ToolTip.text: text
+                QQC2.ToolTip.visible: hovered
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+            }
+            QQC2.RangeSlider {
+                id: range
+                objectName: "trimRange"
+                Layout.fillWidth: true
+                from: 0
+                to: Math.max(1, player.duration)
+                enabled: !editor.probing && !editor.saving
+                // The start can only be where a keyframe is.
+                first.onMoved: {
+                    first.value = editor.keyframeAtOrBefore(first.value / 1000) * 1000;
+                    player.position = first.value;
+                }
+                second.onMoved: player.position = second.value
+            }
+            QQC2.Label {
+                font.features: { "tnum": 1 }
+                text: i18nc("@info part of a video, from – to", "%1 – %2", view.formatTime(range.first.value), view.formatTime(range.second.value))
+            }
+            QQC2.BusyIndicator {
+                Layout.preferredHeight: Kirigami.Units.iconSizes.smallMedium
+                Layout.preferredWidth: Layout.preferredHeight
+                visible: editor.probing || editor.saving
+                running: visible
+            }
+            QQC2.Button {
+                objectName: "saveCopy"
+                icon.name: "document-save-as"
+                text: i18nc("@action:button", "Save Copy")
+                enabled: !editor.probing && !editor.saving
+                    && (view.turn !== 0 || range.first.value > 0 || range.second.value < player.duration)
+                onClicked: editor.save(range.first.value / 1000,
+                                       range.second.value >= player.duration ? 0 : range.second.value / 1000, view.turn)
+                QQC2.ToolTip.text: i18nc("@info:tooltip", "Saves the part and turn as a new file next to this one. The cut starts at the nearest point the video allows.")
+                QQC2.ToolTip.visible: hovered
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+            }
+            QQC2.ToolButton {
+                display: QQC2.AbstractButton.IconOnly
+                icon.name: "dialog-cancel"
+                text: i18nc("@action:button stop editing the video", "Cancel")
+                onClicked: view.stopEditing()
+                QQC2.ToolTip.text: text
+                QQC2.ToolTip.visible: hovered
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+            }
         }
     }
 
@@ -271,6 +403,19 @@ Item {
                 QQC2.ToolTip.text: i18nc("@info:tooltip volume in percent", "Volume: %1%", Math.round(value * 100))
                 QQC2.ToolTip.visible: hovered || pressed
                 QQC2.ToolTip.delay: pressed ? 0 : Kirigami.Units.toolTipDelay
+            }
+            QQC2.ToolButton {
+                objectName: "editButton"
+                display: QQC2.AbstractButton.IconOnly
+                visible: player.hasVideo && editor.available && Viewer.currentUrl.toString().startsWith("file:") && !view.fullScreen
+                checkable: true
+                checked: view.editing
+                icon.name: "edit-cut"
+                text: i18nc("@action:button", "Trim and Rotate")
+                onClicked: view.editing ? view.stopEditing() : view.startEditing()
+                QQC2.ToolTip.text: text
+                QQC2.ToolTip.visible: hovered
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             }
             QQC2.ToolButton {
                 objectName: "fullScreenButton"

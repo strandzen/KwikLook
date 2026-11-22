@@ -65,6 +65,10 @@ qt_add_qml_module(kwiklook_qml
         gui/offlinenetwork.cpp
         gui/tablemodel.h
         gui/tablemodel.cpp
+        gui/sandbox.h
+        gui/sandbox.cpp
+        gui/videoeditor.h
+        gui/videoeditor.cpp
     RESOURCE_PREFIX "/qt/qml" # Qt searches here by default
     OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/kwiklook"
 )

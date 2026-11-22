@@ -65,3 +65,10 @@ ecm_add_test(tst_officeconverter.cpp
     NAME_PREFIX "kwiklook-"
 )
 add_dependencies(tst_officeconverter kwiklook-sandbox)
+
+# Trimming and rotating videos with ffmpeg in the sandbox (skipped without ffmpeg).
+ecm_add_test(tst_videoeditor.cpp
+    TEST_NAME tst_videoeditor
+    LINK_LIBRARIES Qt6::Test kwiklook_qml
+    NAME_PREFIX "kwiklook-"
+)

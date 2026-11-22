@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
 #include "officeconverter.h"
+#include "sandbox.h"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -17,22 +18,6 @@
 using namespace Qt::StringLiterals;
 
 Q_LOGGING_CATEGORY(lcOffice, "kwiklook.office")
-
-namespace
-{
-constexpr int ExitNoSandbox = 77; // kwiklook-sandbox: the kernel can't lock the program in
-
-// Next to the binary in the build tree, else where it's installed.
-QString sandboxBinary()
-{
-    const QString local = QCoreApplication::applicationDirPath() + u"/kwiklook-sandbox"_s;
-    if (QFileInfo(local).isExecutable()) {
-        return local;
-    }
-    const QString installed = QStringLiteral(KWIKLOOK_LIBEXECDIR "/kwiklook-sandbox");
-    return QFileInfo(installed).isExecutable() ? installed : QString();
-}
-} // namespace
 
 OfficeConverter::OfficeConverter(QObject *parent)
     : QObject(parent)
@@ -53,7 +38,7 @@ OfficeConverter::~OfficeConverter()
 
 bool OfficeConverter::available()
 {
-    return !QStandardPaths::findExecutable(u"soffice"_s).isEmpty() && !sandboxBinary().isEmpty();
+    return !QStandardPaths::findExecutable(u"soffice"_s).isEmpty() && !Sandbox::binary().isEmpty();
 }
 
 void OfficeConverter::setCacheDir(const QString &dir)
@@ -98,7 +83,7 @@ void OfficeConverter::convert(const QString &path)
         Q_EMIT converted(path, QUrl::fromLocalFile(pdf));
         return;
     }
-    const QString sandbox = sandboxBinary();
+    const QString sandbox = Sandbox::binary();
     const QString soffice = QStandardPaths::findExecutable(u"soffice"_s);
     if (sandbox.isEmpty() || soffice.isEmpty()) {
         Q_EMIT failed(path, Failure::Failed);
@@ -190,17 +175,7 @@ void OfficeConverter::removeStaleWork()
 
 bool OfficeConverter::sandboxSupported()
 {
-    // Asked once: the helper says 77 when this kernel's Landlock can't lock a program in.
-    static const bool supported = [] {
-        const QString sandbox = sandboxBinary();
-        if (sandbox.isEmpty()) {
-            return false;
-        }
-        QProcess process;
-        process.start(sandbox, {u"--"_s, u"true"_s});
-        return process.waitForFinished(5000) && process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0;
-    }();
-    return supported;
+    return Sandbox::supported();
 }
 
 void OfficeConverter::cancel()
@@ -239,7 +214,7 @@ void OfficeConverter::finish(int exitCode, bool timedOut)
         prune();
         Q_EMIT converted(path, QUrl::fromLocalFile(pdf));
     } else {
-        Q_EMIT failed(path, exitCode == ExitNoSandbox ? Failure::NoSandbox : Failure::Failed);
+        Q_EMIT failed(path, exitCode == Sandbox::ExitNoSandbox ? Failure::NoSandbox : Failure::Failed);
     }
 }
 

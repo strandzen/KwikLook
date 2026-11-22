@@ -4,6 +4,7 @@
 #include "gui/filemenus.h"
 #include "gui/offlinenetwork.h"
 #include "gui/thumbnailprovider.h"
+#include "gui/videoeditor.h"
 #include "gui/viewer.h"
 #include "kwiklooksettings.h"
 
@@ -37,6 +38,7 @@
 #include <QFontDatabase>
 #include <QSignalSpy>
 #include <QFileInfo>
+#include <QProcess>
 #include <QScopeGuard>
 #include <QTcpServer>
 
@@ -1292,6 +1294,54 @@ private Q_SLOTS:
         menus.setProperty("mimeType", u"text/plain"_s);
         menu.reset(menus.openWithMenu());
         QVERIFY(!menu->findChild<QAction *>(u"openWithSpectacle"_s));
+    }
+
+    void videoTrimAndRotate()
+    {
+        if (!VideoEditor::available()) {
+            QSKIP("ffmpeg, ffprobe or the sandbox isn't available");
+        }
+        QTemporaryDir dir;
+        const QString clip = dir.filePath(u"clip.mp4"_s);
+        QProcess ffmpeg;
+        ffmpeg.start(u"ffmpeg"_s, {u"-loglevel"_s, u"error"_s, u"-y"_s, u"-f"_s, u"lavfi"_s, u"-i"_s, u"testsrc=duration=4:size=160x120:rate=25"_s,
+                                   u"-g"_s, u"25"_s, u"-pix_fmt"_s, u"yuv420p"_s, clip});
+        QVERIFY(ffmpeg.waitForFinished(30000) && ffmpeg.exitCode() == 0);
+        KwikLookSettings::self()->setAutoplayMedia(false);
+        KwikLookSettings::self()->setStartMuted(true);
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open({clip}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QQuickItem *media = nullptr;
+        QTRY_VERIFY((media = window->findChild<QQuickItem *>(u"mediaView"_s)));
+        QQuickItem *edit = window->findChild<QQuickItem *>(u"editButton"_s);
+        QTRY_VERIFY(edit->isVisible()); // once the player knows it's a video
+        // Edit: the bar, keyframes read; nothing to save until something changes.
+        QMetaObject::invokeMethod(edit, "clicked");
+        QVERIFY(media->property("editing").toBool());
+        QQuickItem *save = window->findChild<QQuickItem *>(u"saveCopy"_s);
+        QTRY_VERIFY(save->isVisible() && !save->isEnabled());
+        auto *editor = media->findChild<VideoEditor *>();
+        QVERIFY(editor);
+        QTRY_VERIFY(!editor->probing());
+        QCOMPARE(editor->keyframes().size(), 4);
+        // Rotate left: a quarter turn counterclockwise, then Save Copy.
+        QMetaObject::invokeMethod(window->findChild<QQuickItem *>(u"rotateLeft"_s), "clicked");
+        QCOMPARE(media->property("turn").toInt(), 90);
+        QTRY_VERIFY(save->isEnabled());
+        QSignalSpy saved(editor, &VideoEditor::saved);
+        QMetaObject::invokeMethod(save, "clicked");
+        QTRY_VERIFY_WITH_TIMEOUT(saved.size() == 1, 30000);
+        QVERIFY(QFile::exists(dir.filePath(u"clip (edited).mp4"_s)));
+        QTRY_VERIFY(!media->property("editing").toBool()); // done: the bar closes
+        v->Close();
+        v->setWindow(nullptr);
+        KwikLookSettings::self()->setAutoplayMedia(true);
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 
     void settingsWindowAppliesOnlyOnApply()

@@ -32,7 +32,10 @@ depends=(
   'syntax-highlighting'
   'libseccomp'  # kwiklook-sandbox
 )
-optdepends=('libreoffice: previews of office documents')
+optdepends=(
+  'libreoffice: previews of office documents'
+  'ffmpeg: trimming and rotating videos'
+)
 makedepends=('cmake' 'extra-cmake-modules')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 # After pushing a new tag: updpkgsums (or gh release download vX --archive=tar.gz while the repository is private)

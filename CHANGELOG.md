@@ -5,6 +5,7 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 ## [Unreleased]
 
 ### Added
+- Videos can be trimmed and rotated (✂ in the video controls, when ffmpeg is installed): choose the part to keep and quarter turns, then “Save Copy” writes a new file next to the original, which is never changed. Nothing is re-encoded, so it is quick and loses no quality; the cut starts at the nearest point the video allows.
 - Index sheet: with several files, Ctrl+Enter (or the bar button next to →) shows them all as a grid of thumbnails; arrow keys and Enter, or a click, pick one.
 - PDFs with several pages have a page overview on the left (button in the bar, next to →): small pages with the current one marked; a click goes there. Whether it is open is remembered.
 - Contacts (.vcf) show as cards with photo, phone numbers, mail, addresses and birthday; calendar files (.ics) show their events with time, place and organizer. The bar button shows the file's text instead.
