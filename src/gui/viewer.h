@@ -76,6 +76,8 @@ class Viewer : public QObject
     Q_PROPERTY(bool fontInstalled READ fontInstalled NOTIFY fileInfoChanged)
     // The font preview's own text, typed by the user: kept until the preview closes.
     Q_PROPERTY(QString fontSampleText MEMBER m_fontSampleText NOTIFY fontSampleTextChanged)
+    // Its size in pixels (− / +, Ctrl+wheel): also kept until the preview closes.
+    Q_PROPERTY(int fontSampleSize MEMBER m_fontSampleSize NOTIFY fontSampleSizeChanged)
     // Find in text and PDFs (Ctrl+F): the bar is open, and what it looks for; kept from
     // file to file until the preview closes.
     Q_PROPERTY(bool searchOpen MEMBER m_searchOpen NOTIFY searchOpenChanged)
@@ -98,6 +100,7 @@ public:
     static constexpr auto ServiceName = KwikLookDBus::Service;
     static constexpr auto ObjectPath = KwikLookDBus::ViewerPath;
     static constexpr auto InterfaceName = KwikLookDBus::ViewerInterface;
+    static constexpr int DefaultFontSampleSize = 36;
 
     // No default argument on purpose: a default-constructible QML_SINGLETON is
     // built by the engine itself and create() is never called (see CLAUDE.md).
@@ -186,6 +189,7 @@ Q_SIGNALS:
     void mediaVolumeChanged();
     void mediaRepeatChanged();
     void fontSampleTextChanged();
+    void fontSampleSizeChanged();
     void fontInstallFinished(bool ok);
     void searchOpenChanged();
     void searchTextChanged();
@@ -221,6 +225,7 @@ private:
     QString m_fontStyle;
     bool m_fontInstalled = false;
     QString m_fontSampleText;
+    int m_fontSampleSize = DefaultFontSampleSize;
     bool m_searchOpen = false;
     QString m_searchText;
     int m_generation = 0; // drops details read for a file that's no longer current

@@ -714,6 +714,10 @@ void Viewer::markClosed()
         m_fontSampleText.clear();
         Q_EMIT fontSampleTextChanged();
     }
+    if (m_fontSampleSize != DefaultFontSampleSize) {
+        m_fontSampleSize = DefaultFontSampleSize;
+        Q_EMIT fontSampleSizeChanged();
+    }
     if (m_searchOpen) {
         m_searchOpen = false;
         Q_EMIT searchOpenChanged();

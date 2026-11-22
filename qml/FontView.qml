@@ -7,8 +7,9 @@ import org.kde.kirigami as Kirigami
 import kwiklook
 
 // Fonts: the font's name in itself, Install Font (or “Installed”), a field for your
-// own text, the alphabet, digits and punctuation, then a pangram (or your text) at
-// several sizes. Your text stays for the next fonts until the preview closes.
+// own text, the alphabet, digits and punctuation, then a pangram (or your text) at one
+// size: 36 px, changed with − / + or Ctrl+wheel (Ctrl+plus / minus / 0). Text and size
+// stay for the next fonts until the preview closes.
 QQC2.ScrollView {
     id: view
     objectName: "fontView"
@@ -22,6 +23,31 @@ QQC2.ScrollView {
         font.styleName: Viewer.fontStyle
     }
 
+    // The user zoomed (for the zoom indicator, as in the other views).
+    signal zoomed()
+
+    readonly property real zoomPercent: Math.round(Viewer.fontSampleSize / 36 * 100)
+
+    function zoomBy(factor) {
+        setSize(Viewer.fontSampleSize * factor);
+    }
+    function resetZoom() {
+        setSize(36);
+    }
+    function setSize(size) {
+        Viewer.fontSampleSize = Math.round(Math.max(8, Math.min(288, size)));
+        zoomed();
+    }
+    // − / +: through the usual type sizes.
+    readonly property var steps: [8, 10, 12, 14, 18, 24, 28, 36, 48, 60, 72, 96, 120, 144, 192, 240, 288]
+    function stepSize(up) {
+        const size = Viewer.fontSampleSize;
+        const next = up ? steps.find(step => step > size) : steps.slice().reverse().find(step => step < size);
+        if (next !== undefined) {
+            setSize(next);
+        }
+    }
+
     readonly property string sampleText: Viewer.fontSampleText !== "" ? Viewer.fontSampleText
         : i18nc("@info sample text showing every letter of the alphabet; translate to a pangram of your language", "The quick brown fox jumps over the lazy dog")
 
@@ -32,6 +58,12 @@ QQC2.ScrollView {
 
     background: Rectangle {
         color: Kirigami.Theme.backgroundColor
+    }
+
+    WheelHandler {
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad // Wayland types the mouse as a touchpad
+        acceptedModifiers: Qt.ControlModifier
+        onWheel: event => view.zoomBy(Math.pow(1.1, event.angleDelta.y / 120))
     }
 
     Item {
@@ -121,26 +153,49 @@ QQC2.ScrollView {
                 Layout.bottomMargin: Kirigami.Units.largeSpacing
             }
 
-            // The sample text at several sizes, each with its size.
-            Repeater {
-                model: [12, 18, 24, 36, 48, 72]
+            // The sample at one size, with − / +.
+            RowLayout {
+                spacing: Kirigami.Units.smallSpacing
 
-                ColumnLayout {
-                    required property int modelData
-                    Layout.fillWidth: true
-                    spacing: 0
+                QQC2.ToolButton {
+                    objectName: "fontSmaller"
+                    display: QQC2.AbstractButton.IconOnly
+                    icon.name: "zoom-out"
+                    text: i18nc("@action:button font size", "Smaller")
+                    enabled: Viewer.fontSampleSize > 8
+                    onClicked: view.stepSize(false)
+                    QQC2.ToolTip.text: text
+                    QQC2.ToolTip.visible: hovered
+                    QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                }
+                QQC2.Label {
+                    objectName: "fontSize"
+                    Layout.minimumWidth: sizeMetrics.advanceWidth("288 px")
+                    horizontalAlignment: Text.AlignHCenter
+                    color: Kirigami.Theme.disabledTextColor
+                    font.features: { "tnum": 1 }
+                    text: i18nc("@info font size in pixels", "%1 px", Viewer.fontSampleSize)
 
-                    QQC2.Label {
-                        color: Kirigami.Theme.disabledTextColor
-                        font: Kirigami.Theme.smallFont
-                        text: i18nc("@info font size in points", "%1 pt", parent.modelData)
-                    }
-                    Sample {
-                        objectName: "fontSample"
-                        font.pointSize: parent.modelData
-                        text: view.sampleText
+                    FontMetrics {
+                        id: sizeMetrics
                     }
                 }
+                QQC2.ToolButton {
+                    objectName: "fontLarger"
+                    display: QQC2.AbstractButton.IconOnly
+                    icon.name: "zoom-in"
+                    text: i18nc("@action:button font size", "Larger")
+                    enabled: Viewer.fontSampleSize < 288
+                    onClicked: view.stepSize(true)
+                    QQC2.ToolTip.text: text
+                    QQC2.ToolTip.visible: hovered
+                    QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                }
+            }
+            Sample {
+                objectName: "fontSample"
+                font.pixelSize: Viewer.fontSampleSize
+                text: view.sampleText
             }
         }
     }

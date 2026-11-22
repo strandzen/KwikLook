@@ -372,6 +372,18 @@ private Q_SLOTS:
         QVERIFY(!findItem(window, u"installFont"_s)->isVisible());
         v->installFont();
         QVERIFY(!QFileInfo::exists(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + u"/fonts"_s));
+        // One size: 36 px, − / + through the usual sizes, Ctrl+0 back.
+        QCOMPARE(sample->property("font").value<QFont>().pixelSize(), 36);
+        QMetaObject::invokeMethod(findItem(window, u"fontLarger"_s), "clicked");
+        QCOMPARE(v->property("fontSampleSize").toInt(), 48);
+        QCOMPARE(sample->property("font").value<QFont>().pixelSize(), 48);
+        QMetaObject::invokeMethod(findItem(window, u"fontSmaller"_s), "clicked");
+        QMetaObject::invokeMethod(findItem(window, u"fontSmaller"_s), "clicked");
+        QCOMPARE(v->property("fontSampleSize").toInt(), 28);
+        QTest::keyClick(window, Qt::Key_0, Qt::ControlModifier);
+        QCOMPARE(v->property("fontSampleSize").toInt(), 36);
+        QTest::keyClick(window, Qt::Key_Plus, Qt::ControlModifier);
+        QCOMPARE(v->property("fontSampleSize").toInt(), 45); // Ctrl+plus: × 1.25
         // Typing: the samples show the text; Enter and ← → don't act on the preview.
         auto *field = window->findChild<QQuickItem *>(u"fontSampleField"_s);
         QVERIFY(field);
@@ -390,9 +402,11 @@ private Q_SLOTS:
         QTRY_VERIFY(window->findChild<QQuickItem *>(u"fallbackView"_s));
         QVERIFY(v->fontFamily().isEmpty());
         QCOMPARE(v->property("fontSampleText").toString(), u"Hello"_s);
-        // Closing forgets it.
+        QCOMPARE(v->property("fontSampleSize").toInt(), 45); // kept too
+        // Closing forgets them.
         v->Close();
         QCOMPARE(v->property("fontSampleText").toString(), QString());
+        QCOMPARE(v->property("fontSampleSize").toInt(), 36);
         v->setWindow(nullptr);
         QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
