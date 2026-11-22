@@ -5,7 +5,7 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 ## [Unreleased]
 
 ### Added
-- Videos can be trimmed and rotated (✂ in the video controls, when ffmpeg is installed): choose the part to keep and quarter turns, then “Save Copy” writes a new file next to the original, which is never changed. A start on a keyframe (small marks under the slider; a handle let go close to one moves onto it) is cut at once without losing quality; a start anywhere else re-encodes the video to begin exactly there, with a progress bar.
+- Videos can be trimmed and rotated (✂ in the video controls, when ffmpeg is installed): choose the part to keep and quarter turns, then “Save Copy” writes a new file next to the original, which is never changed. While editing, the video stays still on the frame where you put a handle and plays only when you press Play. A start on a keyframe (small marks under the slider; a handle let go close to one moves onto it) is cut at once without losing quality; a start anywhere else re-encodes the video to begin exactly there, with a progress bar.
 - Index sheet: with several files, Ctrl+Enter (or the bar button next to →) shows them all as a grid of thumbnails; arrow keys and Enter, or a click, pick one.
 - PDFs with several pages have a page overview on the left (button in the bar, next to →): small pages with the current one marked; a click goes there. Whether it is open is remembered.
 - Contacts (.vcf) show as cards with photo, phone numbers, mail, addresses and birthday; calendar files (.ics) show their events with time, place and organizer. The bar button shows the file's text instead.
@@ -21,6 +21,7 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 - Choose the buttons in the preview's bar in the settings: drag them into the bar, along it or out of it, like the window decoration buttons in System Settings. New buttons to choose from: Open (in the usual application), Show in Dolphin and Copy Path, plus a flexible space. The button that switches between formatted text and source can be moved too. “Reset Bar to Defaults” brings back the usual bar.
 
 ### Fixed
+- Quitting right after zooming into a PDF could crash the viewer.
 - Going from one PDF to the next no longer logs a “Cannot open” warning.
 
 ## [0.2.0] - 2026-11-19

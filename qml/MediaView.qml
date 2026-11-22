@@ -46,6 +46,9 @@ Item {
         return hours > 0 ? hours + ":" + String(minutes).padStart(2, "0") + ":" + seconds : minutes + ":" + seconds;
     }
     function toggleFullScreen() {
+        if (editing) {
+            return; // the edit bar needs the window
+        }
         const window = view.Window.window;
         if (fullScreen) {
             window.showNormal();
@@ -61,6 +64,7 @@ Item {
         range.first.value = 0;
         range.second.value = player.duration;
         editing = true;
+        showFrame(0); // stopped at the start; only Play plays
         editor.probe();
     }
     function stopEditing() {
@@ -82,8 +86,17 @@ Item {
         if (player.playbackState === MediaPlayer.PlayingState) {
             player.pause();
         } else {
+            // Editing: play the chosen part, from its start when outside it.
+            if (editing && (player.position < range.first.value || player.position >= range.second.value)) {
+                player.position = range.first.value;
+            }
             player.play();
         }
+    }
+    // Editing: stopped on the frame where a handle is.
+    function showFrame(ms) {
+        player.pause();
+        player.position = ms;
     }
 
     Component.onCompleted: mediaUrl = Viewer.currentUrl
@@ -140,11 +153,11 @@ Item {
             }
         }
         onSourceChanged: audio.muted = KwikLookSettings.startMuted
-        // While editing, playing stays within the chosen part.
+        // While editing, playing stops at the end of the chosen part.
         onPositionChanged: {
             if (view.editing && playbackState === MediaPlayer.PlayingState && position >= range.second.value) {
                 pause();
-                position = range.first.value;
+                position = range.second.value;
             }
         }
     }
@@ -281,7 +294,7 @@ Item {
                     const keyframe = editor.keyframeNear(first.value / 1000, Math.max(0.3, player.duration / 1000 * 0.015));
                     if (keyframe >= 0) {
                         first.value = keyframe * 1000;
-                        player.position = first.value;
+                        view.showFrame(first.value);
                     }
                 }
 
@@ -295,10 +308,10 @@ Item {
                     if (!editor.exactAvailable) {
                         first.value = editor.keyframeAtOrBefore(first.value / 1000) * 1000;
                     }
-                    player.position = first.value;
+                    view.showFrame(first.value);
                 }
                 first.onPressedChanged: if (!first.pressed && editor.exactAvailable) magnet()
-                second.onMoved: player.position = second.value
+                second.onMoved: view.showFrame(second.value)
 
                 // Keyframes: where a quick cut can start.
                 Repeater {

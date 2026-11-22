@@ -1334,9 +1334,17 @@ private Q_SLOTS:
         QTRY_VERIFY((media = window->findChild<QQuickItem *>(u"mediaView"_s)));
         QQuickItem *edit = window->findChild<QQuickItem *>(u"editButton"_s);
         QTRY_VERIFY(edit->isVisible()); // once the player knows it's a video
-        // Edit: the bar, keyframes read; nothing to save until something changes.
+        // Playing, then Edit: stopped at the start; only Play plays (inside the part).
+        QObject *player = window->findChild<QObject *>(u"mediaPlayer"_s);
+        QMetaObject::invokeMethod(window->findChild<QQuickItem *>(u"playButton"_s), "clicked");
+        QTRY_COMPARE(player->property("playbackState").toInt(), 1); // PlayingState
         QMetaObject::invokeMethod(edit, "clicked");
         QVERIFY(media->property("editing").toBool());
+        QTRY_COMPARE(player->property("playbackState").toInt(), 2); // PausedState
+        QTRY_VERIFY(player->property("position").toLongLong() < 100);
+        QMetaObject::invokeMethod(media, "toggleFullScreen");
+        QCOMPARE(window->visibility(), QWindow::Windowed); // not while editing
+        // Edit: the bar, keyframes read; nothing to save until something changes.
         QQuickItem *save = window->findChild<QQuickItem *>(u"saveCopy"_s);
         QTRY_VERIFY(save->isVisible() && !save->isEnabled());
         auto *editor = media->findChild<VideoEditor *>();
