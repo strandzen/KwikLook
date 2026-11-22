@@ -83,6 +83,10 @@ class Viewer : public QObject
     Q_PROPERTY(bool showFormatted READ showFormatted WRITE setShowFormatted NOTIFY fileInfoChanged)
     Q_PROPERTY(QString formattedText READ formattedText NOTIFY fileInfoChanged) // JSON indented
     Q_PROPERTY(QVariantMap desktopEntry READ desktopEntry NOTIFY fileInfoChanged)
+    // vCard / iCalendar: the contacts or events (FileInfo::cards), and how many more
+    // the file has beyond those.
+    Q_PROPERTY(QVariantList cards READ cards NOTIFY fileInfoChanged)
+    Q_PROPERTY(int moreCards READ moreCards NOTIFY fileInfoChanged)
     // CSV / TSV: the file as a table (reset with each file).
     Q_PROPERTY(TableModel *table READ table CONSTANT)
 
@@ -141,6 +145,8 @@ public:
     QString formattedKind() const;
     QString formattedText() const;
     QVariantMap desktopEntry() const;
+    QVariantList cards() const;
+    int moreCards() const;
     TableModel *table() const;
     bool showFormatted() const;
     void setShowFormatted(bool formatted);

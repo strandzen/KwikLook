@@ -6,6 +6,8 @@
 #include <QFile>
 #include <QImage>
 #include <QTemporaryDir>
+#include <QBuffer>
+#include <QTimeZone>
 #include <QDirIterator>
 #include <QFileInfo>
 #include <QTemporaryFile>
@@ -288,6 +290,57 @@ private Q_SLOTS:
         QCOMPARE(csv.tableRows.size(), 3);
         QCOMPARE(viewFor(csv, true), u"CsvView"_s);
         QCOMPARE(viewFor(csv, false), u"TextView"_s);
+    }
+
+    void contactAndEventCards()
+    {
+        QTemporaryDir dir;
+        const auto read = [&dir](const QString &name, const QByteArray &data) {
+            QFile f(dir.filePath(name));
+            if (f.open(QIODevice::WriteOnly)) {
+                f.write(data);
+            }
+            f.close();
+            return FileInfo::read(QUrl::fromLocalFile(f.fileName()));
+        };
+        QImage photo(8, 8, QImage::Format_RGB32);
+        photo.fill(Qt::blue);
+        QByteArray png;
+        QBuffer buffer(&png);
+        buffer.open(QIODevice::WriteOnly);
+        photo.save(&buffer, "PNG");
+        const FileInfo people = read(u"people.vcf"_s,
+                                     "BEGIN:VCARD\nVERSION:3.0\nFN:Ada Lovelace\nN:Lovelace;Ada;;;\nORG:Engines\nTEL;TYPE=CELL:+44 1\n"
+                                     "EMAIL:ada@example.org\nBDAY:1815-12-10\nPHOTO;ENCODING=b;TYPE=PNG:" + png.toBase64() + "\nEND:VCARD\n"
+                                     "BEGIN:VCARD\nVERSION:3.0\nFN:Grace Hopper\nN:Hopper;Grace;;;\nEND:VCARD\n");
+        QCOMPARE(people.formattedKind, u"vcard"_s);
+        QCOMPARE(viewFor(people), u"CardsView"_s);
+        QCOMPARE(people.cards.size(), 2);
+        const QVariantMap ada = people.cards.first().toMap();
+        QCOMPARE(ada.value(u"kind"_s).toString(), u"contact"_s);
+        QCOMPARE(ada.value(u"name"_s).toString(), u"Ada Lovelace"_s);
+        QCOMPARE(ada.value(u"organization"_s).toString(), u"Engines"_s);
+        QCOMPARE(ada.value(u"emails"_s).toStringList(), QStringList{u"ada@example.org"_s});
+        QCOMPARE(ada.value(u"phones"_s).toList().first().toMap().value(u"value"_s).toString(), u"+44 1"_s);
+        QCOMPARE(ada.value(u"birthday"_s).toDate(), QDate(1815, 12, 10));
+        QVERIFY(ada.value(u"photo"_s).toString().startsWith(u"data:image/png;base64,"_s));
+        QVERIFY(people.cards.last().toMap().value(u"photo"_s).toString().isEmpty());
+
+        const FileInfo events = read(u"events.ics"_s,
+                                     "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//test//EN\n"
+                                     "BEGIN:VEVENT\nUID:1\nDTSTAMP:20261120T090000Z\nDTSTART;VALUE=DATE:20261225\nDTEND;VALUE=DATE:20261226\nSUMMARY:Christmas\nEND:VEVENT\n"
+                                     "BEGIN:VEVENT\nUID:2\nDTSTAMP:20261120T090000Z\nDTSTART:20261124T090000Z\nDTEND:20261124T100000Z\nSUMMARY:Meeting\n"
+                                     "LOCATION:Room 4\nRRULE:FREQ=WEEKLY\nEND:VEVENT\nEND:VCALENDAR\n");
+        QCOMPARE(events.formattedKind, u"calendar"_s);
+        QCOMPARE(events.cards.size(), 2);
+        const QVariantMap meeting = events.cards.first().toMap(); // by start date
+        QCOMPARE(meeting.value(u"summary"_s).toString(), u"Meeting"_s);
+        QCOMPARE(meeting.value(u"location"_s).toString(), u"Room 4"_s);
+        QCOMPARE(meeting.value(u"repeats"_s).toBool(), true);
+        QCOMPARE(meeting.value(u"start"_s).toDateTime().toUTC(), QDateTime(QDate(2026, 11, 24), QTime(9, 0), QTimeZone::UTC));
+        QCOMPARE(events.cards.last().toMap().value(u"allDay"_s).toBool(), true);
+        // Not a calendar after all: no cards, no crash.
+        QCOMPARE(read(u"broken.ics"_s, "BEGIN:VCALENDAR\ngarbage\n").cards.size(), 0);
     }
 
     void officeDocuments()

@@ -46,6 +46,8 @@ find_package(KF6 ${KF_MIN_VERSION} REQUIRED COMPONENTS
     Service
     Purpose        # Share
     FileMetaData   # file details (EXIF, page count, ...)
+    Contacts       # contact cards (.vcf)
+    CalendarCore   # event cards (.ics)
 )
 find_package(KF6Kirigami ${KF_MIN_VERSION} REQUIRED)
 # kwiklook-sandbox: refuses sockets in the programs it runs (Landlock comes with the kernel headers).

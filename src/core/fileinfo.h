@@ -32,13 +32,17 @@ struct FileInfo {
     bool textTruncated = false; // the file is longer than `text`
     QByteArray fontData; // font files (up to FontLimit): the whole file, for the font preview
     // Files that show formatted or as source (the bar's view toggle): "markdown",
-    // "html", "svg", "json", "desktop", "csv"; empty for the others.
+    // "html", "svg", "json", "desktop", "csv", "vcard", "calendar"; empty for the others.
     QString formattedKind;
     QString formattedText; // JSON: the text indented, if it parses; else empty
     // .desktop files: name, genericName, comment, icon, type, exec, url, categories,
     // terminal, hidden (in the menus), as read by KDesktopFile.
     QVariantMap desktopEntry;
     QList<QStringList> tableRows; // CSV / TSV: the rows of `text`, split into fields
+    // vCard / iCalendar: one map per contact or event (at most CardLimit), in the
+    // file's order; see readCards() in fileinfo.cpp for the keys.
+    QVariantList cards;
+    int moreCards = 0; // contacts or events beyond CardLimit
 
     // What KFileMetaData finds in the file (EXIF, page count, artist, ...), as
     // translated label and display text, in its order. Width and height are left
@@ -61,6 +65,7 @@ struct FileInfo {
     static constexpr qint64 TextLimit = 256 * 1024;
     // Larger font files show the fallback view (the largest CJK fonts are about 20 MB).
     static constexpr qint64 FontLimit = 64 * 1024 * 1024;
+    static constexpr int CardLimit = 200;
 
     bool operator==(const FileInfo &) const = default;
 };

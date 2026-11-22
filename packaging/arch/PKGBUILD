@@ -12,7 +12,9 @@ depends=(
   'dolphin'
   'gcc-libs'
   'glibc'
+  'kcalendarcore'  # event cards (.ics)
   'kconfig'
+  'kcontacts'  # contact cards (.vcf)
   'kcoreaddons'
   'kfilemetadata'
   'ki18n'

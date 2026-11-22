@@ -5,6 +5,7 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 ## [Unreleased]
 
 ### Added
+- Contacts (.vcf) show as cards with photo, phone numbers, mail, addresses and birthday; calendar files (.ics) show their events with time, place and organizer. The bar button shows the file's text instead.
 - CSV and TSV files show as a table (the first row as column headers), or as text with the bar button. Commas, semicolons and tabs are recognised.
 - Fonts can be installed from the preview (“Install Font”, for your user); fonts you already have say “Installed”.
 - More files show formatted, switchable to their source with the same bar button as Markdown: SVG pictures (or their text), JSON (indented), HTML pages (simple layouts; nothing is loaded from the internet) and .desktop launchers (icon, name, command). Each kind of file remembers whether you last looked at it formatted or as source.

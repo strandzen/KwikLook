@@ -32,6 +32,7 @@ $XGETTEXT \
     qml/BarEditor.qml \
     qml/DesktopView.qml \
     qml/CsvView.qml \
+    qml/CardsView.qml \
     qml/SettingsWindow.qml \
     --keyword=i18n:1 \
     --keyword=i18nc:1c,2 \

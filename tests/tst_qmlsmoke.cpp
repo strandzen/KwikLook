@@ -535,6 +535,7 @@ private Q_SLOTS:
             write(u"page.html"_s, "<html><body><h1>Title</h1><p>Text</p></body></html>\n"),
             write(u"app.desktop"_s, "[Desktop Entry]\nType=Application\nName=Example App\nExec=example\n"),
             write(u"table.csv"_s, "fruit,count\napple,3\npear,5\n"),
+            write(u"people.vcf"_s, "BEGIN:VCARD\nVERSION:3.0\nFN:Ada Lovelace\nN:Lovelace;Ada;;;\nEND:VCARD\n"),
         };
         Viewer *v = Viewer::instance();
         v->setWindow(window);
@@ -568,6 +569,13 @@ private Q_SLOTS:
         QCOMPARE(v->table()->columnCount(), 2);
         QCOMPARE(v->table()->headerData(1, Qt::Horizontal).toString(), u"count"_s);
         QCOMPARE(v->table()->index(1, 0).data().toString(), u"pear"_s);
+        // vCard: a card per contact.
+        v->Next();
+        QTRY_VERIFY(window->findChild<QQuickItem *>(u"cardsView"_s));
+        QQuickItem *title = nullptr;
+        QTRY_VERIFY((title = findItem(window, u"cardTitle"_s)));
+        QCOMPARE(title->property("text").toString(), u"Ada Lovelace"_s);
+        v->Previous();
         v->Previous();
         // Back to the SVG: still its text (remembered for SVG only).
         v->Previous();

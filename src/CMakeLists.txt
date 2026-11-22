@@ -19,6 +19,7 @@ set(KWIKLOOK_QML_FILES
     ${CMAKE_SOURCE_DIR}/qml/BarEditor.qml
     ${CMAKE_SOURCE_DIR}/qml/DesktopView.qml
     ${CMAKE_SOURCE_DIR}/qml/CsvView.qml
+    ${CMAKE_SOURCE_DIR}/qml/CardsView.qml
     ${CMAKE_SOURCE_DIR}/qml/SettingsWindow.qml
 )
 
@@ -31,6 +32,7 @@ add_library(kwiklook_core STATIC
 target_include_directories(kwiklook_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/core)
 target_link_libraries(kwiklook_core PUBLIC Qt6::Gui KF6::ConfigCore KF6::ConfigGui) # ConfigGui: QColor entries
 target_link_libraries(kwiklook_core PRIVATE KF6::FileMetaData) # details like EXIF, page count
+target_link_libraries(kwiklook_core PRIVATE KF6::Contacts KF6::CalendarCore) # contact and event cards
 set_source_files_properties(${CMAKE_SOURCE_DIR}/qml/BarItems.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 foreach(qml_file ${KWIKLOOK_QML_FILES})
     get_filename_component(qml_name ${qml_file} NAME)

@@ -479,6 +479,16 @@ QVariantMap Viewer::desktopEntry() const
     return m_info.desktopEntry;
 }
 
+QVariantList Viewer::cards() const
+{
+    return m_info.cards;
+}
+
+int Viewer::moreCards() const
+{
+    return m_info.moreCards;
+}
+
 TableModel *Viewer::table() const
 {
     return m_table;
