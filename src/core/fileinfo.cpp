@@ -37,6 +37,9 @@ QString formattedKindOf(const QMimeType &mime)
     if (mime.inherits(u"application/x-desktop"_s)) {
         return u"desktop"_s;
     }
+    if (mime.inherits(u"text/csv"_s) || mime.inherits(u"text/tab-separated-values"_s)) {
+        return u"csv"_s;
+    }
     return QString();
 }
 
@@ -128,6 +131,10 @@ FileInfo FileInfo::read(const QUrl &url)
                 info.formattedText = QString::fromUtf8(json.toJson(QJsonDocument::Indented));
             }
         }
+        if (info.formattedKind == u"csv"_s) {
+            const bool tabs = QMimeDatabase().mimeTypeForName(info.mimeType).inherits(u"text/tab-separated-values"_s);
+            info.tableRows = parseDelimited(info.text, tabs ? QChar(u'\t') : QChar());
+        }
         if (info.formattedKind == u"desktop"_s) {
             const KDesktopFile desktop(path); // an absolute path: never resolved into standard folders
             const KConfigGroup group = desktop.desktopGroup();
@@ -184,6 +191,70 @@ QString readTextStart(const QString &path, qint64 limit, bool *truncated)
     return text;
 }
 
+QList<QStringList> parseDelimited(const QString &text, QChar separator)
+{
+    if (separator.isNull()) {
+        const QStringView firstLine = QStringView(text).left(text.indexOf(u'\n'));
+        separator = u',';
+        qsizetype best = firstLine.count(u',');
+        for (const QChar candidate : {QChar(u';'), QChar(u'\t')}) {
+            const qsizetype n = firstLine.count(candidate);
+            if (n > best) {
+                best = n;
+                separator = candidate;
+            }
+        }
+    }
+    QList<QStringList> rows;
+    QStringList row;
+    QString field;
+    bool quoted = false;
+    bool rowStarted = false;
+    for (qsizetype i = 0; i < text.size(); ++i) {
+        const QChar c = text.at(i);
+        if (quoted) {
+            if (c == u'"') {
+                if (i + 1 < text.size() && text.at(i + 1) == u'"') {
+                    field += u'"'; // a doubled quote
+                    ++i;
+                } else {
+                    quoted = false;
+                }
+            } else {
+                field += c;
+            }
+            continue;
+        }
+        if (c == u'"' && field.isEmpty()) {
+            quoted = true;
+            rowStarted = true;
+        } else if (c == separator) {
+            row << field;
+            field.clear();
+            rowStarted = true;
+        } else if (c == u'\n' || c == u'\r') {
+            if (c == u'\r' && i + 1 < text.size() && text.at(i + 1) == u'\n') {
+                ++i;
+            }
+            if (rowStarted || !field.isEmpty()) {
+                row << field;
+                rows << row;
+            }
+            row.clear();
+            field.clear();
+            rowStarted = false;
+        } else {
+            field += c;
+            rowStarted = true;
+        }
+    }
+    if (rowStarted || !field.isEmpty()) {
+        row << field;
+        rows << row;
+    }
+    return rows;
+}
+
 bool isFont(const QString &mimeType)
 {
     static const QStringList types = {
@@ -224,6 +295,9 @@ QString viewFor(const FileInfo &info, bool formatted)
         }
         if (info.formattedKind == u"desktop"_s) {
             return u"DesktopView"_s;
+        }
+        if (info.formattedKind == u"csv"_s) {
+            return u"CsvView"_s;
         }
         // Markdown, HTML and JSON show formatted in the text view; SVG as a picture below.
     }

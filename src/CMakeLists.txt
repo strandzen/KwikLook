@@ -18,6 +18,7 @@ set(KWIKLOOK_QML_FILES
     ${CMAKE_SOURCE_DIR}/qml/BarItems.qml
     ${CMAKE_SOURCE_DIR}/qml/BarEditor.qml
     ${CMAKE_SOURCE_DIR}/qml/DesktopView.qml
+    ${CMAKE_SOURCE_DIR}/qml/CsvView.qml
     ${CMAKE_SOURCE_DIR}/qml/SettingsWindow.qml
 )
 
@@ -59,6 +60,8 @@ qt_add_qml_module(kwiklook_qml
         gui/officeconverter.cpp
         gui/offlinenetwork.h
         gui/offlinenetwork.cpp
+        gui/tablemodel.h
+        gui/tablemodel.cpp
     RESOURCE_PREFIX "/qt/qml" # Qt searches here by default
     OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/kwiklook"
 )

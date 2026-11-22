@@ -32,12 +32,13 @@ struct FileInfo {
     bool textTruncated = false; // the file is longer than `text`
     QByteArray fontData; // font files (up to FontLimit): the whole file, for the font preview
     // Files that show formatted or as source (the bar's view toggle): "markdown",
-    // "html", "svg", "json", "desktop"; empty for the others.
+    // "html", "svg", "json", "desktop", "csv"; empty for the others.
     QString formattedKind;
     QString formattedText; // JSON: the text indented, if it parses; else empty
     // .desktop files: name, genericName, comment, icon, type, exec, url, categories,
     // terminal, hidden (in the menus), as read by KDesktopFile.
     QVariantMap desktopEntry;
+    QList<QStringList> tableRows; // CSV / TSV: the rows of `text`, split into fields
 
     // What KFileMetaData finds in the file (EXIF, page count, artist, ...), as
     // translated label and display text, in its order. Width and height are left
@@ -71,6 +72,11 @@ QString readTextStart(const QString &path, qint64 limit, bool *truncated);
 // Office documents LibreOffice can convert to PDF: OpenDocument, Office Open XML,
 // and the older Microsoft Office formats.
 bool isOfficeDocument(const QString &mimeType);
+
+// Comma-, semicolon- or tab-separated text as rows of fields: quoted fields may hold
+// separators, line breaks and doubled quotes (RFC 4180). `separator` 0: the one of
+// ',', ';', '\t' found most often in the first line.
+QList<QStringList> parseDelimited(const QString &text, QChar separator = QChar());
 
 // Font files Qt can load (through FreeType): TrueType, OpenType, collections, WOFF,
 // Type 1, PCF, BDF.

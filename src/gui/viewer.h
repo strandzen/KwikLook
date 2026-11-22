@@ -5,6 +5,7 @@
 #include "dbusnames.h"
 #include "fileinfo.h"
 #include "officeconverter.h"
+#include "tablemodel.h"
 
 #include <QFutureWatcher>
 #include <QList>
@@ -82,6 +83,8 @@ class Viewer : public QObject
     Q_PROPERTY(bool showFormatted READ showFormatted WRITE setShowFormatted NOTIFY fileInfoChanged)
     Q_PROPERTY(QString formattedText READ formattedText NOTIFY fileInfoChanged) // JSON indented
     Q_PROPERTY(QVariantMap desktopEntry READ desktopEntry NOTIFY fileInfoChanged)
+    // CSV / TSV: the file as a table (reset with each file).
+    Q_PROPERTY(TableModel *table READ table CONSTANT)
 
 public:
     static constexpr auto ServiceName = KwikLookDBus::Service;
@@ -138,6 +141,7 @@ public:
     QString formattedKind() const;
     QString formattedText() const;
     QVariantMap desktopEntry() const;
+    TableModel *table() const;
     bool showFormatted() const;
     void setShowFormatted(bool formatted);
 
@@ -200,6 +204,7 @@ private:
     QString m_searchText;
     int m_generation = 0; // drops details read for a file that's no longer current
     OfficeConverter *m_office = nullptr;
+    TableModel *m_table = nullptr;
     QUrl m_convertedPdf; // the current office document as PDF
     QString m_previewNote;
     bool m_previewBusy = false;

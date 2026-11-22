@@ -84,6 +84,7 @@ Viewer::Viewer(QObject *parent)
     , m_infoOpen(stateGroup().readEntry("InfoPanelOpen", false))
     , m_mediaVolume(std::clamp(stateGroup().readEntry("MediaVolume", 1.0), 0.0, 1.0))
     , m_office(new OfficeConverter(this))
+    , m_table(new TableModel(this))
 {
     connect(m_office, &OfficeConverter::converted, this, [this](const QString &path, const QUrl &pdf) {
         if (path != currentUrl().toLocalFile()) {
@@ -478,6 +479,11 @@ QVariantMap Viewer::desktopEntry() const
     return m_info.desktopEntry;
 }
 
+TableModel *Viewer::table() const
+{
+    return m_table;
+}
+
 namespace
 {
 KConfigGroup formattedGroup()
@@ -618,6 +624,7 @@ void Viewer::readFileInfo(int generation)
             return; // another file became current meanwhile
         }
         m_info = watcher->result();
+        m_table->setRows(std::exchange(m_info.tableRows, {})); // the model keeps them
         m_view = viewFor(m_info, showFormatted());
         loadFont();
         startOfficePreview(); // the fallback view meanwhile, then the PDF view

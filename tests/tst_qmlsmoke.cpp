@@ -534,6 +534,7 @@ private Q_SLOTS:
             write(u"data.json"_s, "{\"a\":[1,2]}"),
             write(u"page.html"_s, "<html><body><h1>Title</h1><p>Text</p></body></html>\n"),
             write(u"app.desktop"_s, "[Desktop Entry]\nType=Application\nName=Example App\nExec=example\n"),
+            write(u"table.csv"_s, "fruit,count\napple,3\npear,5\n"),
         };
         Viewer *v = Viewer::instance();
         v->setWindow(window);
@@ -560,6 +561,14 @@ private Q_SLOTS:
         QQuickItem *name = window->findChild<QQuickItem *>(u"desktopName"_s);
         QVERIFY(name);
         QCOMPARE(name->property("text").toString(), u"Example App"_s);
+        // CSV: a table, the first row as headers.
+        v->Next();
+        QTRY_VERIFY(window->findChild<QQuickItem *>(u"csvView"_s));
+        QCOMPARE(v->table()->rowCount(), 2);
+        QCOMPARE(v->table()->columnCount(), 2);
+        QCOMPARE(v->table()->headerData(1, Qt::Horizontal).toString(), u"count"_s);
+        QCOMPARE(v->table()->index(1, 0).data().toString(), u"pear"_s);
+        v->Previous();
         // Back to the SVG: still its text (remembered for SVG only).
         v->Previous();
         v->Previous();

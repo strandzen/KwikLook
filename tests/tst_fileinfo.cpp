@@ -265,6 +265,31 @@ private Q_SLOTS:
         QCOMPARE(desktop.desktopEntry.value(u"terminal"_s).toBool(), true);
     }
 
+    void delimitedText()
+    {
+        using Rows = QList<QStringList>;
+        QCOMPARE(parseDelimited(u"a,b\n1,2\n"_s), Rows({{u"a"_s, u"b"_s}, {u"1"_s, u"2"_s}}));
+        // Quotes: separators, line breaks and doubled quotes inside; Windows line ends.
+        QCOMPARE(parseDelimited(u"name,note\r\n\"Doe, J\",\"said \"\"hi\"\"\nthen left\"\r\n"_s),
+                 Rows({{u"name"_s, u"note"_s}, {u"Doe, J"_s, u"said \"hi\"\nthen left"_s}}));
+        // Empty fields count; blank lines don't.
+        QCOMPARE(parseDelimited(u"a,,c\n\n,b,\n"_s), Rows({{u"a"_s, QString(), u"c"_s}, {QString(), u"b"_s, QString()}}));
+        // The separator: the most frequent of , ; tab in the first line (European CSV).
+        QCOMPARE(parseDelimited(u"a;b;c\n1,5;2;3\n"_s), Rows({{u"a"_s, u"b"_s, u"c"_s}, {u"1,5"_s, u"2"_s, u"3"_s}}));
+        QCOMPARE(parseDelimited(u"a\tb\n1\t2"_s), Rows({{u"a"_s, u"b"_s}, {u"1"_s, u"2"_s}}));
+        // A real file: kind, rows, view.
+        QTemporaryDir dir;
+        QFile f(dir.filePath(u"t.csv"_s));
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("x,y\n1,2\n3,4\n");
+        f.close();
+        const FileInfo csv = FileInfo::read(QUrl::fromLocalFile(f.fileName()));
+        QCOMPARE(csv.formattedKind, u"csv"_s);
+        QCOMPARE(csv.tableRows.size(), 3);
+        QCOMPARE(viewFor(csv, true), u"CsvView"_s);
+        QCOMPARE(viewFor(csv, false), u"TextView"_s);
+    }
+
     void officeDocuments()
     {
         QVERIFY(isOfficeDocument(u"application/vnd.oasis.opendocument.text"_s));
