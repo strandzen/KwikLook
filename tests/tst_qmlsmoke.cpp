@@ -33,6 +33,10 @@
 #include <QDirIterator>
 #include <KService>
 #include <QMenu>
+#include <QRawFont>
+#include <QFontDatabase>
+#include <QSignalSpy>
+#include <QFileInfo>
 #include <QScopeGuard>
 #include <QTcpServer>
 
@@ -360,6 +364,12 @@ private Q_SLOTS:
         QQuickItem *sample = findItem(window, u"fontSample"_s); // a Repeater row
         QVERIFY(sample);
         QCOMPARE(sample->property("font").value<QFont>().family(), v->fontFamily());
+        // A font from /usr/share/fonts is installed: no button, and nothing copied.
+        QVERIFY(v->fontInstalled());
+        QVERIFY(findItem(window, u"fontInstalled"_s)->isVisible());
+        QVERIFY(!findItem(window, u"installFont"_s)->isVisible());
+        v->installFont();
+        QVERIFY(!QFileInfo::exists(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + u"/fonts"_s));
         // Typing: the samples show the text; Enter and ← → don't act on the preview.
         auto *field = window->findChild<QQuickItem *>(u"fontSampleField"_s);
         QVERIFY(field);
@@ -556,6 +566,54 @@ private Q_SLOTS:
         v->Previous();
         QTRY_VERIFY(window->findChild<QQuickItem *>(u"textArea"_s) && !window->findChild<QQuickItem *>(u"imageView"_s));
         QVERIFY(!v->showFormatted());
+        v->Close();
+        v->setWindow(nullptr);
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+    }
+
+    void installsAFont()
+    {
+        // A font fontconfig doesn't know: from an application's own folder (these vary
+        // between systems; skipped when none is found or it turns out installed).
+        QString fontPath;
+        for (const QString &dir : {u"/usr/share/imlib2/data/fonts"_s, u"/usr/share/projectM/fonts"_s, u"/usr/share/tessdata"_s}) {
+            QDirIterator it(dir, {u"*.ttf"_s}, QDir::Files);
+            while (it.hasNext() && fontPath.isEmpty()) {
+                const QString path = it.next();
+                const QRawFont raw(path, 12);
+                if (raw.isValid() && !QFontDatabase::families().contains(raw.familyName())) {
+                    fontPath = path;
+                }
+            }
+        }
+        if (fontPath.isEmpty()) {
+            QSKIP("no font outside fontconfig's folders found");
+        }
+        const QString fonts = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + u"/fonts"_s;
+        QVERIFY(fonts.contains(u".qttest"_s)); // test mode: not the user's fonts
+        QDir(fonts).removeRecursively();
+        const auto cleanup = qScopeGuard([fonts] {
+            QDir(fonts).removeRecursively();
+        });
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open({fontPath}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QTRY_VERIFY(window->findChild<QQuickItem *>(u"fontView"_s));
+        QVERIFY(!v->fontInstalled());
+        QQuickItem *button = findItem(window, u"installFont"_s);
+        QVERIFY(button && button->isVisible());
+        QSignalSpy finished(v, &Viewer::fontInstallFinished);
+        QMetaObject::invokeMethod(button, "clicked");
+        QTRY_COMPARE(finished.size(), 1);
+        QCOMPARE(finished.first().first().toBool(), true);
+        const QString copy = fonts + u'/' + QFileInfo(fontPath).fileName();
+        QVERIFY(QFileInfo::exists(copy));
+        QVERIFY(v->fontInstalled());
+        QTRY_VERIFY(findItem(window, u"fontInstalled"_s)->isVisible());
         v->Close();
         v->setWindow(nullptr);
         QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));

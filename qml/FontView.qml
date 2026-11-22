@@ -6,9 +6,9 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import kwiklook
 
-// Fonts: the font's name in itself, a field for your own text, the alphabet, digits
-// and punctuation, then a pangram (or your text) at several sizes. Your text stays
-// for the next fonts until the preview closes.
+// Fonts: the font's name in itself, Install Font (or “Installed”), a field for your
+// own text, the alphabet, digits and punctuation, then a pangram (or your text) at
+// several sizes. Your text stays for the next fonts until the preview closes.
 QQC2.ScrollView {
     id: view
     objectName: "fontView"
@@ -57,6 +57,46 @@ QQC2.ScrollView {
                 wrapMode: Text.Wrap
                 color: Kirigami.Theme.disabledTextColor
                 text: Viewer.details
+            }
+
+            QQC2.Button {
+                id: installButton
+                objectName: "installFont"
+                visible: !Viewer.fontInstalled
+                icon.name: "font-enable"
+                text: i18nc("@action:button", "Install Font")
+                onClicked: {
+                    enabled = false;
+                    Viewer.installFont();
+                }
+                Connections {
+                    target: Viewer
+                    function onFontInstallFinished(ok) {
+                        installButton.enabled = true;
+                        const window = view.QQC2.ApplicationWindow.window;
+                        if (window) {
+                            window.showPassiveNotification(ok ? i18nc("@info", "Font installed. Applications see it after they restart.")
+                                                              : i18nc("@info", "Could not install the font."));
+                        }
+                    }
+                }
+            }
+            RowLayout {
+                objectName: "fontInstalled"
+                visible: Viewer.fontInstalled
+                spacing: Kirigami.Units.smallSpacing
+
+                Kirigami.Icon {
+                    implicitWidth: Kirigami.Units.iconSizes.small
+                    implicitHeight: implicitWidth
+                    source: "checkmark"
+                    color: Kirigami.Theme.disabledTextColor
+                    isMask: true
+                }
+                QQC2.Label {
+                    color: Kirigami.Theme.disabledTextColor
+                    text: i18nc("@info the font is already installed", "Installed")
+                }
             }
 
             QQC2.TextField {

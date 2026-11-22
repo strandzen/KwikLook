@@ -5,7 +5,9 @@
 #include "kwiklooksettings.h"
 
 #include <KConfigGroup>
+#include <KFileUtils>
 #include <KFormat>
+#include <KIO/FileCopyJob>
 #include <KSharedConfig>
 #include <KLocalizedString>
 #include <KWindowSystem>
@@ -14,7 +16,10 @@
 
 #include <QCoreApplication>
 #include <QDeadlineTimer>
+#include <QFileInfo>
 #include <QFontDatabase>
+#include <QProcess>
+#include <QStandardPaths>
 #include <QRawFont>
 #include <QQuickItem>
 #include <QQuickWindow>
@@ -381,8 +386,11 @@ void Viewer::loadFont()
         return;
     }
     // FreeType parses the font here, on the main thread: a few milliseconds.
-    m_fontId = QFontDatabase::addApplicationFontFromData(m_info.fontData);
     const QRawFont raw(m_info.fontData, 12);
+    // Installed already? Asked before the preview adds its own copy.
+    m_fontInstalled = raw.isValid() && QFontDatabase::families().contains(raw.familyName())
+        && QFontDatabase::styles(raw.familyName()).contains(raw.styleName(), Qt::CaseInsensitive);
+    m_fontId = QFontDatabase::addApplicationFontFromData(m_info.fontData);
     m_info.fontData.clear(); // Qt keeps its own copy
     if (m_fontId < 0 || !raw.isValid()) {
         qCWarning(lcViewer) << "could not load the font" << currentUrl();
@@ -402,6 +410,47 @@ void Viewer::unloadFont()
     }
     m_fontFamily.clear();
     m_fontStyle.clear();
+    m_fontInstalled = false;
+}
+
+bool Viewer::fontInstalled() const
+{
+    return m_fontInstalled;
+}
+
+void Viewer::installFont()
+{
+    const QUrl source = currentUrl();
+    if (m_fontFamily.isEmpty() || m_fontInstalled || !source.isLocalFile()) {
+        return;
+    }
+    // Where KDE's font installer puts fonts for one user; fontconfig reads it.
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + u"/fonts"_s;
+    if (!QDir().mkpath(dir)) {
+        Q_EMIT fontInstallFinished(false);
+        return;
+    }
+    QString name = source.fileName();
+    if (QFileInfo::exists(dir + u'/' + name)) {
+        name = KFileUtils::suggestName(QUrl::fromLocalFile(dir), name); // never overwrite
+    }
+    auto *job = KIO::file_copy(source, QUrl::fromLocalFile(dir + u'/' + name), -1, KIO::HideProgressInfo);
+    connect(job, &KJob::result, this, [this, job, source, dir] {
+        const bool ok = !job->error();
+        if (!ok) {
+            qCWarning(lcViewer) << "could not install the font:" << job->errorString();
+        } else {
+            // Other applications see it once fontconfig has read the folder again.
+            if (!QStandardPaths::isTestModeEnabled()) { // tests: not the user's font cache
+                QProcess::startDetached(u"fc-cache"_s, {dir});
+            }
+            if (currentUrl() == source) {
+                m_fontInstalled = true;
+                Q_EMIT fileInfoChanged();
+            }
+        }
+        Q_EMIT fontInstallFinished(ok);
+    });
 }
 
 QString Viewer::fontFamily() const

@@ -67,6 +67,8 @@ class Viewer : public QObject
     // font.styleName); empty for other files.
     Q_PROPERTY(QString fontFamily READ fontFamily NOTIFY fileInfoChanged)
     Q_PROPERTY(QString fontStyle READ fontStyle NOTIFY fileInfoChanged)
+    // The same family and style is already among the system's or the user's fonts.
+    Q_PROPERTY(bool fontInstalled READ fontInstalled NOTIFY fileInfoChanged)
     // The font preview's own text, typed by the user: kept until the preview closes.
     Q_PROPERTY(QString fontSampleText MEMBER m_fontSampleText NOTIFY fontSampleTextChanged)
     // Find in text and PDFs (Ctrl+F): the bar is open, and what it looks for; kept from
@@ -129,6 +131,10 @@ public:
     void setMediaVolume(qreal volume);
     QString fontFamily() const;
     QString fontStyle() const;
+    bool fontInstalled() const;
+    // Copies the current font file into the user's fonts (~/.local/share/fonts) in the
+    // background; fontInstallFinished() tells how it went.
+    Q_INVOKABLE void installFont();
     QString formattedKind() const;
     QString formattedText() const;
     QVariantMap desktopEntry() const;
@@ -157,6 +163,7 @@ Q_SIGNALS:
     void mediaVolumeChanged();
     void mediaRepeatChanged();
     void fontSampleTextChanged();
+    void fontInstallFinished(bool ok);
     void searchOpenChanged();
     void searchTextChanged();
     // main.cpp creates the settings window on the first request and shows it.
@@ -187,6 +194,7 @@ private:
     int m_fontId = -1; // QFontDatabase application font of the current file
     QString m_fontFamily;
     QString m_fontStyle;
+    bool m_fontInstalled = false;
     QString m_fontSampleText;
     bool m_searchOpen = false;
     QString m_searchText;
