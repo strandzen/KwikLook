@@ -20,6 +20,7 @@
 #include <QtConcurrentRun>
 
 #include <algorithm>
+#include <cmath>
 #include <csignal>
 
 using namespace Qt::StringLiterals;
@@ -96,6 +97,26 @@ bool VideoEditor::available()
         && Sandbox::supported();
 }
 
+bool VideoEditor::exactAvailable()
+{
+    // Asked once: ffmpeg lists its encoders (no file is read).
+    static const bool available = [] {
+        const QString ffmpeg = QStandardPaths::findExecutable(u"ffmpeg"_s);
+        if (ffmpeg.isEmpty()) {
+            return false;
+        }
+        QProcess process;
+        process.start(ffmpeg, {u"-hide_banner"_s, u"-encoders"_s});
+        return process.waitForFinished(5000) && process.readAllStandardOutput().contains(" libx264 ");
+    }();
+    return available;
+}
+
+qreal VideoEditor::progress() const
+{
+    return m_progress;
+}
+
 QList<qreal> VideoEditor::keyframes() const
 {
     return m_keyframes;
@@ -122,10 +143,11 @@ QString VideoEditor::workDir() const
         + QString::number(QCoreApplication::applicationPid());
 }
 
-QString VideoEditor::copyPath(const QString &path)
+QString VideoEditor::copyPath(const QString &path, const QString &newSuffix)
 {
     const QFileInfo file(path);
-    const QString suffix = file.suffix().isEmpty() ? QString() : u'.' + file.suffix();
+    const QString type = newSuffix.isEmpty() ? file.suffix() : newSuffix;
+    const QString suffix = type.isEmpty() ? QString() : u'.' + type;
     const QString name = i18nc("file name of an edited copy, e.g. clip (edited).mp4", "%1 (edited)", file.completeBaseName()) + suffix;
     const QDir dir = file.absoluteDir();
     return dir.filePath(dir.exists(name) ? KFileUtils::suggestName(QUrl::fromLocalFile(dir.path()), name) : name);
@@ -197,7 +219,25 @@ qreal VideoEditor::keyframeAtOrBefore(qreal seconds) const
     return after == m_keyframes.cbegin() ? 0 : *std::prev(after);
 }
 
-void VideoEditor::save(qreal start, qreal end, int turn)
+qreal VideoEditor::keyframeNear(qreal seconds, qreal within) const
+{
+    qreal best = -1;
+    for (const qreal keyframe : m_keyframes) {
+        if (std::abs(keyframe - seconds) <= within && (best < 0 || std::abs(keyframe - seconds) < std::abs(best - seconds))) {
+            best = keyframe;
+        }
+    }
+    return best;
+}
+
+bool VideoEditor::isQuickCut(qreal seconds) const
+{
+    return seconds < 0.001 || std::any_of(m_keyframes.cbegin(), m_keyframes.cend(), [seconds](qreal keyframe) {
+               return std::abs(keyframe - seconds) < 0.001;
+           });
+}
+
+void VideoEditor::save(qreal start, qreal end, int turn, qreal length)
 {
     if (!m_source.isLocalFile() || m_save || !available()) {
         return;
@@ -209,7 +249,16 @@ void VideoEditor::save(qreal start, qreal end, int turn)
         return;
     }
     const QString path = m_source.toLocalFile();
-    const QString suffix = QFileInfo(path).suffix();
+    const bool exact = !isQuickCut(start) && exactAvailable();
+    // Re-encoding: H.264 in the file's own type where it holds it, VP9 for WebM,
+    // else an MP4.
+    QString suffix = QFileInfo(path).suffix().toLower();
+    static const QStringList h264Types{u"mp4"_s, u"m4v"_s, u"mov"_s, u"3gp"_s, u"mkv"_s};
+    const bool webm = suffix == u"webm"_s;
+    if (exact && !webm && !h264Types.contains(suffix)) {
+        suffix = u"mp4"_s;
+    }
+    m_newSuffix = suffix.compare(QFileInfo(path).suffix(), Qt::CaseInsensitive) == 0 ? QString() : suffix;
     m_output = work + u"/out"_s + (suffix.isEmpty() ? QString() : u'.' + suffix);
     QStringList args{QStandardPaths::findExecutable(u"ffmpeg"_s), u"-nostdin"_s, u"-loglevel"_s, u"error"_s, u"-y"_s};
     if (start > 0) {
@@ -222,10 +271,42 @@ void VideoEditor::save(qreal start, qreal end, int turn)
         // Replaces the video's own rotation: the sum, as ffmpeg counts (counterclockwise).
         args << u"-display_rotation:v:0"_s << QString::number(((m_rotation + turn) % 360 + 360) % 360);
     }
-    args << u"-i"_s << path << u"-c"_s << u"copy"_s << u"-map"_s << u"0"_s << u"-avoid_negative_ts"_s << u"make_zero"_s << m_output;
+    args << u"-i"_s << path << u"-map"_s << u"0"_s;
+    if (!exact) {
+        args << u"-c"_s << u"copy"_s << u"-avoid_negative_ts"_s << u"make_zero"_s;
+    } else {
+        // Exact: the video is decoded from the keyframe before `start` and encoded
+        // from `start` on; the turn is applied to the picture. Audio and subtitles copied,
+        // or AAC where the new file type needs it.
+        args << u"-c"_s << u"copy"_s;
+        if (webm) {
+            args << u"-c:v"_s << u"libvpx-vp9"_s << u"-crf"_s << u"32"_s << u"-b:v"_s << u"0"_s << u"-row-mt"_s << u"1"_s;
+        } else {
+            args << u"-c:v"_s << u"libx264"_s << u"-crf"_s << u"18"_s << u"-preset"_s << u"fast"_s;
+        }
+        if (!m_newSuffix.isEmpty()) {
+            args << u"-c:a"_s << u"aac"_s << u"-sn"_s << u"-dn"_s;
+        }
+        args << u"-progress"_s << u"pipe:1"_s << u"-nostats"_s;
+    }
+    args << m_output;
     QProcess *process = run(args, work);
     m_save = process;
+    m_progress = exact ? 0 : -1;
+    Q_EMIT progressChanged();
     Q_EMIT busyChanged();
+    // ffmpeg's progress lines: out_time_us=… (microseconds written so far).
+    const qreal total = std::max(0.001, (end > 0 ? end : length) - start);
+    connect(process, &QProcess::readyReadStandardOutput, this, [this, process, total] {
+        while (process->canReadLine()) {
+            const QByteArray line = process->readLine().trimmed();
+            if (line.startsWith("out_time_us=") && process == m_save) {
+                const qreal done = line.mid(12).toDouble() / 1e6;
+                m_progress = std::clamp(done / total, 0.0, 1.0);
+                Q_EMIT progressChanged();
+            }
+        }
+    });
     connect(process, &QProcess::finished, this, [this, process](int exitCode, QProcess::ExitStatus status) {
         process->deleteLater();
         if (process != m_save) {
@@ -242,6 +323,8 @@ void VideoEditor::finishSave(int exitCode)
 {
     const QString output = m_output;
     m_save = nullptr;
+    m_progress = -1;
+    Q_EMIT progressChanged();
     if (exitCode != 0 || !QFileInfo::exists(output)) {
         QDir(workDir()).removeRecursively();
         Q_EMIT busyChanged();
@@ -250,7 +333,7 @@ void VideoEditor::finishSave(int exitCode)
         return;
     }
     // Into place next to the original; never over an existing file.
-    const QUrl copy = QUrl::fromLocalFile(copyPath(m_source.toLocalFile()));
+    const QUrl copy = QUrl::fromLocalFile(copyPath(m_source.toLocalFile(), m_newSuffix));
     auto *job = KIO::file_move(QUrl::fromLocalFile(output), copy, -1, KIO::HideProgressInfo);
     connect(job, &KJob::result, this, [this, job, copy] {
         QDir(workDir()).removeRecursively();
@@ -273,6 +356,10 @@ void VideoEditor::stop()
     m_parsing = false;
     ++m_generation; // a probe still being parsed is dropped
     m_save = nullptr;
+    if (m_progress >= 0) {
+        m_progress = -1;
+        Q_EMIT progressChanged();
+    }
     for (const QPointer<QProcess> &process : processes) {
         if (process && process->state() != QProcess::NotRunning) {
             // The sandbox starts its own process group.

@@ -1352,6 +1352,19 @@ private Q_SLOTS:
         QTRY_VERIFY_WITH_TIMEOUT(saved.size() == 1, 30000);
         QVERIFY(QFile::exists(dir.filePath(u"clip (edited).mp4"_s)));
         QTRY_VERIFY(!media->property("editing").toBool()); // done: the bar closes
+        // A start between keyframes: an exact cut.
+        QMetaObject::invokeMethod(edit, "clicked");
+        QTRY_VERIFY(!editor->probing());
+        QQuickItem *range = window->findChild<QQuickItem *>(u"trimRange"_s);
+        QObject *first = range->property("first").value<QObject *>();
+        QQuickItem *kind = window->findChild<QQuickItem *>(u"cutKind"_s);
+        QCOMPARE(kind->property("text").toString(), u"Quick"_s);
+        first->setProperty("value", 1500); // ms; keyframes every second
+        QCOMPARE(kind->property("text").toString(), u"Exact, slower"_s);
+        saved.clear();
+        QMetaObject::invokeMethod(save, "clicked");
+        QTRY_VERIFY_WITH_TIMEOUT(saved.size() == 1, 60000);
+        QCOMPARE(QDir(dir.path()).entryList({u"clip (edited)*"_s}).size(), 2); // a second copy, the first kept
         v->Close();
         v->setWindow(nullptr);
         KwikLookSettings::self()->setAutoplayMedia(true);

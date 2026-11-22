@@ -17,8 +17,11 @@ class QProcess;
  * ffprobe and ffmpeg run in kwiklook-sandbox: they read the video, and write only
  * into a scratch folder in the cache, from where the result is moved into place.
  *
- * A cut can only start on a keyframe: probe() lists them, and the editor snaps the
- * start there. Rotation only changes the file's display-rotation flag.
+ * A cut that starts on a keyframe (or at the beginning) copies the streams: instant,
+ * lossless; rotation then only changes the display-rotation flag. A cut starting
+ * anywhere else re-encodes the video (H.264, VP9 for WebM; the audio is copied) to
+ * start exactly there, with progress; the turn is then applied to the picture.
+ * probe() lists the keyframes.
  *
  *   VideoEditor { id: editor; source: Viewer.currentUrl }
  *   editor.probe(); ... editor.save(2.0, 10.5, 90);
@@ -37,6 +40,10 @@ class VideoEditor : public QObject
     Q_PROPERTY(int rotation READ rotation NOTIFY probed)
     Q_PROPERTY(bool probing READ probing NOTIFY busyChanged)
     Q_PROPERTY(bool saving READ saving NOTIFY busyChanged)
+    // Cuts can start anywhere (an encoder for it is there); else only on keyframes.
+    Q_PROPERTY(bool exactAvailable READ exactAvailable CONSTANT)
+    // While saving with re-encoding: 0-1; -1 otherwise.
+    Q_PROPERTY(qreal progress READ progress NOTIFY progressChanged)
 
 public:
     explicit VideoEditor(QObject *parent = nullptr);
@@ -49,24 +56,33 @@ public:
     int rotation() const;
     bool probing() const;
     bool saving() const;
+    static bool exactAvailable();
+    qreal progress() const;
 
     // Lists the keyframes and the rotation (reads the whole file: may take a moment).
     Q_INVOKABLE void probe();
     // The last keyframe at or before `seconds` (0 before probing).
     Q_INVOKABLE qreal keyframeAtOrBefore(qreal seconds) const;
+    // The keyframe closest to `seconds` if it's within `within` seconds; else -1.
+    Q_INVOKABLE qreal keyframeNear(qreal seconds, qreal within) const;
+    // A cut starting at `seconds` copies the streams (a keyframe, or the beginning).
+    Q_INVOKABLE bool isQuickCut(qreal seconds) const;
     // Writes the copy: from `start` to `end` seconds (end <= 0: to the end), turned by
-    // `turn` degrees counterclockwise on top of the video's own rotation.
-    Q_INVOKABLE void save(qreal start, qreal end, int turn);
+    // `turn` degrees counterclockwise on top of the video's own rotation. `length`:
+    // the whole video's length in seconds (for the progress).
+    Q_INVOKABLE void save(qreal start, qreal end, int turn, qreal length = 0);
     // Stops probing or saving; nothing is left behind.
     Q_INVOKABLE void cancel();
 
     // Where the copy of `path` goes: “name (edited).ext” next to it, or a free name.
-    static QString copyPath(const QString &path);
+    // `suffix`: the copy's file type when it differs from the original's.
+    static QString copyPath(const QString &path, const QString &suffix = QString());
 
 Q_SIGNALS:
     void sourceChanged();
     void probed();
     void busyChanged();
+    void progressChanged();
     void saved(const QUrl &copy);
     void failed(const QString &message);
 
@@ -84,4 +100,6 @@ private:
     int m_generation = 0; // drops a probe's result after stop()
     QPointer<QProcess> m_save;
     QString m_output; // the copy in the scratch folder while saving
+    qreal m_progress = -1;
+    QString m_newSuffix; // the copy's file type, when it differs from the original's
 };

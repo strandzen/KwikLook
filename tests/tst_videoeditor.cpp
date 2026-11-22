@@ -101,6 +101,54 @@ private Q_SLOTS:
         QCOMPARE(probe(second, u"stream_side_data=rotation"_s), QString()); // no turn: none added
     }
 
+    void exactCutReencodes()
+    {
+        if (!VideoEditor::exactAvailable()) {
+            QSKIP("ffmpeg has no H.264 encoder");
+        }
+        VideoEditor editor;
+        editor.setSource(QUrl::fromLocalFile(m_video));
+        editor.probe();
+        QTRY_VERIFY(!editor.probing());
+        QVERIFY(editor.isQuickCut(0));
+        QVERIFY(editor.isQuickCut(2));
+        QVERIFY(!editor.isQuickCut(2.4));
+        QCOMPARE(editor.keyframeNear(2.2, 0.3), 2.0);
+        QCOMPARE(editor.keyframeNear(2.5, 0.3), -1.0);
+        // From 2.4 s (between keyframes): exact, with progress; the turn is in the picture.
+        QSignalSpy saved(&editor, &VideoEditor::saved);
+        QSignalSpy progress(&editor, &VideoEditor::progressChanged);
+        editor.save(2.4, 4.5, 90, 6);
+        QCOMPARE(editor.progress(), 0.0);
+        QTRY_VERIFY_WITH_TIMEOUT(saved.size() == 1, 60000);
+        QVERIFY(progress.size() >= 2);
+        QCOMPARE(editor.progress(), -1.0);
+        const QString copy = saved.first().first().toUrl().toLocalFile();
+        const double duration = probe(copy, u"format=duration"_s).toDouble();
+        QVERIFY2(duration > 2.0 && duration < 2.25, qPrintable(QString::number(duration)));
+        QCOMPARE(probe(copy, u"stream=width,height"_s), u"120,160"_s); // turned picture
+        QCOMPARE(probe(copy, u"stream_side_data=rotation"_s), QString());
+    }
+
+    void otherTypesBecomeMp4()
+    {
+        if (!VideoEditor::exactAvailable()) {
+            QSKIP("ffmpeg has no H.264 encoder");
+        }
+        const QString avi = m_dir.filePath(u"old.avi"_s);
+        QProcess ffmpeg;
+        ffmpeg.start(u"ffmpeg"_s, {u"-loglevel"_s, u"error"_s, u"-y"_s, u"-i"_s, m_video, u"-c:v"_s, u"mpeg4"_s, u"-g"_s, u"25"_s, u"-c:a"_s, u"mp3"_s, avi});
+        QVERIFY(ffmpeg.waitForFinished(30000) && ffmpeg.exitCode() == 0);
+        VideoEditor editor;
+        editor.setSource(QUrl::fromLocalFile(avi));
+        editor.probe();
+        QTRY_VERIFY(!editor.probing());
+        QSignalSpy saved(&editor, &VideoEditor::saved);
+        editor.save(1.5, 0, 0, 6);
+        QTRY_VERIFY_WITH_TIMEOUT(saved.size() == 1, 60000);
+        QCOMPARE(saved.first().first().toUrl().toLocalFile(), m_dir.filePath(u"old (edited).mp4"_s));
+    }
+
     void cancelLeavesNothing()
     {
         VideoEditor editor;

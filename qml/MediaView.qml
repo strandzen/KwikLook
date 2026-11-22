@@ -14,9 +14,10 @@ import kwiklook
 // can start muted. Stops when the preview closes or the next file comes. Media keys
 // play and pause; clicking a video does too. Fullscreen (button, double-click, F) shows
 // only the video, the controls appear while the mouse moves. Edit (videos, with
-// ffmpeg) trims and rotates, saved as a copy next to the original: the cut starts on
-// a keyframe, nothing is re-encoded (VideoEditor). A file that can't be played shows
-// the fallback view.
+// ffmpeg) trims and rotates, saved as a copy next to the original (VideoEditor): a
+// start on a keyframe (ticks on the slider; a handle let go near one moves onto it)
+// is a quick, lossless cut; anywhere else the video is re-encoded to start exactly
+// there. A file that can't be played shows the fallback view.
 Item {
     id: view
     objectName: "mediaView"
@@ -27,6 +28,11 @@ Item {
     // Trimming and rotating: the edit bar is open; quarter turns counterclockwise.
     property bool editing: false
     property int turn: 0
+    // The start chosen gives a quick, lossless cut (re-read when the keyframes arrive).
+    readonly property bool quickCut: {
+        editor.keyframes;
+        return editor.isQuickCut(range.first.value / 1000) || !editor.exactAvailable;
+    }
 
     // The file being played: cleared on every file change (also reopening the same
     // file), so it loads and starts again.
@@ -269,25 +275,75 @@ Item {
             QQC2.RangeSlider {
                 id: range
                 objectName: "trimRange"
+
+                // Let go near a keyframe: onto it, for a quick cut.
+                function magnet() {
+                    const keyframe = editor.keyframeNear(first.value / 1000, Math.max(0.3, player.duration / 1000 * 0.015));
+                    if (keyframe >= 0) {
+                        first.value = keyframe * 1000;
+                        player.position = first.value;
+                    }
+                }
+
                 Layout.fillWidth: true
                 from: 0
                 to: Math.max(1, player.duration)
+                visible: !(editor.saving && editor.progress >= 0)
                 enabled: !editor.probing && !editor.saving
-                // The start can only be where a keyframe is.
                 first.onMoved: {
-                    first.value = editor.keyframeAtOrBefore(first.value / 1000) * 1000;
+                    // Without an encoder for exact cuts, the start can only be on a keyframe.
+                    if (!editor.exactAvailable) {
+                        first.value = editor.keyframeAtOrBefore(first.value / 1000) * 1000;
+                    }
                     player.position = first.value;
                 }
+                first.onPressedChanged: if (!first.pressed && editor.exactAvailable) magnet()
                 second.onMoved: player.position = second.value
+
+                // Keyframes: where a quick cut can start.
+                Repeater {
+                    model: editor.keyframes.length <= 400 ? editor.keyframes : []
+                    delegate: Rectangle {
+                        required property real modelData
+                        x: range.leftPadding + range.first.handle.width / 2 - width / 2
+                           + modelData * 1000 / range.to * (range.availableWidth - range.first.handle.width)
+                        y: range.topPadding + range.availableHeight / 2 + range.first.handle.height / 2
+                        width: 1
+                        height: Kirigami.Units.smallSpacing
+                        color: Kirigami.Theme.disabledTextColor
+                    }
+                }
+            }
+            QQC2.ProgressBar {
+                objectName: "saveProgress"
+                Layout.fillWidth: true
+                visible: editor.saving && editor.progress >= 0
+                value: editor.progress
             }
             QQC2.Label {
                 font.features: { "tnum": 1 }
                 text: i18nc("@info part of a video, from – to", "%1 – %2", view.formatTime(range.first.value), view.formatTime(range.second.value))
             }
+            // Which kind of cut the start gives.
+            QQC2.Label {
+                objectName: "cutKind"
+                visible: !editor.probing && !editor.saving
+                color: Kirigami.Theme.disabledTextColor
+                text: view.quickCut
+                    ? i18nc("@info a lossless trim", "Quick") : i18nc("@info a trim that re-encodes the video", "Exact, slower")
+                QQC2.ToolTip.text: view.quickCut
+                    ? i18nc("@info:tooltip", "The start is at a keyframe (the small marks): the video is copied as it is, at once and without losing quality.")
+                    : i18nc("@info:tooltip", "The start is between keyframes (the small marks): the video is re-encoded to start exactly there. Takes longer; the picture stays very close to the original.")
+                QQC2.ToolTip.visible: kindHover.hovered
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                HoverHandler {
+                    id: kindHover
+                }
+            }
             QQC2.BusyIndicator {
                 Layout.preferredHeight: Kirigami.Units.iconSizes.smallMedium
                 Layout.preferredWidth: Layout.preferredHeight
-                visible: editor.probing || editor.saving
+                visible: editor.probing || (editor.saving && editor.progress < 0)
                 running: visible
             }
             QQC2.Button {
@@ -297,8 +353,8 @@ Item {
                 enabled: !editor.probing && !editor.saving
                     && (view.turn !== 0 || range.first.value > 0 || range.second.value < player.duration)
                 onClicked: editor.save(range.first.value / 1000,
-                                       range.second.value >= player.duration ? 0 : range.second.value / 1000, view.turn)
-                QQC2.ToolTip.text: i18nc("@info:tooltip", "Saves the part and turn as a new file next to this one. The cut starts at the nearest point the video allows.")
+                                       range.second.value >= player.duration ? 0 : range.second.value / 1000, view.turn, player.duration / 1000)
+                QQC2.ToolTip.text: i18nc("@info:tooltip", "Saves the part and turn as a new file next to this one; this video stays as it is.")
                 QQC2.ToolTip.visible: hovered
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             }
