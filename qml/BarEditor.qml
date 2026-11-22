@@ -15,10 +15,10 @@ Item {
     id: editor
 
     // Items left and right of the file name (names from BarItems).
-    property list<string> leftItems
-    property list<string> rightItems
+    property var leftItems: []
+    property var rightItems: []
     // Not in the bar, and always the flexible space.
-    readonly property list<string> available: BarItems.buttons.filter(item => !leftItems.includes(item) && !rightItems.includes(item)).concat(["Spacer"])
+    readonly property var available: BarItems.buttons.filter(item => !leftItems.includes(item) && !rightItems.includes(item)).concat(["Spacer"])
 
     // While dragging: what, from where, and where it would land.
     property string dragItem
@@ -130,7 +130,7 @@ Item {
         id: area
 
         required property string zone
-        property list<string> items
+        property var items: []
         readonly property bool wrap: zone === "available"
         readonly property Repeater repeater: wrap ? flowRepeater : rowRepeater
         readonly property Item positioner: wrap ? flow : row

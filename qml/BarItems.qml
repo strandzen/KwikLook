@@ -10,7 +10,7 @@ import QtQuick
 // shows only for files that can show both ways (Viewer.formattedKind), "Pages" only
 // for PDFs with more than one page, "IndexSheet" only with several files.
 QtObject {
-    readonly property list<string> buttons: ["Previous", "Next", "IndexSheet", "Pages", "ViewMode", "Information", "Share", "OpenWith", "Open", "ShowInDolphin", "CopyPath", "Close"]
+    readonly property var buttons: ["Previous", "Next", "IndexSheet", "Pages", "ViewMode", "Information", "Share", "OpenWith", "Open", "ShowInDolphin", "CopyPath", "Close"]
 
     function iconName(item) {
         switch (item) {
