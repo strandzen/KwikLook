@@ -636,6 +636,74 @@ private Q_SLOTS:
         QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 
+    void pdfPageOverview()
+    {
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        QTemporaryDir dir;
+        const QString pdf = dir.filePath(u"three.pdf"_s);
+        const QString single = dir.filePath(u"one.pdf"_s);
+        {
+            QPdfWriter writer(pdf);
+            QPainter painter(&writer);
+            for (int i = 1; i <= 3; ++i) {
+                painter.drawText(QPointF(100, 100), u"Page %1"_s.arg(i));
+                if (i < 3) {
+                    writer.newPage();
+                }
+            }
+        }
+        {
+            QPdfWriter writer(single);
+            QPainter painter(&writer);
+            painter.drawText(QPointF(100, 100), u"Only page"_s);
+        }
+        Viewer *v = Viewer::instance();
+        const bool wasOpen = v->pagesOpen();
+        v->setPagesOpen(false);
+        v->setWindow(window);
+        v->Open({pdf, single}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QQuickItem *pdfView = nullptr;
+        QTRY_VERIFY((pdfView = window->findChild<QQuickItem *>(u"pdfView"_s)));
+        QTRY_COMPARE(pdfView->property("pageCount").toInt(), 3);
+        // The bar's button opens the overview, remembered.
+        QQuickItem *button = findItem(window, u"barPages"_s);
+        QVERIFY(button && button->isVisible());
+        QMetaObject::invokeMethod(button, "clicked");
+        QVERIFY(v->pagesOpen());
+        QQuickItem *overview = window->findChild<QQuickItem *>(u"pageOverview"_s);
+        QTRY_VERIFY(overview->isVisible() && overview->width() > 0);
+        QList<QQuickItem *> thumbs;
+        QTRY_VERIFY([&] {
+            thumbs.clear();
+            QList<QQuickItem *> todo{overview};
+            while (!todo.isEmpty()) {
+                QQuickItem *item = todo.takeFirst();
+                if (item->objectName() == u"pageThumbnail"_s) {
+                    thumbs << item;
+                }
+                todo << item->childItems();
+            }
+            return thumbs.size() == 3;
+        }());
+        // A click on the third page goes there.
+        QCOMPARE(pdfView->property("currentPage").toInt(), 0);
+        QMetaObject::invokeMethod(pdfView, "showPage", Q_ARG(QVariant, 2));
+        QTRY_COMPARE(pdfView->property("currentPage").toInt(), 2);
+        // A one-page PDF: no button, no overview.
+        v->Next();
+        QTRY_COMPARE(pdfView->property("pageCount").toInt(), 1);
+        QTRY_VERIFY(!button->isVisible());
+        QTRY_VERIFY(!overview->isVisible());
+        QVERIFY(v->finishRendering());
+        v->Close();
+        v->setWindow(nullptr);
+        v->setPagesOpen(wasOpen);
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+    }
+
     void longTextStaysResponsive()
     {
         // Like ~/.zcompdump: thousands of lines, some very long. The line numbers once
@@ -1109,7 +1177,7 @@ private Q_SLOTS:
         QCOMPARE(items("rightItems"), QStringList({u"ViewMode"_s, u"Information"_s, u"Share"_s, u"OpenWith"_s}));
         QVERIFY(items("available").contains(u"Close"_s));
         move(u"left"_s, 0, u"left"_s, 2); // Previous after Next
-        QCOMPARE(items("leftItems"), QStringList({u"Next"_s, u"Previous"_s}));
+        QCOMPARE(items("leftItems"), QStringList({u"Next"_s, u"Previous"_s, u"Pages"_s}));
         const int spacer = items("available").indexOf(u"Spacer"_s);
         move(u"available"_s, spacer, u"right"_s, 0);
         move(u"available"_s, items("available").indexOf(u"Spacer"_s), u"right"_s, 0);
@@ -1131,12 +1199,12 @@ private Q_SLOTS:
             QTest::mouseMove(window, from + (to - from) * i / 10);
         }
         QTest::mouseRelease(window, Qt::LeftButton, {}, to);
-        QTRY_COMPARE(items("leftItems"), QStringList({u"CopyPath"_s, u"Next"_s, u"Previous"_s}));
+        QTRY_COMPARE(items("leftItems"), QStringList({u"CopyPath"_s, u"Next"_s, u"Previous"_s, u"Pages"_s}));
 
         // Apply saves; Reset brings the defaults back (until Apply).
         QVariant ok;
         QVERIFY(QMetaObject::invokeMethod(window, "apply", Q_RETURN_ARG(QVariant, ok)));
-        QCOMPARE(settings->barLeft(), QStringList({u"CopyPath"_s, u"Next"_s, u"Previous"_s}));
+        QCOMPARE(settings->barLeft(), QStringList({u"CopyPath"_s, u"Next"_s, u"Previous"_s, u"Pages"_s}));
         QQuickItem *reset = window->findChild<QQuickItem *>(u"barReset"_s);
         QVERIFY(reset);
         QMetaObject::invokeMethod(reset, "clicked");

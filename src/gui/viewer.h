@@ -58,6 +58,8 @@ class Viewer : public QObject
     Q_PROPERTY(QVariantList infoSections READ infoSections NOTIFY fileInfoChanged)
     // The information panel is open; remembered across previews and restarts.
     Q_PROPERTY(bool infoOpen READ infoOpen WRITE setInfoOpen NOTIFY infoOpenChanged)
+    // The PDF view's page sidebar is open; remembered across previews and restarts.
+    Q_PROPERTY(bool pagesOpen READ pagesOpen WRITE setPagesOpen NOTIFY pagesOpenChanged)
     // Text font size factor (Ctrl+wheel in text): kept from file to file until the preview closes.
     Q_PROPERTY(qreal textZoom MEMBER m_textZoom NOTIFY textZoomChanged)
     // Video and audio volume, 0-1 as the slider shows it (perceived loudness); remembered.
@@ -134,6 +136,8 @@ public:
     QVariantList infoSections() const;
     bool infoOpen() const;
     void setInfoOpen(bool open);
+    bool pagesOpen() const;
+    void setPagesOpen(bool open);
     qreal mediaVolume() const;
     void setMediaVolume(qreal volume);
     QString fontFamily() const;
@@ -169,6 +173,7 @@ Q_SIGNALS:
     void currentChanged();
     void fileInfoChanged();
     void infoOpenChanged();
+    void pagesOpenChanged();
     void textZoomChanged();
     void mediaVolumeChanged();
     void mediaRepeatChanged();
@@ -198,6 +203,7 @@ private:
     FileInfo m_info;
     QString m_view; // kept while the next file's details load, so the view doesn't flicker
     bool m_infoOpen = false;
+    bool m_pagesOpen = false;
     qreal m_textZoom = 1;
     qreal m_mediaVolume = 1;
     bool m_mediaRepeat = false;

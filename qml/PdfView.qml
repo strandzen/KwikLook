@@ -14,6 +14,8 @@ import kwiklook
 // which always scrolls sideways and puts pages off-centre (its rows are wider than
 // the view). A PDF that can't be opened (damaged, password-protected) shows the
 // fallback view. Ctrl+F finds text (FindBar below); matches are marked on the pages.
+// The page overview (bar button, PDFs with several pages) shows small pages on the
+// left: the current one marked, a click goes there.
 Item {
     id: view
     objectName: "pdfView"
@@ -23,6 +25,17 @@ Item {
 
     // Page width as a share of the fitted width.
     property real zoom: 1
+    readonly property int pageCount: pdf.status === PdfDocument.Ready ? pdf.pageCount : 0
+    // The page a third down the view (for the overview).
+    readonly property int currentPage: {
+        pages.contentY; // follows scrolling
+        const i = pages.indexAt(pages.contentX + pages.width / 2, pages.contentY + pages.height / 3);
+        return Math.max(0, i);
+    }
+
+    function showPage(index) {
+        pages.positionViewAtIndex(index, ListView.Beginning);
+    }
     // As a share of the page's real size (first page, at 96 dpi), as Okular shows it.
     readonly property real zoomPercent: {
         const points = pdf.status === PdfDocument.Ready ? pdf.pagePointSize(0).width : 0;
@@ -121,18 +134,135 @@ Item {
     }
     // The PDF itself, or an office document converted to one; only once the file's
     // details say so (not the previous file's type). Kept, not cleared, when the next
-    // file has none: an empty source logs a warning.
-    Binding {
-        target: pdf
-        property: "source"
-        when: Viewer.pdfUrl.toString() !== ""
-        value: Viewer.pdfUrl
-        restoreMode: Binding.RestoreNone
+    // file has none: an empty source logs a warning. Set here rather than by a Binding
+    // with `when`: its value could update before its condition, setting an empty
+    // source for a moment when going from one PDF to the next.
+    function updateSource() {
+        if (Viewer.pdfUrl.toString() !== "" && pdf.source !== Viewer.pdfUrl) {
+            // Thumbnails of the old PDF go first: a kept one would show the old page.
+            thumbnailsLoader.active = false;
+            pdf.source = Viewer.pdfUrl;
+            thumbnailsLoader.active = Qt.binding(() => sidebar.visible);
+        }
+    }
+    Component.onCompleted: updateSource()
+    Connections {
+        target: Viewer
+        function onFileInfoChanged() {
+            view.updateSource();
+        }
+    }
+
+    // The page overview.
+    Item {
+        id: sidebar
+        objectName: "pageOverview"
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.bottom: scroll.bottom
+        width: Viewer.pagesOpen && view.pageCount > 1 ? Kirigami.Units.gridUnit * 8 : 0
+        visible: width > 0
+        clip: true
+        Behavior on width {
+            NumberAnimation {
+                duration: Kirigami.Units.longDuration
+                easing.type: Easing.InOutQuad
+            }
+        }
+        Kirigami.Theme.colorSet: Kirigami.Theme.Window
+        Kirigami.Theme.inherit: false
+
+        Rectangle {
+            anchors.fill: parent
+            color: Kirigami.Theme.backgroundColor
+        }
+
+        // Only while shown: no rendering for a closed overview.
+        Loader {
+            id: thumbnailsLoader
+            // Full width while sliding, so the pages don't resize.
+            width: Kirigami.Units.gridUnit * 8
+            height: parent.height
+            active: sidebar.visible
+            sourceComponent: thumbnailsComponent
+        }
+        Component {
+            id: thumbnailsComponent
+
+            QQC2.ScrollView {
+                QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
+                Component.onCompleted: thumbnails.positionViewAtIndex(view.currentPage, ListView.Contain)
+
+                ListView {
+                    id: thumbnails
+                    model: view.pageCount
+                    spacing: Kirigami.Units.largeSpacing
+                    topMargin: Kirigami.Units.largeSpacing
+                    bottomMargin: Kirigami.Units.largeSpacing
+
+                    delegate: Item {
+                        id: thumb
+
+                        required property int index
+                        readonly property size pointSize: pdf.pagePointSize(index)
+                        readonly property bool current: view.currentPage === index
+
+                        width: ListView.view.width
+                        height: paper.height + number.height + Kirigami.Units.smallSpacing
+
+                        Rectangle {
+                            id: paper
+                            objectName: "pageThumbnail"
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: parent.width - Kirigami.Units.largeSpacing * 3
+                            height: thumb.pointSize.width > 0 ? width * thumb.pointSize.height / thumb.pointSize.width : width * 1.414
+                            color: "white"
+                            border.width: thumb.current ? 2 : 0
+                            border.color: Kirigami.Theme.highlightColor
+
+                            PdfPageImage {
+                                anchors.fill: parent
+                                anchors.margins: parent.border.width
+                                document: pdf
+                                currentFrame: thumb.index
+                                asynchronous: true
+                                sourceSize.width: width * Screen.devicePixelRatio
+                                sourceSize.height: height * Screen.devicePixelRatio
+                            }
+                        }
+                        QQC2.Label {
+                            id: number
+                            anchors.top: paper.bottom
+                            anchors.topMargin: Kirigami.Units.smallSpacing
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            font: Kirigami.Theme.smallFont
+                            color: thumb.current ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
+                            text: thumb.index + 1
+                        }
+                        TapHandler {
+                            onTapped: view.showPage(thumb.index)
+                        }
+                    }
+                }
+                // The overview keeps the current page in sight.
+                Connections {
+                    target: view
+                    function onCurrentPageChanged() {
+                        thumbnails.positionViewAtIndex(view.currentPage, ListView.Contain);
+                    }
+                }
+            }
+        }
+        Kirigami.Separator {
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+        }
     }
 
     QQC2.ScrollView {
         id: scroll
-        anchors.left: parent.left
+        anchors.left: sidebar.right
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: findBar.visible ? findBar.top : parent.bottom

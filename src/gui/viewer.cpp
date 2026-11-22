@@ -82,6 +82,7 @@ QVariantMap section(const QString &title, const QVariantList &rows)
 Viewer::Viewer(QObject *parent)
     : QObject(parent)
     , m_infoOpen(stateGroup().readEntry("InfoPanelOpen", false))
+    , m_pagesOpen(stateGroup().readEntry("PageSidebarOpen", false))
     , m_mediaVolume(std::clamp(stateGroup().readEntry("MediaVolume", 1.0), 0.0, 1.0))
     , m_office(new OfficeConverter(this))
     , m_table(new TableModel(this))
@@ -518,6 +519,23 @@ void Viewer::setShowFormatted(bool formatted)
     group.sync();
     m_view = viewFor(m_info, formatted); // SVG: picture or text
     Q_EMIT fileInfoChanged();
+}
+
+bool Viewer::pagesOpen() const
+{
+    return m_pagesOpen;
+}
+
+void Viewer::setPagesOpen(bool open)
+{
+    if (open == m_pagesOpen) {
+        return;
+    }
+    m_pagesOpen = open;
+    KConfigGroup group = stateGroup();
+    group.writeEntry("PageSidebarOpen", open);
+    group.sync();
+    Q_EMIT pagesOpenChanged();
 }
 
 bool Viewer::fileExists() const

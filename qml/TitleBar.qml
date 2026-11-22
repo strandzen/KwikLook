@@ -15,6 +15,8 @@ QQC2.ToolBar {
 
     required property Kirigami.ApplicationWindow window
     required property FileMenus menus
+    // Pages of the PDF shown (for the page overview button); 0 for other files.
+    property int pdfPages: 0
 
     component BarButton: QQC2.ToolButton {
         display: QQC2.AbstractButton.IconOnly
@@ -49,7 +51,9 @@ QQC2.ToolBar {
         id: slot
         required property string modelData
         Layout.fillWidth: modelData === "Spacer"
-        visible: modelData !== "ViewMode" || Viewer.formattedKind !== ""
+        visible: modelData === "ViewMode" ? Viewer.formattedKind !== ""
+            : modelData === "Pages" ? bar.pdfPages > 1
+            : true
         sourceComponent: modelData === "Spacer" ? spacer : button
 
         Component {
@@ -62,9 +66,10 @@ QQC2.ToolBar {
                 objectName: "bar" + slot.modelData
                 icon.name: BarItems.iconName(slot.modelData)
                 text: BarItems.text(slot.modelData)
-                checkable: slot.modelData === "Information" || slot.modelData === "ViewMode"
+                checkable: slot.modelData === "Information" || slot.modelData === "ViewMode" || slot.modelData === "Pages"
                 checked: slot.modelData === "Information" ? Viewer.infoOpen
                     : slot.modelData === "ViewMode" ? Viewer.showFormatted
+                    : slot.modelData === "Pages" ? Viewer.pagesOpen
                     : false
                 enabled: slot.modelData === "Previous" ? Viewer.currentIndex > 0
                     : slot.modelData === "Next" ? Viewer.currentIndex + 1 < Viewer.count
@@ -80,6 +85,7 @@ QQC2.ToolBar {
         case "Next": Viewer.Next(); break;
         case "Information": Viewer.infoOpen = !Viewer.infoOpen; break;
         case "ViewMode": Viewer.showFormatted = !Viewer.showFormatted; break;
+        case "Pages": Viewer.pagesOpen = !Viewer.pagesOpen; break;
         case "Share": bar.menus.showShare(button); break;
         case "OpenWith": bar.menus.showOpenWith(button); break;
         case "Open": bar.menus.openWithDefault(); break;
