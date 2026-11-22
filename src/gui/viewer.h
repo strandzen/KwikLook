@@ -73,9 +73,13 @@ class Viewer : public QObject
     // file to file until the preview closes.
     Q_PROPERTY(bool searchOpen MEMBER m_searchOpen NOTIFY searchOpenChanged)
     Q_PROPERTY(QString searchText MEMBER m_searchText NOTIFY searchTextChanged)
-    // Files that can show two ways (Markdown for now) show formatted, else as source
-    // with syntax colours; the bar's view toggle switches. Remembered.
-    Q_PROPERTY(bool showFormatted READ showFormatted WRITE setShowFormatted NOTIFY showFormattedChanged)
+    // Files that can show two ways (FileInfo::formattedKind: Markdown, HTML, SVG, JSON,
+    // .desktop) show formatted, else as source with syntax colours; the bar's view
+    // toggle switches. Remembered for each kind; every kind starts formatted.
+    Q_PROPERTY(QString formattedKind READ formattedKind NOTIFY fileInfoChanged)
+    Q_PROPERTY(bool showFormatted READ showFormatted WRITE setShowFormatted NOTIFY fileInfoChanged)
+    Q_PROPERTY(QString formattedText READ formattedText NOTIFY fileInfoChanged) // JSON indented
+    Q_PROPERTY(QVariantMap desktopEntry READ desktopEntry NOTIFY fileInfoChanged)
 
 public:
     static constexpr auto ServiceName = KwikLookDBus::Service;
@@ -125,6 +129,9 @@ public:
     void setMediaVolume(qreal volume);
     QString fontFamily() const;
     QString fontStyle() const;
+    QString formattedKind() const;
+    QString formattedText() const;
+    QVariantMap desktopEntry() const;
     bool showFormatted() const;
     void setShowFormatted(bool formatted);
 
@@ -149,7 +156,6 @@ Q_SIGNALS:
     void textZoomChanged();
     void mediaVolumeChanged();
     void mediaRepeatChanged();
-    void showFormattedChanged();
     void fontSampleTextChanged();
     void searchOpenChanged();
     void searchTextChanged();
@@ -178,7 +184,6 @@ private:
     qreal m_textZoom = 1;
     qreal m_mediaVolume = 1;
     bool m_mediaRepeat = false;
-    bool m_showFormatted = true;
     int m_fontId = -1; // QFontDatabase application font of the current file
     QString m_fontFamily;
     QString m_fontStyle;

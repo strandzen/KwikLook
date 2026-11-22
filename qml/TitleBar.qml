@@ -49,7 +49,7 @@ QQC2.ToolBar {
         id: slot
         required property string modelData
         Layout.fillWidth: modelData === "Spacer"
-        visible: modelData !== "ViewMode" || BarItems.hasFormattedView(Viewer.mimeType)
+        visible: modelData !== "ViewMode" || Viewer.formattedKind !== ""
         sourceComponent: modelData === "Spacer" ? spacer : button
 
         Component {

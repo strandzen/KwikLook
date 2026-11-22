@@ -298,7 +298,7 @@ private Q_SLOTS:
                     .toUtf8());
         f.close();
         Viewer *v = Viewer::instance();
-        v->setShowFormatted(true);
+        KSharedConfig::openStateConfig()->group(u"FormattedView"_s).deleteGroup(); // all formatted
         v->setWindow(window);
         v->Open({f.fileName()}, 0, QString(), QString());
         QVERIFY(QTest::qWaitForWindowExposed(window));
@@ -322,7 +322,7 @@ private Q_SLOTS:
         QTRY_COMPARE(area->property("textFormat").toInt(), int(Qt::PlainText));
         QTRY_VERIFY(area->findChild<QObject *>(u"highlighter"_s));
         KConfig state(KSharedConfig::openStateConfig()->name(), KConfig::SimpleConfig, QStandardPaths::GenericStateLocation);
-        QCOMPARE(state.group(u"Viewer"_s).readEntry("ShowFormatted", true), false);
+        QCOMPARE(state.group(u"FormattedView"_s).readEntry("markdown", true), false);
         // The viewer is shared: leave a plain file current, or the next test's new
         // window renders notes.md first (and logs its refused pictures).
         QFile plain(m_keptDir.filePath(u"after-markdown.txt"_s));
@@ -332,7 +332,7 @@ private Q_SLOTS:
         QTRY_VERIFY(!toggle->isVisible());
         v->Close();
         v->setWindow(nullptr);
-        v->setShowFormatted(true);
+        KSharedConfig::openStateConfig()->group(u"FormattedView"_s).deleteGroup();
         QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 
@@ -496,6 +496,66 @@ private Q_SLOTS:
         QCOMPARE(count->property("text").toString(), u"1 of 3"_s);
         QCOMPARE(search->property("currentPage").toInt(), 0);
         QVERIFY(v->finishRendering());
+        v->Close();
+        v->setWindow(nullptr);
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+    }
+
+    void formattedViewsAndTheirToggle()
+    {
+        KSharedConfig::openStateConfig()->group(u"FormattedView"_s).deleteGroup();
+        const auto restore = qScopeGuard([] {
+            KSharedConfig::openStateConfig()->group(u"FormattedView"_s).deleteGroup();
+        });
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        QTemporaryDir dir;
+        const auto write = [&dir](const QString &name, const QByteArray &data) {
+            QFile f(dir.filePath(name));
+            if (f.open(QIODevice::WriteOnly)) {
+                f.write(data);
+            }
+            f.close();
+            return f.fileName();
+        };
+        const QStringList files{
+            write(u"pic.svg"_s, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\"><rect width=\"40\" height=\"40\" fill=\"red\"/></svg>"),
+            write(u"data.json"_s, "{\"a\":[1,2]}"),
+            write(u"page.html"_s, "<html><body><h1>Title</h1><p>Text</p></body></html>\n"),
+            write(u"app.desktop"_s, "[Desktop Entry]\nType=Application\nName=Example App\nExec=example\n"),
+        };
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open(files, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        // SVG: the picture; the toggle shows its text, and back.
+        QTRY_VERIFY(window->findChild<QQuickItem *>(u"imageView"_s));
+        QQuickItem *toggle = findItem(window, u"barViewMode"_s);
+        QVERIFY(toggle && toggle->isVisible());
+        QMetaObject::invokeMethod(toggle, "clicked");
+        QTRY_VERIFY(window->findChild<QQuickItem *>(u"textArea"_s));
+        QTRY_VERIFY(!window->findChild<QQuickItem *>(u"imageView"_s)); // deleted later
+        // JSON (its own choice: formatted): indented.
+        v->Next();
+        QQuickItem *area = nullptr;
+        QTRY_VERIFY((area = window->findChild<QQuickItem *>(u"textArea"_s)) && area->property("text").toString().contains(u"\n    \"a\""_s));
+        QVERIFY(v->showFormatted());
+        // HTML: rich text.
+        v->Next();
+        QTRY_COMPARE(area->property("textFormat").toInt(), int(Qt::RichText));
+        // .desktop: the card.
+        v->Next();
+        QTRY_VERIFY(window->findChild<QQuickItem *>(u"desktopView"_s));
+        QQuickItem *name = window->findChild<QQuickItem *>(u"desktopName"_s);
+        QVERIFY(name);
+        QCOMPARE(name->property("text").toString(), u"Example App"_s);
+        // Back to the SVG: still its text (remembered for SVG only).
+        v->Previous();
+        v->Previous();
+        v->Previous();
+        QTRY_VERIFY(window->findChild<QQuickItem *>(u"textArea"_s) && !window->findChild<QQuickItem *>(u"imageView"_s));
+        QVERIFY(!v->showFormatted());
         v->Close();
         v->setWindow(nullptr);
         QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));

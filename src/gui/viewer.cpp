@@ -78,7 +78,6 @@ Viewer::Viewer(QObject *parent)
     : QObject(parent)
     , m_infoOpen(stateGroup().readEntry("InfoPanelOpen", false))
     , m_mediaVolume(std::clamp(stateGroup().readEntry("MediaVolume", 1.0), 0.0, 1.0))
-    , m_showFormatted(stateGroup().readEntry("ShowFormatted", true))
     , m_office(new OfficeConverter(this))
 {
     connect(m_office, &OfficeConverter::converted, this, [this](const QString &path, const QUrl &pdf) {
@@ -415,21 +414,45 @@ QString Viewer::fontStyle() const
     return m_fontStyle;
 }
 
+QString Viewer::formattedKind() const
+{
+    return m_info.formattedKind;
+}
+
+QString Viewer::formattedText() const
+{
+    return m_info.formattedText;
+}
+
+QVariantMap Viewer::desktopEntry() const
+{
+    return m_info.desktopEntry;
+}
+
+namespace
+{
+KConfigGroup formattedGroup()
+{
+    // One entry per kind ("markdown=false": Markdown as source).
+    return KSharedConfig::openStateConfig()->group(u"FormattedView"_s);
+}
+} // namespace
+
 bool Viewer::showFormatted() const
 {
-    return m_showFormatted;
+    return m_info.formattedKind.isEmpty() || formattedGroup().readEntry(m_info.formattedKind, true);
 }
 
 void Viewer::setShowFormatted(bool formatted)
 {
-    if (formatted == m_showFormatted) {
+    if (m_info.formattedKind.isEmpty() || formatted == showFormatted()) {
         return;
     }
-    m_showFormatted = formatted;
-    KConfigGroup group = stateGroup();
-    group.writeEntry("ShowFormatted", formatted);
+    KConfigGroup group = formattedGroup();
+    group.writeEntry(m_info.formattedKind, formatted);
     group.sync();
-    Q_EMIT showFormattedChanged();
+    m_view = viewFor(m_info, formatted); // SVG: picture or text
+    Q_EMIT fileInfoChanged();
 }
 
 bool Viewer::fileExists() const
@@ -546,7 +569,7 @@ void Viewer::readFileInfo(int generation)
             return; // another file became current meanwhile
         }
         m_info = watcher->result();
-        m_view = viewFor(m_info);
+        m_view = viewFor(m_info, showFormatted());
         loadFont();
         startOfficePreview(); // the fallback view meanwhile, then the PDF view
         Q_EMIT fileInfoChanged();

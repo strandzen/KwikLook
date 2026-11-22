@@ -2,11 +2,14 @@
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
 #include "fileinfo.h"
 
+#include <KConfigGroup>
+#include <KDesktopFile>
 #include <KFileMetaData/ExtractorCollection>
 #include <KFileMetaData/PropertyInfo>
 #include <KFileMetaData/SimpleExtractionResult>
 
 #include <QFileInfo>
+#include <QJsonDocument>
 #include <QStringDecoder>
 #include <QImageReader>
 
@@ -17,6 +20,26 @@ using namespace Qt::StringLiterals;
 
 namespace
 {
+QString formattedKindOf(const QMimeType &mime)
+{
+    if (mime.inherits(u"text/markdown"_s)) {
+        return u"markdown"_s;
+    }
+    if (mime.inherits(u"text/html"_s)) {
+        return u"html"_s;
+    }
+    if (mime.name() == u"image/svg+xml"_s) {
+        return u"svg"_s;
+    }
+    if (mime.inherits(u"application/json"_s)) {
+        return u"json"_s;
+    }
+    if (mime.inherits(u"application/x-desktop"_s)) {
+        return u"desktop"_s;
+    }
+    return QString();
+}
+
 bool isImage(const QString &mimeType)
 {
     static const QList<QByteArray> types = QImageReader::supportedMimeTypes();
@@ -83,6 +106,7 @@ FileInfo FileInfo::read(const QUrl &url)
     info.typeName = mime.comment();
     info.iconName = mime.iconName();
     info.isText = mime.inherits(u"text/plain"_s);
+    info.formattedKind = formattedKindOf(mime);
     if (url.isLocalFile() && info.exists && !info.isDir) {
         const QString path = url.toLocalFile();
         if (isImage(info.mimeType) && info.mimeType != u"application/pdf"_s) {
@@ -97,6 +121,28 @@ FileInfo FileInfo::read(const QUrl &url)
         info.details = readDetails(path, info.mimeType, info.imageSize.isValid());
         if (info.isText) {
             info.text = readTextStart(path, TextLimit, &info.textTruncated);
+        }
+        if (info.formattedKind == u"json"_s && !info.textTruncated) {
+            const QJsonDocument json = QJsonDocument::fromJson(info.text.toUtf8());
+            if (!json.isNull()) {
+                info.formattedText = QString::fromUtf8(json.toJson(QJsonDocument::Indented));
+            }
+        }
+        if (info.formattedKind == u"desktop"_s) {
+            const KDesktopFile desktop(path); // an absolute path: never resolved into standard folders
+            const KConfigGroup group = desktop.desktopGroup();
+            info.desktopEntry = {
+                {u"name"_s, desktop.readName()},
+                {u"genericName"_s, desktop.readGenericName()},
+                {u"comment"_s, desktop.readComment()},
+                {u"icon"_s, desktop.readIcon()},
+                {u"type"_s, desktop.readType()},
+                {u"exec"_s, group.readEntry("Exec")},
+                {u"url"_s, desktop.readUrl()},
+                {u"categories"_s, group.readXdgListEntry("Categories").join(u", "_s)},
+                {u"terminal"_s, group.readEntry("Terminal", false)},
+                {u"hidden"_s, desktop.noDisplay()},
+            };
         }
         if (isFont(info.mimeType) && info.size <= FontLimit) {
             QFile file(path);
@@ -170,8 +216,17 @@ bool isOfficeDocument(const QString &mimeType)
     });
 }
 
-QString viewFor(const FileInfo &info)
+QString viewFor(const FileInfo &info, bool formatted)
 {
+    if (!info.formattedKind.isEmpty() && info.exists && !info.isDir) {
+        if (!formatted && info.isText) {
+            return u"TextView"_s; // the source
+        }
+        if (info.formattedKind == u"desktop"_s) {
+            return u"DesktopView"_s;
+        }
+        // Markdown, HTML and JSON show formatted in the text view; SVG as a picture below.
+    }
     // Pictures, text and PDF have their own views; everything else, and whatever a
     // view can't open, shows the fallback.
     if (!info.exists || info.isDir) {

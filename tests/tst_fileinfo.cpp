@@ -229,6 +229,42 @@ private Q_SLOTS:
         QVERIFY(FileInfo::read(QUrl::fromLocalFile(text.fileName())).fontData.isEmpty());
     }
 
+    void formattedKinds()
+    {
+        QTemporaryDir dir;
+        const auto write = [&dir](const QString &name, const QByteArray &data) {
+            QFile f(dir.filePath(name));
+            if (f.open(QIODevice::WriteOnly)) {
+                f.write(data);
+            }
+            f.close();
+            return FileInfo::read(QUrl::fromLocalFile(f.fileName()));
+        };
+        QCOMPARE(write(u"a.md"_s, "# Hi\n").formattedKind, u"markdown"_s);
+        QCOMPARE(write(u"a.html"_s, "<html><body>Hi</body></html>\n").formattedKind, u"html"_s);
+        QCOMPARE(write(u"a.txt"_s, "plain\n").formattedKind, QString());
+        // JSON: indented when it parses; the source otherwise.
+        const FileInfo json = write(u"a.json"_s, "{\"a\":[1,2],\"b\":{\"c\":true}}");
+        QCOMPARE(json.formattedKind, u"json"_s);
+        QVERIFY(json.formattedText.contains(u"\n    \"a\": [\n"_s));
+        QCOMPARE(viewFor(json), u"TextView"_s);
+        QVERIFY(write(u"b.json"_s, "{broken").formattedText.isEmpty());
+        // SVG: the picture formatted, its text as source.
+        const FileInfo svg = write(u"a.svg"_s, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"4\" height=\"4\"><rect width=\"4\" height=\"4\"/></svg>");
+        QCOMPARE(svg.formattedKind, u"svg"_s);
+        QCOMPARE(viewFor(svg, true), u"ImageView"_s);
+        QCOMPARE(viewFor(svg, false), u"TextView"_s);
+        // .desktop: the card, read by KDesktopFile.
+        const FileInfo desktop = write(u"a.desktop"_s, "[Desktop Entry]\nType=Application\nName=Example\nComment=Does things\nIcon=kate\nExec=kate %U\nCategories=Utility;TextEditor;\nTerminal=true\n");
+        QCOMPARE(desktop.formattedKind, u"desktop"_s);
+        QCOMPARE(viewFor(desktop, true), u"DesktopView"_s);
+        QCOMPARE(viewFor(desktop, false), u"TextView"_s);
+        QCOMPARE(desktop.desktopEntry.value(u"name"_s).toString(), u"Example"_s);
+        QCOMPARE(desktop.desktopEntry.value(u"exec"_s).toString(), u"kate %U"_s);
+        QCOMPARE(desktop.desktopEntry.value(u"categories"_s).toString(), u"Utility, TextEditor"_s);
+        QCOMPARE(desktop.desktopEntry.value(u"terminal"_s).toBool(), true);
+    }
+
     void officeDocuments()
     {
         QVERIFY(isOfficeDocument(u"application/vnd.oasis.opendocument.text"_s));

@@ -12,14 +12,17 @@ import kwiklook
 // light or dark theme to match the colour scheme), monospace, line numbers, long
 // lines wrapped. Text can be selected and copied. Long files show their start.
 // Ctrl+wheel zooms (the font size, kept for the next files until the preview closes).
-// Markdown shows rendered (a readable column, local pictures only, links open in the
-// browser) or as source; a button in the bar switches, and the choice is remembered.
+// Markdown and HTML show rendered (a readable column, local pictures only, links open
+// in the browser), JSON indented; or as source: the bar's view toggle switches, and
+// each kind remembers its choice.
 // Ctrl+F finds text (FindBar below); the matches on screen are marked.
 ColumnLayout {
     id: view
     objectName: "textView"
 
-    readonly property bool rendered: BarItems.hasFormattedView(Viewer.mimeType) && Viewer.showFormatted
+    // What shows: "markdown", "html", "json" formatted, or "" for the source.
+    readonly property string kind: Viewer.showFormatted ? Viewer.formattedKind : ""
+    readonly property bool rendered: kind === "markdown" || kind === "html"
 
     // The user zoomed (for the zoom indicator).
     signal zoomed()
@@ -136,11 +139,11 @@ ColumnLayout {
 
             readOnly: true
             selectByMouse: true
-            textFormat: view.rendered ? TextEdit.MarkdownText : TextEdit.PlainText
+            textFormat: view.kind === "markdown" ? TextEdit.MarkdownText : view.kind === "html" ? TextEdit.RichText : TextEdit.PlainText
             wrapMode: TextEdit.Wrap
             font.family: baseFont.family
             font.pointSize: baseFont.pointSize * Viewer.textZoom
-            text: Viewer.text
+            text: view.kind === "json" && Viewer.formattedText !== "" ? Viewer.formattedText : Viewer.text
             onTextChanged: Qt.callLater(view.runSearch) // a new file, or rendered / source
             baseUrl: Viewer.currentUrl // pictures next to the file
             leftPadding: view.rendered ? sideMargin : gutterWidth + Kirigami.Units.largeSpacing

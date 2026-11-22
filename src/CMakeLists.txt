@@ -17,6 +17,7 @@ set(KWIKLOOK_QML_FILES
     ${CMAKE_SOURCE_DIR}/qml/FindBar.qml
     ${CMAKE_SOURCE_DIR}/qml/BarItems.qml
     ${CMAKE_SOURCE_DIR}/qml/BarEditor.qml
+    ${CMAKE_SOURCE_DIR}/qml/DesktopView.qml
     ${CMAKE_SOURCE_DIR}/qml/SettingsWindow.qml
 )
 

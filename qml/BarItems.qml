@@ -7,14 +7,9 @@ import QtQuick
 // What can be put in the preview's bar (TitleBar.qml), by the names kept in the
 // settings (BarLeft, BarRight): icon and name for the bar and the settings window.
 // "Spacer" stretches and can be used more than once. "ViewMode" (formatted / source)
-// shows only for files that can show both ways (hasFormattedView(): Markdown for now).
+// shows only for files that can show both ways (Viewer.formattedKind).
 QtObject {
     readonly property list<string> buttons: ["Previous", "Next", "ViewMode", "Information", "Share", "OpenWith", "Open", "ShowInDolphin", "CopyPath", "Close"]
-
-    // Files that can show formatted or as source (the "ViewMode" toggle).
-    function hasFormattedView(mimeType) {
-        return mimeType === "text/markdown";
-    }
 
     function iconName(item) {
         switch (item) {

@@ -8,6 +8,7 @@
 #include <QSize>
 #include <QString>
 #include <QUrl>
+#include <QVariantMap>
 
 // What the preview needs to know about a file before showing it.
 struct FileInfo {
@@ -30,6 +31,13 @@ struct FileInfo {
     QString text; // text files: the start of the file (see TextLimit)
     bool textTruncated = false; // the file is longer than `text`
     QByteArray fontData; // font files (up to FontLimit): the whole file, for the font preview
+    // Files that show formatted or as source (the bar's view toggle): "markdown",
+    // "html", "svg", "json", "desktop"; empty for the others.
+    QString formattedKind;
+    QString formattedText; // JSON: the text indented, if it parses; else empty
+    // .desktop files: name, genericName, comment, icon, type, exec, url, categories,
+    // terminal, hidden (in the menus), as read by KDesktopFile.
+    QVariantMap desktopEntry;
 
     // What KFileMetaData finds in the file (EXIF, page count, artist, ...), as
     // translated label and display text, in its order. Width and height are left
@@ -69,4 +77,5 @@ bool isOfficeDocument(const QString &mimeType);
 bool isFont(const QString &mimeType);
 
 // The QML file (component name in the kwiklook module) that previews this file.
-QString viewFor(const FileInfo &info);
+// `formatted`: for files with a formattedKind, formatted (else their source as text).
+QString viewFor(const FileInfo &info, bool formatted = true);

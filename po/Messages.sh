@@ -30,6 +30,7 @@ $XGETTEXT \
     qml/FindBar.qml \
     qml/BarItems.qml \
     qml/BarEditor.qml \
+    qml/DesktopView.qml \
     qml/SettingsWindow.qml \
     --keyword=i18n:1 \
     --keyword=i18nc:1c,2 \
