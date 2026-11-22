@@ -39,6 +39,9 @@ public:
     ~FileMenus() override;
 
     Q_INVOKABLE void showOpenWith(QQuickItem *button);
+    // The “Open With” menu (deletes itself when closed): the type's applications,
+    // Spectacle for pictures, “Other Application…”. Null without a file.
+    QMenu *openWithMenu();
     // Opens the file in the application it opens with by default (Enter).
     Q_INVOKABLE void openWithDefault();
     Q_INVOKABLE void showShare(QQuickItem *button);

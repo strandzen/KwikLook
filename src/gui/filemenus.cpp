@@ -5,6 +5,7 @@
 #include <KIO/Global>
 #include <KFileItemActions>
 #include <KIO/ApplicationLauncherJob>
+#include <KIO/CommandLauncherJob>
 #include <KIO/JobUiDelegateFactory>
 #include <KIO/OpenFileManagerWindowJob>
 #include <KIO/OpenUrlJob>
@@ -16,6 +17,8 @@
 #include <Purpose/Menu>
 
 #include <QClipboard>
+
+#include <algorithm>
 #include <QCursor>
 #include <QFuture>
 #include <QGuiApplication>
@@ -46,8 +49,15 @@ QString FileMenus::mimeType() const
 
 void FileMenus::showOpenWith(QQuickItem *button)
 {
+    if (QMenu *menu = openWithMenu()) {
+        popup(menu, button);
+    }
+}
+
+QMenu *FileMenus::openWithMenu()
+{
     if (m_url.isEmpty()) {
-        return;
+        return nullptr;
     }
     auto *menu = new QMenu;
     menu->setAttribute(Qt::WA_DeleteOnClose);
@@ -60,14 +70,35 @@ void FileMenus::showOpenWith(QQuickItem *button)
             launch(url, entry);
         });
     }
-    if (!apps.isEmpty()) {
+    // Spectacle declares no file types, so it isn't among them: for pictures it opens
+    // its annotation editor (crop, arrows, text, ...).
+    const KService::Ptr spectacle = KService::serviceByDesktopName(u"org.kde.spectacle"_s);
+    if (spectacle && url.isLocalFile() && mimeType().startsWith(u"image/"_s)
+        && std::none_of(apps.cbegin(), apps.cend(), [](const KService::Ptr &app) {
+               return app->desktopEntryName() == u"org.kde.spectacle"_s;
+           })) {
+        QAction *action = menu->addAction(QIcon::fromTheme(spectacle->icon()), spectacle->name());
+        action->setObjectName(u"openWithSpectacle"_s);
+        connect(action, &QAction::triggered, this, [this, url] {
+            auto *job = new KIO::CommandLauncherJob(u"spectacle"_s, {u"--edit-existing"_s, url.toLocalFile()});
+            job->setDesktopName(u"org.kde.spectacle"_s);
+            job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, nullptr));
+            connect(job, &KJob::result, this, [this](KJob *job) {
+                if (!job->error()) {
+                    Q_EMIT launched();
+                }
+            });
+            job->start();
+        });
+    }
+    if (!menu->actions().isEmpty()) {
         menu->addSeparator();
     }
     QAction *other = menu->addAction(QIcon::fromTheme(u"document-open"_s), i18nc("@action:inmenu", "Other Application…"));
     connect(other, &QAction::triggered, this, [this, url] {
         launch(url, QString());
     });
-    popup(menu, button);
+    return menu;
 }
 
 void FileMenus::openWithDefault()

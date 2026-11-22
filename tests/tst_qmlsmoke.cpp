@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
 #include "gui/autostart.h"
+#include "gui/filemenus.h"
 #include "gui/offlinenetwork.h"
 #include "gui/thumbnailprovider.h"
 #include "gui/viewer.h"
@@ -30,6 +31,8 @@
 #include <KConfigGroup>
 #include <KSharedConfig>
 #include <QDirIterator>
+#include <KService>
+#include <QMenu>
 #include <QScopeGuard>
 #include <QTcpServer>
 
@@ -1011,6 +1014,28 @@ private Q_SLOTS:
             qWarning().noquote() << e.toString();
         }
         QVERIFY(errors.isEmpty());
+    }
+
+    void openWithOffersSpectacleForPictures()
+    {
+        if (!KService::serviceByDesktopName(u"org.kde.spectacle"_s)) {
+            QSKIP("Spectacle isn't installed");
+        }
+        QImage picture(4, 4, QImage::Format_RGB32);
+        picture.fill(Qt::red);
+        const QString png = m_keptDir.filePath(u"menu.png"_s);
+        QVERIFY(picture.save(png));
+        FileMenus menus;
+        menus.setProperty("url", QUrl::fromLocalFile(png));
+        menus.setProperty("mimeType", u"image/png"_s);
+        std::unique_ptr<QMenu> menu(menus.openWithMenu());
+        QVERIFY(menu);
+        QVERIFY(menu->findChild<QAction *>(u"openWithSpectacle"_s));
+        // Not for other files.
+        menus.setProperty("url", QUrl::fromLocalFile(m_keptDir.filePath(u"menu.txt"_s)));
+        menus.setProperty("mimeType", u"text/plain"_s);
+        menu.reset(menus.openWithMenu());
+        QVERIFY(!menu->findChild<QAction *>(u"openWithSpectacle"_s));
     }
 
     void settingsWindowAppliesOnlyOnApply()
