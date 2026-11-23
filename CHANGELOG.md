@@ -4,6 +4,10 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-23
+
+Find, formatted views, fonts, tables and cards, an index sheet, a customisable bar, and cropping pictures and trimming videos.
+
 ### Added
 - Pictures can be cropped and rotated (the crop button in the bar): drag the frame or its corners, pick a ratio (free, original, square, 4:3, 16:9 and their upright versions), turn left or right, then “Save Copy” next to the original or “Replace” it (the original goes to the Trash). Date taken, camera and other photo details are kept.
 - Videos can be trimmed and rotated (✂ in the video controls, when ffmpeg is installed): choose the part to keep and quarter turns, then “Save Copy” writes a new file next to the original, which is never changed. While editing, the video stays still on the frame where you put a handle and plays only when you press Play. A start on a keyframe (small marks under the slider; a handle let go close to one moves onto it) is cut at once without losing quality; a start anywhere else re-encodes the video to begin exactly there, with a progress bar.

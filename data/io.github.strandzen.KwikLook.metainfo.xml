@@ -18,6 +18,18 @@
   <launchable type="desktop-id">io.github.strandzen.KwikLook.desktop</launchable>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.3.0" date="2026-11-23">
+      <description>
+        <p>Find in text and PDFs, formatted views, fonts, tables and cards, and small edits to pictures and videos.</p>
+        <ul>
+          <li>Markdown, HTML, JSON, SVG and .desktop files show formatted, with a button for their source; CSV files as a table, contacts and calendar events as cards.</li>
+          <li>Fonts show a sample and can be installed; PDFs get a page overview; an index sheet shows all files at once.</li>
+          <li>Pictures can be cropped and turned, videos trimmed and turned, always keeping the original or moving it to the Trash.</li>
+          <li>Videos and audio get volume, repeat and full screen; the bar's buttons can be chosen in the settings.</li>
+          <li>With several files selected in Dolphin, the preview goes through just those.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-11-19">
       <description>
         <p>Office documents (through LibreOffice, sandboxed), video and audio, and zoom for pictures, text and PDFs.</p>
