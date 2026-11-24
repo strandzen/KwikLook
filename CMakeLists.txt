@@ -47,9 +47,11 @@ find_package(KF6 ${KF_MIN_VERSION} REQUIRED COMPONENTS
     Service
     Purpose        # Share
     FileMetaData   # file details (EXIF, page count, ...)
-    Contacts       # contact cards (.vcf)
-    CalendarCore   # event cards (.ics)
 )
+# Contact and event cards (.vcf, .ics): only kwiklook-cards.so links them, so they are
+# optional, at build time and at runtime (without them those files show as text).
+find_package(KF6Contacts ${KF_MIN_VERSION})
+find_package(KF6CalendarCore ${KF_MIN_VERSION})
 find_package(KF6Kirigami ${KF_MIN_VERSION} REQUIRED)
 find_package(LibArchive 3.6 REQUIRED) # kwiklook-archive: what's inside an archive
 # kwiklook-sandbox: refuses sockets in the programs it runs (Landlock comes with the kernel headers).

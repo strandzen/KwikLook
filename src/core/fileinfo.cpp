@@ -3,21 +3,15 @@
 #include "fileinfo.h"
 
 #include "archivelisting.h"
+#include "cards.h"
 
-#include <KCalendarCore/ICalFormat>
-#include <KCalendarCore/MemoryCalendar>
 #include <KConfigGroup>
-#include <KContacts/Addressee>
-#include <KContacts/VCardConverter>
 #include <KDesktopFile>
 #include <KFileMetaData/ExtractorCollection>
 #include <KFileMetaData/PropertyInfo>
 #include <KFileMetaData/SimpleExtractionResult>
 
-#include <QBuffer>
 #include <QFileInfo>
-#include <QRegularExpression>
-#include <QTimeZone>
 #include <QJsonDocument>
 #include <QStringDecoder>
 #include <QImageReader>
@@ -58,84 +52,10 @@ QString formattedKindOf(const QMimeType &mime)
     return QString();
 }
 
-// A contact's photo as a data: URL (the image views take it); only embedded ones,
-// never one linked from the web.
-QString photoUrl(const KContacts::Picture &picture)
-{
-    if (!picture.isIntern() || picture.data().isNull()) {
-        return QString();
-    }
-    const QImage image = picture.data().scaled(256, 256, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-    QByteArray png;
-    QBuffer buffer(&png);
-    buffer.open(QIODevice::WriteOnly);
-    image.save(&buffer, "PNG");
-    return u"data:image/png;base64,"_s + QString::fromLatin1(png.toBase64());
-}
-
-// Contacts: name, organization, photo, phones [{label, value}], emails, addresses,
-// birthday (date), url, note. Events: summary, start, end (date-times), allDay,
-// location, organizer, repeats, description. Both have "kind": "contact" / "event".
+// Contacts and events (kwiklook-cards.so: see cards.h).
 void readCards(FileInfo &info)
 {
-    const QByteArray data = info.text.toUtf8();
-    int count = 0;
-    if (info.formattedKind == u"vcard"_s) {
-        const KContacts::Addressee::List contacts = KContacts::VCardConverter().parseVCards(data);
-        for (const KContacts::Addressee &contact : contacts) {
-            if (count++ >= FileInfo::CardLimit) {
-                continue;
-            }
-            QVariantList phones;
-            const KContacts::PhoneNumber::List numbers = contact.phoneNumbers();
-            for (const KContacts::PhoneNumber &number : numbers) {
-                phones << QVariantMap{{u"label"_s, number.typeLabel()}, {u"value"_s, number.number()}};
-            }
-            QStringList emails;
-            const KContacts::Email::List mails = contact.emailList();
-            for (const KContacts::Email &mail : mails) {
-                emails << mail.mail();
-            }
-            QStringList addresses;
-            const KContacts::Address::List places = contact.addresses();
-            for (const KContacts::Address &place : places) {
-                addresses << place.formatted(KContacts::AddressFormatStyle::MultiLineInternational).trimmed();
-            }
-            info.cards << QVariantMap{
-                {u"kind"_s, u"contact"_s},
-                {u"name"_s, contact.realName().isEmpty() ? contact.assembledName() : contact.realName()},
-                {u"organization"_s, QStringList{contact.title(), contact.organization()}.filter(QRegularExpression(u"\\S"_s)).join(u", "_s)},
-                {u"photo"_s, photoUrl(contact.photo())},
-                {u"phones"_s, phones},
-                {u"emails"_s, emails},
-                {u"addresses"_s, addresses},
-                {u"birthday"_s, contact.birthday().date()},
-                {u"url"_s, contact.url().url().toString()},
-                {u"note"_s, contact.note()},
-            };
-        }
-    } else {
-        const auto calendar = KCalendarCore::MemoryCalendar::Ptr(new KCalendarCore::MemoryCalendar(QTimeZone::systemTimeZone()));
-        if (KCalendarCore::ICalFormat().fromRawString(calendar, data)) {
-            const KCalendarCore::Event::List events = calendar->rawEvents(KCalendarCore::EventSortStartDate);
-            for (const KCalendarCore::Event::Ptr &event : events) {
-                if (count++ >= FileInfo::CardLimit) {
-                    continue;
-                }
-                info.cards << QVariantMap{
-                    {u"kind"_s, u"event"_s},
-                    {u"summary"_s, event->summary()},
-                    {u"start"_s, event->dtStart().toLocalTime()},
-                    {u"end"_s, event->dtEnd().toLocalTime()},
-                    {u"allDay"_s, event->allDay()},
-                    {u"location"_s, event->location()},
-                    {u"organizer"_s, event->organizer().fullName()},
-                    {u"repeats"_s, event->recurs()},
-                    {u"description"_s, event->description()},
-                };
-            }
-        }
-    }
+    const int count = Cards::read(info.text.toUtf8(), info.formattedKind, FileInfo::CardLimit, &info.cards);
     info.moreCards = std::max(0, count - FileInfo::CardLimit);
 }
 
@@ -206,6 +126,9 @@ FileInfo FileInfo::read(const QUrl &url)
     info.iconName = mime.iconName();
     info.isText = mime.inherits(u"text/plain"_s);
     info.formattedKind = formattedKindOf(mime);
+    if ((info.formattedKind == u"vcard"_s || info.formattedKind == u"calendar"_s) && !Cards::available()) {
+        info.formattedKind.clear(); // no card library (KContacts, KCalendarCore): plain text
+    }
     if (url.isLocalFile() && info.exists && !info.isDir) {
         const QString path = url.toLocalFile();
         if (isImage(info.mimeType) && info.mimeType != u"application/pdf"_s) {

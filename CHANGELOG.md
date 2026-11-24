@@ -4,6 +4,10 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Changed
+
+- KContacts and KCalendarCore are no longer required. Without them, contacts (.vcf) and calendar files (.ics) show as text instead of cards; install them to get the cards back.
+
 ## [0.5.0] - 2026-11-24
 
 A visual review, and editing handed to other apps.

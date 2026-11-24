@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
 // File details and the choice of view, on scratch files.
+#include "cards.h"
 #include "fileinfo.h"
 
 #include <QFile>
@@ -341,6 +342,17 @@ private Q_SLOTS:
         QCOMPARE(events.cards.last().toMap().value(u"allDay"_s).toBool(), true);
         // Not a calendar after all: no cards, no crash.
         QCOMPARE(read(u"broken.ics"_s, "BEGIN:VCALENDAR\ngarbage\n").cards.size(), 0);
+
+        // Without the card library (KContacts, KCalendarCore not installed): plain text,
+        // no view toggle (no formatted kind).
+        Cards::setLibraryPath(u"/nonexistent/kwiklook-cards.so"_s);
+        const FileInfo plain = read(u"plain.vcf"_s, "BEGIN:VCARD\nVERSION:3.0\nFN:Ada Lovelace\nEND:VCARD\n");
+        Cards::setLibraryPath(QString()); // back to the real one
+        QVERIFY(plain.formattedKind.isEmpty());
+        QVERIFY(plain.cards.isEmpty());
+        QCOMPARE(viewFor(plain), u"TextView"_s);
+        QVERIFY(plain.text.contains(u"Ada Lovelace"_s));
+        QVERIFY(Cards::available());
     }
 
     void officeDocuments()

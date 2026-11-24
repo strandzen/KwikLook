@@ -11,6 +11,9 @@ ecm_add_test(tst_qmlsmoke.cpp
 )
 set_tests_properties(kwiklook-tst_qmlsmoke PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_CONTROLS_STYLE=org.kde.desktop")
+if(TARGET kwiklook-cards)
+    add_dependencies(tst_qmlsmoke kwiklook-cards) # the cards view
+endif()
 
 # Viewer state and signals (no window, no bus).
 ecm_add_test(tst_viewer.cpp
@@ -48,6 +51,9 @@ ecm_add_test(tst_fileinfo.cpp
     LINK_LIBRARIES Qt6::Test kwiklook_core
     NAME_PREFIX "kwiklook-"
 )
+if(TARGET kwiklook-cards)
+    add_dependencies(tst_fileinfo kwiklook-cards)
+endif()
 
 # The Dolphin hook inside a stand-in Dolphin (KDEGlance's mock of Dolphin's view
 # classes), talking to a stand-in viewer on a private bus.

@@ -37,11 +37,22 @@ add_library(kwiklook_core STATIC
     core/headings.cpp
     core/textblocks.cpp
     core/archivelisting.cpp
+    core/cards.cpp
 )
 target_include_directories(kwiklook_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/core)
 target_link_libraries(kwiklook_core PUBLIC Qt6::Gui KF6::ConfigCore KF6::ConfigGui) # ConfigGui: QColor entries
 target_link_libraries(kwiklook_core PRIVATE KF6::FileMetaData) # details like EXIF, page count
-target_link_libraries(kwiklook_core PRIVATE KF6::Contacts KF6::CalendarCore) # contact and event cards
+# Contact and event cards: a library of its own, opened at runtime (core/cards.cpp).
+target_compile_definitions(kwiklook_core PRIVATE KWIKLOOK_CARDS_LIBRARY="${KDE_INSTALL_FULL_LIBDIR}/kwiklook/kwiklook-cards.so")
+if(KF6Contacts_FOUND AND KF6CalendarCore_FOUND)
+    add_library(kwiklook-cards MODULE cards/cards.cpp)
+    target_link_libraries(kwiklook-cards PRIVATE Qt6::Gui KF6::Contacts KF6::CalendarCore)
+    # Next to the programs in the build tree: found there by the app and the tests.
+    set_target_properties(kwiklook-cards PROPERTIES PREFIX "" LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+    install(TARGETS kwiklook-cards DESTINATION ${KDE_INSTALL_LIBDIR}/kwiklook)
+else()
+    message(STATUS "KContacts or KCalendarCore not found: contacts and calendar files will show as text")
+endif()
 set_source_files_properties(${CMAKE_SOURCE_DIR}/qml/BarItems.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 foreach(qml_file ${KWIKLOOK_QML_FILES})
     get_filename_component(qml_name ${qml_file} NAME)

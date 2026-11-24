@@ -17,7 +17,7 @@ This is version 0.5.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my
 - Pictures fill the preview window; small ones stay at their real size. Animated GIFs and WebPs play.
 - Text and code files show with syntax colours and line numbers; long files show their beginning. Find with Ctrl+F, also in PDFs.
 - Markdown, HTML, JSON, SVG and .desktop files show formatted, and one button in the bar switches to their source. Nothing is ever loaded from the internet.
-- CSV and TSV files show as a table; contacts (.vcf) and calendar files (.ics) as cards.
+- CSV and TSV files show as a table; contacts (.vcf) and calendar files (.ics) as cards (with KContacts and KCalendarCore installed).
 - PDFs show all their pages, fitted to the window, with a sidebar of small pages and their contents (bookmarks); the section you're reading is marked. Markdown and HTML files list their headings there too.
 - Archives (zip, 7z, tar, RAR, ISO and more) show what's inside as folders you can open, with sizes and dates, without unpacking anything. Password-protected ones are marked.
 - Office documents (Word, Excel, PowerPoint and OpenDocument files) show like PDFs, when LibreOffice is installed.
@@ -34,11 +34,12 @@ This is version 0.5.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my
 
 - KDE Plasma 6 with Dolphin.
 - Qt 6.8 or newer, with Qt PDF (part of Qt WebEngine on Arch) and Qt Multimedia with its FFmpeg backend.
-- KDE Frameworks 6.19 or newer, including Kirigami, KIO, Purpose, KFileMetaData, KSyntaxHighlighting, KContacts and KCalendarCore.
+- KDE Frameworks 6.19 or newer, including Kirigami, KIO, Purpose, KFileMetaData and KSyntaxHighlighting.
 - Kirigami Addons 1.0 or newer.
 - libarchive, to list what's inside archives.
 - libseccomp, and a recent Linux kernel for the sandbox around office previews and archive listings (Landlock with its newer rules for local sockets). If the kernel is too old, office documents and archives just show their details and a note says why.
 - Optional: LibreOffice, for previews of office documents.
+- Optional: KContacts and KCalendarCore, to show contacts (.vcf) and calendar files (.ics) as cards. Without them those files show as text. They are needed when building, for the cards to be included.
 
 ## Installation
 
@@ -73,7 +74,7 @@ sudo pacman -S --needed cmake extra-cmake-modules qt6-base qt6-declarative qt6-w
     kirigami kirigami-addons syntax-highlighting kcontacts kcalendarcore libarchive libseccomp
 ```
 
-Other distributions: the development packages of CMake, Extra CMake Modules, Qt 6 (Base, Declarative, PDF, Multimedia) and the KDE Frameworks 6 listed above (Config, CoreAddons, I18n, WindowSystem, KIO, Service, Purpose, FileMetaData, Kirigami, SyntaxHighlighting, Contacts, CalendarCore), plus Kirigami Addons, libarchive and libseccomp. Package names differ between distributions.
+Other distributions: the development packages of CMake, Extra CMake Modules, Qt 6 (Base, Declarative, PDF, Multimedia) and the KDE Frameworks 6 listed above (Config, CoreAddons, I18n, WindowSystem, KIO, Service, Purpose, FileMetaData, Kirigami, SyntaxHighlighting; Contacts and CalendarCore for the cards), plus Kirigami Addons, libarchive and libseccomp. Package names differ between distributions.
 
 </details>
 
