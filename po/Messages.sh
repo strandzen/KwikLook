@@ -13,6 +13,7 @@ $XGETTEXT \
     src/gui/autostart.cpp \
     src/gui/videoeditor.cpp \
     src/gui/imageeditor.cpp \
+    src/gui/archivemodel.cpp \
     --keyword=i18n:1 \
     --keyword=i18nc:1c,2 \
     --keyword=i18np:1,2 \
@@ -30,6 +31,9 @@ $XGETTEXT \
     qml/MediaView.qml \
     qml/FontView.qml \
     qml/FindBar.qml \
+    qml/PdfView.qml \
+    qml/ContentsList.qml \
+    qml/ArchiveView.qml \
     qml/BarItems.qml \
     qml/BarEditor.qml \
     qml/DesktopView.qml \

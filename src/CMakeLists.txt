@@ -15,6 +15,8 @@ set(KWIKLOOK_QML_FILES
     ${CMAKE_SOURCE_DIR}/qml/MediaView.qml
     ${CMAKE_SOURCE_DIR}/qml/FontView.qml
     ${CMAKE_SOURCE_DIR}/qml/FindBar.qml
+    ${CMAKE_SOURCE_DIR}/qml/ContentsList.qml
+    ${CMAKE_SOURCE_DIR}/qml/ArchiveView.qml
     ${CMAKE_SOURCE_DIR}/qml/BarItems.qml
     ${CMAKE_SOURCE_DIR}/qml/BarEditor.qml
     ${CMAKE_SOURCE_DIR}/qml/DesktopView.qml
@@ -30,6 +32,8 @@ add_library(kwiklook_core STATIC
     core/breezestyle.cpp
     core/shadowimage.cpp
     core/fileinfo.cpp
+    core/headings.cpp
+    core/archivelisting.cpp
 )
 target_include_directories(kwiklook_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/core)
 target_link_libraries(kwiklook_core PUBLIC Qt6::Gui KF6::ConfigCore KF6::ConfigGui) # ConfigGui: QColor entries
@@ -58,6 +62,10 @@ qt_add_qml_module(kwiklook_qml
         gui/thumbnailprovider.cpp
         gui/linenumbers.h
         gui/linenumbers.cpp
+        gui/contents.h
+        gui/archivemodel.h
+        gui/archivemodel.cpp
+        gui/contents.cpp
         gui/autostart.h
         gui/autostart.cpp
         gui/officeconverter.h
@@ -97,6 +105,7 @@ target_link_libraries(kwiklook_qml PUBLIC
     KF6::I18n
     KF6::ConfigCore # settings
     Qt6::Concurrent # reading file details off the main thread
+    Qt6::Pdf # PDF bookmarks (gui/contents)
     Qt6::Network # gui/offlinenetwork
     Exiv2::exiv2lib # photo metadata kept when a picture is edited
     KF6::KIOWidgets # “Open with…”: applications for a file, the “Other Application” dialog
@@ -142,6 +151,11 @@ set_target_properties(kwiklook_dolphinhook PROPERTIES
     PREFIX ""
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugins/kf6/overlayicon")
 install(TARGETS kwiklook_dolphinhook DESTINATION ${KDE_INSTALL_PLUGINDIR}/kf6/overlayicon)
+
+# Lists what's inside an archive, run in kwiklook-sandbox: see archive/main.cpp. No Qt.
+add_executable(kwiklook-archive archive/main.cpp)
+target_link_libraries(kwiklook-archive PRIVATE LibArchive::LibArchive)
+install(TARGETS kwiklook-archive DESTINATION ${KDE_INSTALL_LIBEXECDIR})
 
 # Runs converters (LibreOffice) locked down: see sandbox/main.cpp. No Qt.
 add_executable(kwiklook-sandbox sandbox/main.cpp)

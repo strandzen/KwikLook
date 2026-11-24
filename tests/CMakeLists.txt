@@ -26,6 +26,22 @@ ecm_add_test(tst_breezestyle.cpp
     NAME_PREFIX "kwiklook-"
 )
 
+# Archive listings: kwiklook-archive's output read back, and the helper on real archives.
+ecm_add_test(tst_archivelisting.cpp
+    TEST_NAME tst_archivelisting
+    LINK_LIBRARIES Qt6::Test kwiklook_core
+    NAME_PREFIX "kwiklook-"
+)
+target_compile_definitions(tst_archivelisting PRIVATE ARCHIVE_HELPER="$<TARGET_FILE:kwiklook-archive>")
+add_dependencies(tst_archivelisting kwiklook-archive)
+
+# Headings of Markdown and HTML for the contents sidebar.
+ecm_add_test(tst_headings.cpp
+    TEST_NAME tst_headings
+    LINK_LIBRARIES Qt6::Test kwiklook_core
+    NAME_PREFIX "kwiklook-"
+)
+
 # File details (type, size, date) and which view previews a file.
 ecm_add_test(tst_fileinfo.cpp
     TEST_NAME tst_fileinfo

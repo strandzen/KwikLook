@@ -7,8 +7,8 @@ import QtQuick
 // What can be put in the preview's bar (TitleBar.qml), by the names kept in the
 // settings (BarLeft, BarRight): icon and name for the bar and the settings window.
 // "Spacer" stretches and can be used more than once. "ViewMode" (formatted / source)
-// shows only for files that can show both ways (Viewer.formattedKind), "Pages" only
-// for PDFs with more than one page, "IndexSheet" only with several files, "CropRotate" only for still pictures.
+// shows only for files that can show both ways (Viewer.formattedKind), "Pages" (the sidebar)
+// only for files with one (PDFs with several pages or contents, Markdown and HTML with headings), "IndexSheet" only with several files, "CropRotate" only for still pictures.
 QtObject {
     readonly property var buttons: ["Previous", "Next", "IndexSheet", "Pages", "ViewMode", "CropRotate", "Information", "Share", "OpenWith", "Open", "ShowInDolphin", "CopyPath", "Close"]
 
@@ -37,7 +37,7 @@ QtObject {
         case "Previous": return i18nc("@action:button", "Previous File");
         case "Next": return i18nc("@action:button", "Next File");
         case "IndexSheet": return i18nc("@action:button all files as a grid", "Index Sheet");
-        case "Pages": return i18nc("@action:button sidebar with small pages of a PDF", "Page Overview");
+        case "Pages": return i18nc("@action:button sidebar with small pages or the headings of a document", "Sidebar");
         case "CropRotate": return i18nc("@action:button edit a picture", "Crop and Rotate");
         case "ViewMode": return i18nc("@action:button show a file formatted (e.g. Markdown), not as source", "Formatted View");
         case "Information": return i18nc("@action:button", "Information");

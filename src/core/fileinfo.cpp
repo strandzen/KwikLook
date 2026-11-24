@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
 #include "fileinfo.h"
 
+#include "archivelisting.h"
+
 #include <KCalendarCore/ICalFormat>
 #include <KCalendarCore/MemoryCalendar>
 #include <KConfigGroup>
@@ -418,6 +420,9 @@ QString viewFor(const FileInfo &info, bool formatted)
     }
     if (!info.fontData.isEmpty()) {
         return u"FontView"_s; // Viewer turns it into the fallback if Qt can't load the font
+    }
+    if (ArchiveListing::isArchive(info.mimeType)) {
+        return u"ArchiveView"_s;
     }
     // After text: playlists (audio/x-mpegurl) are text files and read best as such.
     if (info.mimeType.startsWith(u"video/"_s) || info.mimeType.startsWith(u"audio/"_s)) {

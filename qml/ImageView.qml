@@ -129,6 +129,8 @@ Item {
             objectName: "animatedImage"
             anchors.fill: parent
             source: Viewer.imageSize.width > 0 && Viewer.imageAnimated ? Viewer.currentUrl : ""
+            // The view stays loaded while the preview is hidden: don't animate then.
+            paused: !(view.Window.window && view.Window.window.visible)
             cache: false
             smooth: true
             mipmap: true

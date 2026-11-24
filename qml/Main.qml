@@ -160,7 +160,7 @@ Kirigami.ApplicationWindow {
                 visible: !root.fullScreen
                 window: root
                 menus: fileMenus
-                pdfPages: viewLoader.item && viewLoader.item.pageCount !== undefined ? viewLoader.item.pageCount : 0
+                sidebarAvailable: viewLoader.item !== null && viewLoader.item.sidebarAvailable === true
             }
 
             RowLayout {

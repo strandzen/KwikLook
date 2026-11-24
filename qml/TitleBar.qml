@@ -15,8 +15,8 @@ QQC2.ToolBar {
 
     required property Kirigami.ApplicationWindow window
     required property FileMenus menus
-    // Pages of the PDF shown (for the page overview button); 0 for other files.
-    property int pdfPages: 0
+    // The view has a sidebar (PDF pages, contents): the sidebar button shows.
+    property bool sidebarAvailable: false
 
     component BarButton: QQC2.ToolButton {
         display: QQC2.AbstractButton.IconOnly
@@ -52,7 +52,7 @@ QQC2.ToolBar {
         required property string modelData
         Layout.fillWidth: modelData === "Spacer"
         visible: modelData === "ViewMode" ? Viewer.formattedKind !== ""
-            : modelData === "Pages" ? bar.pdfPages > 1
+            : modelData === "Pages" ? bar.sidebarAvailable
             : modelData === "IndexSheet" ? Viewer.count > 1
             : modelData === "CropRotate" ? Viewer.imageEditable
             : true

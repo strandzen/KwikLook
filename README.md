@@ -19,7 +19,8 @@ This is version 0.3.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my
 - Text and code files show with syntax colours and line numbers; long files show their beginning. Find with Ctrl+F, also in PDFs.
 - Markdown, HTML, JSON, SVG and .desktop files show formatted, and one button in the bar switches to their source. Nothing is ever loaded from the internet.
 - CSV and TSV files show as a table; contacts (.vcf) and calendar files (.ics) as cards.
-- PDFs show all their pages, fitted to the window, with a page overview on the side.
+- PDFs show all their pages, fitted to the window, with a sidebar of small pages and their contents (bookmarks); the section you're reading is marked. Markdown and HTML files list their headings there too.
+- Archives (zip, 7z, tar, RAR, ISO and more) show what's inside as folders you can open, with sizes and dates, without unpacking anything. Password-protected ones are marked.
 - Office documents (Word, Excel, PowerPoint and OpenDocument files) show like PDFs, when LibreOffice is installed.
 - Videos and audio play, with the usual controls, volume, repeat and full screen; audio shows its cover, title and artist. With ffmpeg installed, videos can be trimmed and turned; the result is saved as a new file next to the original.
 - Fonts show their alphabet and a sample in the font itself, at a size you choose, or your own text; “Install Font” installs one for you.
@@ -37,7 +38,8 @@ This is version 0.3.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my
 - KDE Frameworks 6.19 or newer, including Kirigami, KIO, Purpose, KFileMetaData, KSyntaxHighlighting, KContacts and KCalendarCore.
 - exiv2, to keep photo details when a picture is cropped or turned.
 - Kirigami Addons 1.0 or newer.
-- libseccomp, and a recent Linux kernel for the sandbox around office previews and video editing (Landlock with its newer rules for local sockets). If the kernel is too old, office documents just show their details and a note says why, and videos can't be edited.
+- libarchive, to list what's inside archives.
+- libseccomp, and a recent Linux kernel for the sandbox around office previews, archive listings and video editing (Landlock with its newer rules for local sockets). If the kernel is too old, office documents just show their details and a note says why, and videos can't be edited.
 - Optional: LibreOffice, for previews of office documents.
 - Optional: ffmpeg, for trimming and turning videos.
 
@@ -71,10 +73,10 @@ Arch:
 ```sh
 sudo pacman -S --needed cmake extra-cmake-modules qt6-base qt6-declarative qt6-webengine qt6-multimedia qt6-multimedia-ffmpeg \
     kconfig kcoreaddons ki18n kwindowsystem kio kservice purpose kfilemetadata \
-    kirigami kirigami-addons syntax-highlighting kcontacts kcalendarcore exiv2 libseccomp
+    kirigami kirigami-addons syntax-highlighting kcontacts kcalendarcore exiv2 libarchive libseccomp
 ```
 
-Other distributions: the development packages of CMake, Extra CMake Modules, Qt 6 (Base, Declarative, PDF, Multimedia) and the KDE Frameworks 6 listed above (Config, CoreAddons, I18n, WindowSystem, KIO, Service, Purpose, FileMetaData, Kirigami, SyntaxHighlighting, Contacts, CalendarCore), plus Kirigami Addons, exiv2 and libseccomp. Package names differ between distributions.
+Other distributions: the development packages of CMake, Extra CMake Modules, Qt 6 (Base, Declarative, PDF, Multimedia) and the KDE Frameworks 6 listed above (Config, CoreAddons, I18n, WindowSystem, KIO, Service, Purpose, FileMetaData, Kirigami, SyntaxHighlighting, Contacts, CalendarCore), plus Kirigami Addons, exiv2, libarchive and libseccomp. Package names differ between distributions.
 
 </details>
 

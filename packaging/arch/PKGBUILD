@@ -24,6 +24,7 @@ depends=(
   'kirigami-addons'
   'kservice'
   'kwindowsystem'
+  'libarchive'  # kwiklook-archive: what's inside archives
   'purpose'
   'qt6-base'
   'qt6-declarative'

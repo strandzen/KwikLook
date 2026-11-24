@@ -85,6 +85,7 @@ Viewer::Viewer(QObject *parent)
     : QObject(parent)
     , m_infoOpen(stateGroup().readEntry("InfoPanelOpen", false))
     , m_pagesOpen(stateGroup().readEntry("PageSidebarOpen", false))
+    , m_sidebarTab(stateGroup().readEntry("SidebarTab", u"contents"_s))
     , m_mediaVolume(std::clamp(stateGroup().readEntry("MediaVolume", 1.0), 0.0, 1.0))
     , m_office(new OfficeConverter(this))
     , m_table(new TableModel(this))
@@ -588,6 +589,23 @@ void Viewer::setPagesOpen(bool open)
     group.writeEntry("PageSidebarOpen", open);
     group.sync();
     Q_EMIT pagesOpenChanged();
+}
+
+QString Viewer::sidebarTab() const
+{
+    return m_sidebarTab;
+}
+
+void Viewer::setSidebarTab(const QString &tab)
+{
+    if (tab == m_sidebarTab) {
+        return;
+    }
+    m_sidebarTab = tab;
+    KConfigGroup group = stateGroup();
+    group.writeEntry("SidebarTab", tab);
+    group.sync();
+    Q_EMIT sidebarTabChanged();
 }
 
 bool Viewer::fileExists() const

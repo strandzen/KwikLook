@@ -16,6 +16,8 @@ import kwiklook
 // in the browser), JSON indented; or as source: the bar's view toggle switches, and
 // each kind remembers its choice.
 // Ctrl+F finds text (FindBar below); the matches on screen are marked.
+// Markdown and HTML with headings: the sidebar (bar button) lists them, the current
+// one marked, a click goes there; in the source view too.
 ColumnLayout {
     id: view
     objectName: "textView"
@@ -100,6 +102,41 @@ ColumnLayout {
         }
     }
 
+    // The headings: [{title, level, position}] (positions in the text shown).
+    property var contents: []
+    readonly property bool sidebarAvailable: contents.length > 0
+    onRenderedChanged: Qt.callLater(updateContents) // same text, other format: other positions
+    function updateContents() {
+        const kind = Viewer.formattedKind;
+        contents = kind === "markdown" || kind === "html" ? Contents.fromText(area.textDocument, kind, view.rendered, Viewer.text) : [];
+    }
+    // Where each heading is in the laid-out text.
+    readonly property var contentsY: {
+        area.contentHeight; // laid out again (zoom, width)
+        area.width;
+        // Clamped: right after rendered / source switches, the old list meets the new text.
+        return contents.map(entry => area.positionToRectangle(Math.min(entry.position, area.length)).y);
+    }
+    // The last heading at or above the top of the view (at the end: the last one on
+    // screen, as the last headings can't scroll up to the top); the first one until
+    // a heading has scrolled past.
+    readonly property int currentContentsEntry: {
+        const flick = scroll.contentItem;
+        const top = flick.atYEnd ? flick.contentY + flick.height - Kirigami.Units.gridUnit
+            : flick.contentY + Kirigami.Units.gridUnit; // a heading just scrolled to counts
+        let found = contentsY.length > 0 ? 0 : -1;
+        for (let i = 0; i < contentsY.length && contentsY[i] <= top; ++i) {
+            found = i;
+        }
+        return found;
+    }
+    function showContentsEntry(index) {
+        const flick = scroll.contentItem;
+        // The cursor along: the text area scrolls back to keep its cursor in sight.
+        area.cursorPosition = Math.min(contents[index].position, area.length);
+        flick.contentY = Math.max(0, Math.min(flick.contentHeight - flick.height, contentsY[index] - Kirigami.Units.largeSpacing));
+    }
+
     function setZoom(z) {
         // Stay at the same place in the text while it reflows.
         const flick = scroll.contentItem;
@@ -120,174 +157,223 @@ ColumnLayout {
         text: Viewer.textNote
     }
 
-    QQC2.ScrollView {
-        id: scroll
+    RowLayout {
         Layout.fillWidth: true
         Layout.fillHeight: true
-        // Never scroll sideways: long lines wrap.
-        QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
+        spacing: 0
 
-        QQC2.TextArea {
-            id: area
-            objectName: "textArea"
-
-            readonly property real gutterWidth: view.rendered ? 0 : numberMetrics.advanceWidth(String(Math.max(numbers.count, 10))) + Kirigami.Units.largeSpacing * 2
-            // Rendered Markdown: a column of readable width, centred.
-            readonly property real sideMargin: view.rendered
-                ? Math.max(Kirigami.Units.gridUnit, (scroll.width - Kirigami.Units.gridUnit * 40 * Viewer.textZoom) / 2) : 0
-            readonly property font baseFont: view.rendered ? Kirigami.Theme.defaultFont : Kirigami.Theme.fixedWidthFont
-
-            readOnly: true
-            selectByMouse: true
-            textFormat: view.kind === "markdown" ? TextEdit.MarkdownText : view.kind === "html" ? TextEdit.RichText : TextEdit.PlainText
-            wrapMode: TextEdit.Wrap
-            font.family: baseFont.family
-            font.pointSize: baseFont.pointSize * Viewer.textZoom
-            text: view.kind === "json" && Viewer.formattedText !== "" ? Viewer.formattedText : Viewer.text
-            onTextChanged: Qt.callLater(view.runSearch) // a new file, or rendered / source
-            baseUrl: Viewer.currentUrl // pictures next to the file
-            leftPadding: view.rendered ? sideMargin : gutterWidth + Kirigami.Units.largeSpacing
-            rightPadding: view.rendered ? sideMargin : Kirigami.Units.largeSpacing
-            topPadding: Kirigami.Units.largeSpacing
-            bottomPadding: Kirigami.Units.largeSpacing
-            // Web and mail links only: a link to a local program must not start it.
-            onLinkActivated: link => {
-                const scheme = link.split(":")[0].toLowerCase();
-                if (scheme === "http" || scheme === "https" || scheme === "mailto") {
-                    Qt.openUrlExternally(link);
+        // The headings.
+        Item {
+            id: sidebar
+            objectName: "textContents"
+            Layout.fillHeight: true
+            Layout.preferredWidth: Viewer.pagesOpen && view.sidebarAvailable ? Kirigami.Units.gridUnit * 12 : 0
+            visible: Layout.preferredWidth > 0
+            clip: true
+            Behavior on Layout.preferredWidth {
+                NumberAnimation {
+                    duration: Kirigami.Units.longDuration
+                    easing.type: Easing.InOutQuad
                 }
             }
-            background: Rectangle {
+            Kirigami.Theme.colorSet: Kirigami.Theme.Window
+            Kirigami.Theme.inherit: false
+
+            Rectangle {
+                anchors.fill: parent
                 color: Kirigami.Theme.backgroundColor
-
-                // The gutter: a slightly different shade, like Kate's.
-                Rectangle {
-                    visible: !view.rendered
-                    width: area.gutterWidth
-                    height: parent.height
-                    color: Kirigami.Theme.alternateBackgroundColor
-                }
             }
-
-            HoverHandler {
-                enabled: view.rendered
-                cursorShape: area.hoveredLink !== "" ? Qt.PointingHandCursor : Qt.IBeamCursor
-            }
-
-            // Source only: removing it takes its colours off rendered Markdown.
             Loader {
-                active: !view.rendered
-                sourceComponent: highlighterComponent
-            }
-            Component {
-                id: highlighterComponent
-
-                SyntaxHighlighter {
-                    objectName: "highlighter"
-                    textEdit: area
-                    // By name first (Kate's choice for e.g. CMakeLists.txt), then by the type
-                    // read from the content (scripts without an extension). "None": not known.
-                    definition: {
-                        const byName = Repository.definitionForFileName(Viewer.fileName);
-                        return byName.name !== "None" ? byName : Repository.definitionForMimeType(Viewer.mimeType);
-                    }
-                    theme: Repository.defaultTheme(Kirigami.ColorUtils.brightnessForColor(Kirigami.Theme.backgroundColor) === Kirigami.ColorUtils.Dark
-                        ? Repository.DarkTheme : Repository.LightTheme)
+                // Full width while sliding, so the titles don't reflow.
+                width: Kirigami.Units.gridUnit * 12
+                height: parent.height
+                active: sidebar.visible
+                sourceComponent: ContentsList {
+                    entries: view.contents
+                    currentIndex: view.currentContentsEntry
+                    onActivated: index => view.showContentsEntry(index)
                 }
             }
-
-            // On the text itself: the scroll view would take the wheel first.
-            WheelHandler {
-                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad // Wayland types the mouse as a touchpad
-                acceptedModifiers: Qt.ControlModifier
-                onWheel: event => view.zoomBy(Math.pow(1.1, event.angleDelta.y / 120))
+            Kirigami.Separator {
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
             }
+        }
 
-            FontMetrics {
-                id: numberMetrics
-                font: area.font
-            }
+        QQC2.ScrollView {
+            id: scroll
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            // Never scroll sideways: long lines wrap.
+            QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
 
-            // The matches on screen, marked under the text (all of them could be thousands).
-            Repeater {
-                id: matchMarks
+            QQC2.TextArea {
+                id: area
+                objectName: "textArea"
 
-                model: {
-                    const all = view.matches;
-                    if (all.length === 0) {
-                        return [];
+                readonly property real gutterWidth: view.rendered ? 0 : numberMetrics.advanceWidth(String(Math.max(numbers.count, 10))) + Kirigami.Units.largeSpacing * 2
+                // Rendered Markdown: a column of readable width, centred.
+                readonly property real sideMargin: view.rendered
+                    ? Math.max(Kirigami.Units.gridUnit, (scroll.width - Kirigami.Units.gridUnit * 40 * Viewer.textZoom) / 2) : 0
+                readonly property font baseFont: view.rendered ? Kirigami.Theme.defaultFont : Kirigami.Theme.fixedWidthFont
+
+                readOnly: true
+                selectByMouse: true
+                textFormat: view.kind === "markdown" ? TextEdit.MarkdownText : view.kind === "html" ? TextEdit.RichText : TextEdit.PlainText
+                wrapMode: TextEdit.Wrap
+                font.family: baseFont.family
+                font.pointSize: baseFont.pointSize * Viewer.textZoom
+                text: view.kind === "json" && Viewer.formattedText !== "" ? Viewer.formattedText : Viewer.text
+                onTextChanged: {
+                    Qt.callLater(view.runSearch); // a new file, or rendered / source
+                    Qt.callLater(view.updateContents);
+                }
+                    baseUrl: Viewer.currentUrl // pictures next to the file
+                leftPadding: view.rendered ? sideMargin : gutterWidth + Kirigami.Units.largeSpacing
+                rightPadding: view.rendered ? sideMargin : Kirigami.Units.largeSpacing
+                topPadding: Kirigami.Units.largeSpacing
+                bottomPadding: Kirigami.Units.largeSpacing
+                // Web and mail links only: a link to a local program must not start it.
+                onLinkActivated: link => {
+                    const scheme = link.split(":")[0].toLowerCase();
+                    if (scheme === "http" || scheme === "https" || scheme === "mailto") {
+                        Qt.openUrlExternally(link);
                     }
-                    const flick = scroll.contentItem;
-                    area.contentHeight; // laid out again (zoom, width): positions change
-                    const first = area.positionAt(0, flick.contentY) - Viewer.searchText.length;
-                    const last = area.positionAt(area.width, flick.contentY + scroll.height);
-                    let lo = 0;
-                    let hi = all.length;
-                    while (lo < hi) {
-                        const mid = (lo + hi) >> 1;
-                        if (all[mid] < first) {
-                            lo = mid + 1;
-                        } else {
-                            hi = mid;
+                }
+                background: Rectangle {
+                    color: Kirigami.Theme.backgroundColor
+
+                    // The gutter: a slightly different shade, like Kate's.
+                    Rectangle {
+                        visible: !view.rendered
+                        width: area.gutterWidth
+                        height: parent.height
+                        color: Kirigami.Theme.alternateBackgroundColor
+                    }
+                }
+
+                HoverHandler {
+                    enabled: view.rendered
+                    cursorShape: area.hoveredLink !== "" ? Qt.PointingHandCursor : Qt.IBeamCursor
+                }
+
+                // Source only: removing it takes its colours off rendered Markdown.
+                Loader {
+                    active: !view.rendered
+                    sourceComponent: highlighterComponent
+                }
+                Component {
+                    id: highlighterComponent
+
+                    SyntaxHighlighter {
+                        objectName: "highlighter"
+                        textEdit: area
+                        // By name first (Kate's choice for e.g. CMakeLists.txt), then by the type
+                        // read from the content (scripts without an extension). "None": not known.
+                        definition: {
+                            const byName = Repository.definitionForFileName(Viewer.fileName);
+                            return byName.name !== "None" ? byName : Repository.definitionForMimeType(Viewer.mimeType);
                         }
+                        theme: Repository.defaultTheme(Kirigami.ColorUtils.brightnessForColor(Kirigami.Theme.backgroundColor) === Kirigami.ColorUtils.Dark
+                            ? Repository.DarkTheme : Repository.LightTheme)
                     }
-                    const shown = [];
-                    for (let i = lo; i < all.length && all[i] <= last && shown.length < 500; ++i) {
-                        shown.push(i);
-                    }
-                    return shown;
                 }
 
-                Rectangle {
-                    required property int modelData // index in view.matches
-                    readonly property int start: view.matches[modelData]
-                    readonly property rect from: { area.contentHeight; return area.positionToRectangle(start); }
-                    readonly property rect to: { area.contentHeight; return area.positionToRectangle(start + Viewer.searchText.length); }
-
-                    objectName: "matchMark"
-                    z: -1 // under the text
-                    x: from.x
-                    y: from.y
-                    // A match wrapped onto the next line: marked to the end of its first line.
-                    width: to.y === from.y ? to.x - from.x : area.width - area.rightPadding - from.x
-                    height: from.height
-                    radius: Kirigami.Units.cornerRadius / 2
-                    color: Qt.alpha(Kirigami.Theme.highlightColor, modelData === view.currentMatch ? 0.6 : 0.25)
+                // On the text itself: the scroll view would take the wheel first.
+                WheelHandler {
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad // Wayland types the mouse as a touchpad
+                    acceptedModifiers: Qt.ControlModifier
+                    onWheel: event => view.zoomBy(Math.pow(1.1, event.angleDelta.y / 120))
                 }
-            }
 
-            LineNumbers {
-                id: numbers
-                document: area.textDocument
-                top: scroll.contentItem.contentY - area.topPadding
-                height: scroll.height
-            }
-
-            // Enough labels for a screenful of one-row lines, kept while scrolling: only
-            // their numbers and positions change.
-            Repeater {
-                id: numberLabels
-
-                readonly property var lines: numbers.lines // one conversion per update, not one per label
-
-                model: Math.ceil(Screen.height / numberMetrics.lineSpacing) + 2
-
-                QQC2.Label {
-                    objectName: "lineNumber"
-                    required property int index
-                    readonly property var line: numberLabels.lines[index]
-
-                    visible: line !== undefined && !view.rendered
-                    x: 0
-                    y: line ? area.topPadding + line.y : 0
-                    width: area.gutterWidth - Kirigami.Units.largeSpacing
-                    horizontalAlignment: Text.AlignRight
+                FontMetrics {
+                    id: numberMetrics
                     font: area.font
-                    color: Kirigami.Theme.disabledTextColor
-                    text: line ? line.number : ""
+                }
+
+                // The matches on screen, marked under the text (all of them could be thousands).
+                Repeater {
+                    id: matchMarks
+
+                    model: {
+                        const all = view.matches;
+                        if (all.length === 0) {
+                            return [];
+                        }
+                        const flick = scroll.contentItem;
+                        area.contentHeight; // laid out again (zoom, width): positions change
+                        const first = area.positionAt(0, flick.contentY) - Viewer.searchText.length;
+                        const last = area.positionAt(area.width, flick.contentY + scroll.height);
+                        let lo = 0;
+                        let hi = all.length;
+                        while (lo < hi) {
+                            const mid = (lo + hi) >> 1;
+                            if (all[mid] < first) {
+                                lo = mid + 1;
+                            } else {
+                                hi = mid;
+                            }
+                        }
+                        const shown = [];
+                        for (let i = lo; i < all.length && all[i] <= last && shown.length < 500; ++i) {
+                            shown.push(i);
+                        }
+                        return shown;
+                    }
+
+                    Rectangle {
+                        required property int modelData // index in view.matches
+                        readonly property int start: view.matches[modelData]
+                        readonly property rect from: { area.contentHeight; return area.positionToRectangle(start); }
+                        readonly property rect to: { area.contentHeight; return area.positionToRectangle(start + Viewer.searchText.length); }
+
+                        objectName: "matchMark"
+                        z: -1 // under the text
+                        x: from.x
+                        y: from.y
+                        // A match wrapped onto the next line: marked to the end of its first line.
+                        width: to.y === from.y ? to.x - from.x : area.width - area.rightPadding - from.x
+                        height: from.height
+                        radius: Kirigami.Units.cornerRadius / 2
+                        color: Qt.alpha(Kirigami.Theme.highlightColor, modelData === view.currentMatch ? 0.6 : 0.25)
+                    }
+                }
+
+                LineNumbers {
+                    id: numbers
+                    document: area.textDocument
+                    top: scroll.contentItem.contentY - area.topPadding
+                    height: scroll.height
+                }
+
+                // Enough labels for a screenful of one-row lines, kept while scrolling: only
+                // their numbers and positions change.
+                Repeater {
+                    id: numberLabels
+
+                    readonly property var lines: numbers.lines // one conversion per update, not one per label
+
+                    model: Math.ceil(Screen.height / numberMetrics.lineSpacing) + 2
+
+                    QQC2.Label {
+                        objectName: "lineNumber"
+                        required property int index
+                        readonly property var line: numberLabels.lines[index]
+
+                        visible: line !== undefined && !view.rendered
+                        x: 0
+                        y: line ? area.topPadding + line.y : 0
+                        width: area.gutterWidth - Kirigami.Units.largeSpacing
+                        horizontalAlignment: Text.AlignRight
+                        font: area.font
+                        color: Kirigami.Theme.disabledTextColor
+                        text: line ? line.number : ""
+                    }
                 }
             }
         }
+
     }
 
     FindBar {

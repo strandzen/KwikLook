@@ -58,8 +58,11 @@ class Viewer : public QObject
     Q_PROPERTY(QVariantList infoSections READ infoSections NOTIFY fileInfoChanged)
     // The information panel is open; remembered across previews and restarts.
     Q_PROPERTY(bool infoOpen READ infoOpen WRITE setInfoOpen NOTIFY infoOpenChanged)
-    // The PDF view's page sidebar is open; remembered across previews and restarts.
+    // The sidebar (PDF pages, contents of PDFs, Markdown and HTML) is open, and its tab
+    // ("pages" or "contents"; a view shows the other when it hasn't that one); both
+    // remembered across previews and restarts.
     Q_PROPERTY(bool pagesOpen READ pagesOpen WRITE setPagesOpen NOTIFY pagesOpenChanged)
+    Q_PROPERTY(QString sidebarTab READ sidebarTab WRITE setSidebarTab NOTIFY sidebarTabChanged)
     // The index sheet (all files as a grid, to pick one) is shown; until the preview closes.
     Q_PROPERTY(bool indexOpen MEMBER m_indexOpen NOTIFY indexOpenChanged)
     // A still picture on this computer that can be cropped and turned (not animated,
@@ -155,6 +158,8 @@ public:
     Q_INVOKABLE void replaceCurrent(const QUrl &url);
     bool pagesOpen() const;
     void setPagesOpen(bool open);
+    QString sidebarTab() const;
+    void setSidebarTab(const QString &tab);
     qreal mediaVolume() const;
     void setMediaVolume(qreal volume);
     QString fontFamily() const;
@@ -191,6 +196,7 @@ Q_SIGNALS:
     void fileInfoChanged();
     void infoOpenChanged();
     void pagesOpenChanged();
+    void sidebarTabChanged();
     void indexOpenChanged();
     void pictureEditingChanged();
     void textZoomChanged();
@@ -224,6 +230,7 @@ private:
     QString m_view; // kept while the next file's details load, so the view doesn't flicker
     bool m_infoOpen = false;
     bool m_pagesOpen = false;
+    QString m_sidebarTab;
     bool m_indexOpen = false;
     bool m_pictureEditing = false;
     qreal m_textZoom = 1;

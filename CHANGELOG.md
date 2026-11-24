@@ -4,6 +4,15 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Added
+
+- Contents in the sidebar: a PDF's bookmarks (also the headings of Word and Writer documents), and the headings of Markdown and HTML files, in the formatted and the source view. The section you're reading is marked; a click goes there. PDFs with both show “Pages” and “Contents” tabs, and the sidebar remembers the last one.
+- Archives (zip, 7z, tar, RAR, ISO, comic books and more) show what's inside: folders that open and close, sizes, dates and a summary line, with a lock for password-protected ones. Nothing is unpacked; the archive is read by a helper shut away from your other files. Very large archives show their first 10,000 entries.
+
+### Fixed
+
+- The background viewer no longer uses the processor after the preview closes: an animated picture stops playing, and a PDF stops waking it ten times a second.
+
 ## [0.3.0] - 2026-11-23
 
 Find, formatted views, fonts, tables and cards, an index sheet, a customisable bar, and cropping pictures and trimming videos.

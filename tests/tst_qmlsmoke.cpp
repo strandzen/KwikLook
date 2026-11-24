@@ -87,6 +87,54 @@ struct MainWindow {
 };
 
 // Items a Repeater or Loader made aren't QObject children of the window: walk the items.
+// A three-page PDF with bookmarks (QPdfWriter writes none): “Chapter 1” (page 1, top)
+// with “Section 1.1” (page 1, 400 points down), “Chapter 2” (page 3, top).
+static void writeBookmarkedPdf(const QString &path)
+{
+    const QList<QByteArray> objects{
+        "<< /Type /Catalog /Pages 2 0 R /Outlines 6 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
+        "<< /Type /Outlines /First 7 0 R /Last 9 0 R /Count 3 >>",
+        "<< /Title (Chapter 1) /Parent 6 0 R /Next 9 0 R /First 8 0 R /Last 8 0 R /Count 1 /Dest [3 0 R /XYZ 0 792 0] >>",
+        "<< /Title (Section 1.1) /Parent 7 0 R /Dest [3 0 R /XYZ 0 392 0] >>",
+        "<< /Title (Chapter 2) /Parent 6 0 R /Prev 7 0 R /Dest [5 0 R /XYZ 0 792 0] >>",
+    };
+    QByteArray data = "%PDF-1.4\n";
+    QList<qsizetype> offsets;
+    for (qsizetype i = 0; i < objects.size(); ++i) {
+        offsets << data.size();
+        data += QByteArray::number(i + 1) + " 0 obj\n" + objects.at(i) + "\nendobj\n";
+    }
+    const qsizetype xref = data.size();
+    data += "xref\n0 " + QByteArray::number(objects.size() + 1) + "\n0000000000 65535 f \n";
+    for (const qsizetype offset : offsets) {
+        data += QByteArray::number(offset).rightJustified(10, '0') + " 00000 n \n";
+    }
+    data += "trailer\n<< /Size " + QByteArray::number(objects.size() + 1) + " /Root 1 0 R >>\nstartxref\n" + QByteArray::number(xref) + "\n%%EOF\n";
+    QFile file(path);
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(data);
+    }
+}
+
+// Items below `root` with this object name, Repeater and ListView rows included.
+static QList<QQuickItem *> itemsNamed(QQuickItem *root, const QString &name)
+{
+    QList<QQuickItem *> found;
+    QList<QQuickItem *> todo{root};
+    while (!todo.isEmpty()) {
+        QQuickItem *item = todo.takeFirst();
+        if (item->objectName() == name && item->isVisible()) {
+            found << item;
+        }
+        todo << item->childItems();
+    }
+    return found;
+}
+
 static QQuickItem *findItem(QQuickWindow *window, const QString &name)
 {
     QList<QQuickItem *> todo{window->contentItem()};
@@ -173,12 +221,20 @@ private Q_SLOTS:
         QVERIFY(gif.open(QIODevice::WriteOnly));
         gif.write(TwoFrameGif);
         gif.close();
-        Viewer::instance()->Open({gif.fileName()}, 0, QString(), QString());
+        Viewer *v = Viewer::instance();
+        v->setWindow(main.window());
+        v->Open({gif.fileName()}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(main.window()));
         QQuickItem *animated = nullptr;
         QTRY_VERIFY((animated = root->findChild<QQuickItem *>(u"animatedImage"_s)));
         QTRY_COMPARE(animated->property("frameCount").toInt(), 2);
         QVERIFY(animated->property("playing").toBool());
+        QVERIFY(!animated->property("paused").toBool());
         QVERIFY(animated->width() > 0);
+        // The view stays loaded after closing: it must not keep animating unseen.
+        v->Close();
+        QTRY_VERIFY(animated->property("paused").toBool());
+        v->setWindow(nullptr);
         QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 
@@ -507,15 +563,24 @@ private Q_SLOTS:
         QTRY_VERIFY((pdfView = window->findChild<QQuickItem *>(u"pdfView"_s)));
         QTRY_VERIFY((count = pdfView->findChild<QQuickItem *>(u"findCount"_s)));
         QTRY_COMPARE(count->property("text").toString(), u"1 of 3"_s);
+        // The search model exists only while the find bar is open (it wakes the viewer).
+        const auto searchModel = [pdfView] {
+            QObject *found = nullptr;
+            for (QObject *o : pdfView->findChildren<QObject *>()) {
+                if (o->inherits("QPdfSearchModel")) {
+                    found = o;
+                }
+            }
+            return found;
+        };
+        v->setProperty("searchOpen", false);
+        QTRY_VERIFY(!searchModel());
+        v->setProperty("searchOpen", true);
+        QTRY_COMPARE(count->property("text").toString(), u"1 of 3"_s);
         QMetaObject::invokeMethod(pdfView, "findNext");
         QMetaObject::invokeMethod(pdfView, "findNext");
         QCOMPARE(count->property("text").toString(), u"3 of 3"_s);
-        QObject *search = nullptr;
-        for (QObject *o : pdfView->findChildren<QObject *>()) {
-            if (o->inherits("QPdfSearchModel")) {
-                search = o;
-            }
-        }
+        QObject *search = searchModel();
         QVERIFY(search);
         QCOMPARE(search->property("currentPage").toInt(), 2);
         QMetaObject::invokeMethod(pdfView, "findNext"); // round to the first
@@ -717,6 +782,182 @@ private Q_SLOTS:
         v->Close();
         v->setWindow(nullptr);
         v->setPagesOpen(wasOpen);
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+    }
+
+    void contentsSidebar()
+    {
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        QTemporaryDir dir;
+        const QString pdf = dir.filePath(u"book.pdf"_s);
+        writeBookmarkedPdf(pdf);
+        QFile md(dir.filePath(u"notes.md"_s));
+        QVERIFY(md.open(QIODevice::WriteOnly));
+        QByteArray text = "# One\n\nintro\n\n```\n# not a heading\n```\n\nTwo\n---\n";
+        for (int i = 0; i < 200; ++i) {
+            text += "Filler line " + QByteArray::number(i) + "\n\n";
+        }
+        text += "### Three *last*\n\nend\n";
+        md.write(text);
+        md.close();
+        const QString single = dir.filePath(u"one.pdf"_s);
+        {
+            QPdfWriter writer(single);
+            QPainter painter(&writer);
+            painter.drawText(QPointF(100, 100), u"Only page"_s);
+        }
+        Viewer *v = Viewer::instance();
+        const bool wasOpen = v->pagesOpen();
+        const QString wasTab = v->sidebarTab();
+        v->setPagesOpen(false);
+        v->setSidebarTab(u"contents"_s);
+        v->setWindow(window);
+        v->Open({pdf, md.fileName(), single}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+
+        // The PDF's bookmarks, flattened.
+        QQuickItem *pdfView = nullptr;
+        QTRY_VERIFY((pdfView = window->findChild<QQuickItem *>(u"pdfView"_s)));
+        QTRY_COMPARE(pdfView->property("contents").toList().size(), 3);
+        const QVariantList entries = pdfView->property("contents").toList();
+        QCOMPARE(entries.at(0).toMap().value(u"title"_s).toString(), u"Chapter 1"_s);
+        QCOMPARE(entries.at(1).toMap().value(u"title"_s).toString(), u"Section 1.1"_s);
+        QCOMPARE(entries.at(1).toMap().value(u"level"_s).toInt(), 2);
+        QCOMPARE(entries.at(1).toMap().value(u"page"_s).toInt(), 0);
+        QCOMPARE(entries.at(1).toMap().value(u"y"_s).toReal(), 400.0); // from the page's top
+        QCOMPARE(entries.at(2).toMap().value(u"page"_s).toInt(), 2);
+        // The bar's button opens the sidebar on Contents (chosen before), with tabs.
+        QQuickItem *button = findItem(window, u"barPages"_s);
+        QVERIFY(button && button->isVisible());
+        QMetaObject::invokeMethod(button, "clicked");
+        QQuickItem *sidebar = window->findChild<QQuickItem *>(u"pageOverview"_s);
+        QTRY_VERIFY(sidebar->isVisible() && sidebar->width() > 0);
+        QVERIFY(window->findChild<QQuickItem *>(u"sidebarTabs"_s)->isVisible());
+        QTRY_COMPARE(itemsNamed(sidebar, u"contentsEntry"_s).size(), 3);
+        // The current entry follows the view; going to an entry scrolls there.
+        QTRY_COMPARE(pdfView->property("currentContentsEntry").toInt(), 0);
+        QMetaObject::invokeMethod(pdfView, "showDestination", Q_ARG(QVariant, 0), Q_ARG(QVariant, 400.0));
+        QTRY_COMPARE(pdfView->property("currentContentsEntry").toInt(), 1);
+        QQuickItem *chapter2 = itemsNamed(sidebar, u"contentsEntry"_s).at(2);
+        QMetaObject::invokeMethod(chapter2, "clicked");
+        QTRY_COMPARE(pdfView->property("currentContentsEntry").toInt(), 2);
+        QTRY_COMPARE(pdfView->property("currentPage").toInt(), 2);
+        // The Pages tab shows the small pages, and is remembered.
+        QMetaObject::invokeMethod(window->findChild<QQuickItem *>(u"pagesTab"_s), "clicked");
+        QCOMPARE(v->sidebarTab(), u"pages"_s);
+        QTRY_COMPARE(itemsNamed(sidebar, u"pageThumbnail"_s).size(), 3);
+        QTRY_COMPARE(itemsNamed(sidebar, u"contentsEntry"_s).size(), 0);
+
+        // Markdown: its headings in the sidebar (no tabs), rendered and as source.
+        v->Next();
+        QQuickItem *textView = nullptr;
+        QTRY_VERIFY((textView = window->findChild<QQuickItem *>(u"textView"_s)));
+        QTRY_COMPARE(textView->property("contents").toList().size(), 3);
+        QStringList titles;
+        for (const QVariant &e : textView->property("contents").toList()) {
+            titles << e.toMap().value(u"title"_s).toString();
+        }
+        QCOMPARE(titles, (QStringList{u"One"_s, u"Two"_s, u"Three last"_s}));
+        QQuickItem *textSidebar = window->findChild<QQuickItem *>(u"textContents"_s);
+        QTRY_VERIFY(textSidebar->isVisible() && textSidebar->width() > 0);
+        QTRY_COMPARE(itemsNamed(textSidebar, u"contentsEntry"_s).size(), 3);
+        QCOMPARE(textView->property("currentContentsEntry").toInt(), 0);
+        QMetaObject::invokeMethod(itemsNamed(textSidebar, u"contentsEntry"_s).at(2), "clicked");
+        QTRY_COMPARE(textView->property("currentContentsEntry").toInt(), 2);
+        // Source: the same headings, at their lines.
+        v->setShowFormatted(false);
+        QQuickItem *area = window->findChild<QQuickItem *>(u"textArea"_s);
+        QTRY_COMPARE(area->property("textFormat").toInt(), int(Qt::PlainText));
+        const auto sourceAt = [textView](int i) {
+            return textView->property("contents").toList().value(i).toMap();
+        };
+        QTRY_COMPARE(sourceAt(1).value(u"position"_s).toInt(), int(QByteArray(text).indexOf("Two\n---")));
+        const QVariantList source = textView->property("contents").toList();
+        QCOMPARE(source.size(), 3);
+        QCOMPARE(source.at(0).toMap().value(u"title"_s).toString(), u"One"_s);
+        QCOMPARE(source.at(2).toMap().value(u"position"_s).toInt(), int(QByteArray(text).indexOf("### Three")));
+        QMetaObject::invokeMethod(textView, "showContentsEntry", Q_ARG(QVariant, 2));
+        QTRY_COMPARE(textView->property("currentContentsEntry").toInt(), 2);
+        QMetaObject::invokeMethod(textView, "showContentsEntry", Q_ARG(QVariant, 0));
+        QTRY_COMPARE(textView->property("currentContentsEntry").toInt(), 0);
+        v->setShowFormatted(true);
+
+        // One page, no bookmarks: no button, no sidebar.
+        v->Next();
+        QTRY_VERIFY((pdfView = window->findChild<QQuickItem *>(u"pdfView"_s)));
+        QTRY_COMPARE(pdfView->property("pageCount").toInt(), 1);
+        QTRY_VERIFY(!button->isVisible());
+        QTRY_VERIFY(!window->findChild<QQuickItem *>(u"pageOverview"_s)->isVisible());
+        QVERIFY(v->finishRendering());
+        v->Close();
+        v->setWindow(nullptr);
+        v->setPagesOpen(wasOpen);
+        v->setSidebarTab(wasTab);
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+    }
+
+    void listsAnArchive()
+    {
+        const QString bsdtar = QStandardPaths::findExecutable(u"bsdtar"_s);
+        if (bsdtar.isEmpty()) {
+            QSKIP("bsdtar is needed to make the test archive");
+        }
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        QTemporaryDir dir;
+        QDir().mkpath(dir.filePath(u"tree/project/src"_s));
+        for (const auto &[name, data] : {std::pair{u"project/readme.md"_s, QByteArray("# Project\n")}, std::pair{u"project/src/main.cpp"_s, QByteArray(2048, ' ')}}) {
+            QFile f(dir.filePath(u"tree/"_s + name));
+            QVERIFY(f.open(QIODevice::WriteOnly));
+            f.write(data);
+        }
+        QProcess pack;
+        pack.setWorkingDirectory(dir.filePath(u"tree"_s));
+        pack.start(bsdtar, {u"--format"_s, u"zip"_s, u"-cf"_s, dir.filePath(u"project.zip"_s), u"project"_s});
+        QVERIFY(pack.waitForFinished(10000) && pack.exitCode() == 0);
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open({dir.filePath(u"project.zip"_s)}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QQuickItem *view = nullptr;
+        QTRY_VERIFY((view = window->findChild<QQuickItem *>(u"archiveView"_s)));
+        QObject *model = view->findChild<QObject *>(u"archiveModel"_s);
+        QVERIFY(model);
+        QTRY_COMPARE_WITH_TIMEOUT(model->property("status").toString(), u"ready"_s, 10000);
+        // 2 files, 2 folders (project, src), sizes; nothing locked.
+        QQuickItem *summary = window->findChild<QQuickItem *>(u"archiveSummary"_s);
+        QVERIFY(summary->property("text").toString().contains(u"2 files, 2 folders"_s));
+        QVERIFY(!model->property("encrypted").toBool());
+        // The one top folder opens by itself: its contents show, folders first.
+        QQuickItem *tree = window->findChild<QQuickItem *>(u"archiveTree"_s);
+        QTRY_COMPARE(tree->property("rows").toInt(), 3); // project, src, readme.md
+        QStringList shown;
+        QTRY_VERIFY([&] {
+            shown.clear();
+            for (QQuickItem *entry : itemsNamed(tree, u"archiveEntry"_s)) {
+                if (entry->property("column").toInt() != 0) {
+                    continue;
+                }
+                // KDE's delegate draws the model's display text in a label of its own.
+                QList<QQuickItem *> todo{entry};
+                while (!todo.isEmpty()) {
+                    QQuickItem *item = todo.takeFirst();
+                    if (item->inherits("QQuickText") && !item->property("text").toString().isEmpty()) {
+                        shown << item->property("text").toString();
+                        break;
+                    }
+                    todo << item->childItems();
+                }
+            }
+            return shown.size() == 3;
+        }());
+        QVERIFY2(shown.contains(u"readme.md"_s) && shown.contains(u"src"_s), qPrintable(shown.join(u", "_s)));
+        QVERIFY(window->findChild<QQuickItem *>(u"archiveMessage"_s)->property("text").toString().isEmpty());
+        v->Close();
+        v->setWindow(nullptr);
         QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 

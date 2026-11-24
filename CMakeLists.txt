@@ -33,6 +33,7 @@ find_package(Qt6 ${QT_MIN_VERSION} REQUIRED COMPONENTS
     Qml
     DBus
     Concurrent
+    Pdf         # the contents (bookmarks) of PDFs
     Network     # the QML engine's network access, turned off (gui/offlinenetwork)
     Multimedia  # QML only (video and audio); checked here so a missing one shows at build time
 )
@@ -51,6 +52,7 @@ find_package(KF6 ${KF_MIN_VERSION} REQUIRED COMPONENTS
 )
 find_package(KF6Kirigami ${KF_MIN_VERSION} REQUIRED)
 find_package(exiv2 REQUIRED CONFIG) # photo metadata when pictures are edited
+find_package(LibArchive 3.6 REQUIRED) # kwiklook-archive: what's inside an archive
 # kwiklook-sandbox: refuses sockets in the programs it runs (Landlock comes with the kernel headers).
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SECCOMP REQUIRED IMPORTED_TARGET libseccomp)

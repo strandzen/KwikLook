@@ -14,8 +14,9 @@ import kwiklook
 // which always scrolls sideways and puts pages off-centre (its rows are wider than
 // the view). A PDF that can't be opened (damaged, password-protected) shows the
 // fallback view. Ctrl+F finds text (FindBar below); matches are marked on the pages.
-// The page overview (bar button, PDFs with several pages) shows small pages on the
-// left: the current one marked, a click goes there.
+// The sidebar (bar button) on the left: “Pages”, small pages (PDFs with several), and
+// “Contents”, the PDF's bookmarks (also office documents' headings); the current one
+// marked, a click goes there. Tabs when both are there.
 Item {
     id: view
     objectName: "pdfView"
@@ -35,6 +36,51 @@ Item {
 
     function showPage(index) {
         pages.positionViewAtIndex(index, ListView.Beginning);
+    }
+
+    // The bookmarks, flattened: [{title, level, page, y}] (y in points from the page's top).
+    readonly property var contents: bookmarks.entries
+    readonly property bool sidebarAvailable: pageCount > 1 || contents.length > 0
+    // The tab shown: the one chosen last, if this PDF has it.
+    readonly property string sidebarTab: contents.length > 0 && (Viewer.sidebarTab === "contents" || pageCount <= 1) ? "contents" : "pages"
+    // The last bookmark at or above the top of the view (at the end: the last one on
+    // screen, as the last ones can't scroll up to the top); the first one until a
+    // bookmark has scrolled past.
+    readonly property int currentContentsEntry: {
+        pages.contentY; // follows scrolling
+        pages.contentHeight; // and zooming
+        if (contents.length === 0 || pages.count === 0) {
+            return -1;
+        }
+        const top = pages.atYEnd ? pages.contentY + pages.height - Kirigami.Units.gridUnit
+            : pages.contentY + Kirigami.Units.gridUnit; // a heading just scrolled to counts
+        let page = pages.indexAt(pages.contentX + pages.width / 2, top);
+        if (page < 0) {
+            page = pages.indexAt(pages.contentX + pages.width / 2, top + pages.spacing); // between pages
+        }
+        const row = page >= 0 ? pages.itemAtIndex(page) : null;
+        if (!row || row.pointSize.width <= 0) {
+            return 0;
+        }
+        const y = (top - row.y) / (pages.pageWidth / row.pointSize.width); // in points
+        let found = 0;
+        for (let i = 0; i < contents.length; ++i) {
+            const entry = contents[i];
+            if (entry.page < page || (entry.page === page && entry.y <= y)) {
+                found = i;
+            }
+        }
+        return found;
+    }
+    // Scrolls `page` to the top, with the spot `y` points down it near the top edge.
+    function showDestination(page, y) {
+        pages.positionViewAtIndex(page, ListView.Beginning);
+        const points = pdf.pagePointSize(page);
+        if (y > 0 && points.width > 0) {
+            const scale = pages.pageWidth / points.width;
+            pages.contentY = Math.max(pages.originY, Math.min(pages.originY + pages.contentHeight - pages.height,
+                pages.contentY + y * scale - Kirigami.Units.largeSpacing));
+        }
     }
     // As a share of the page's real size (first page, at 96 dpi), as Okular shows it.
     readonly property real zoomPercent: {
@@ -75,12 +121,12 @@ Item {
         findBar.focusField();
     }
     function findNext() {
-        if (search.matchCount > 0) {
+        if (search && search.matchCount > 0) {
             showResult((search.currentResult + 1) % search.matchCount);
         }
     }
     function findPrevious() {
-        if (search.matchCount > 0) {
+        if (search && search.matchCount > 0) {
             showResult((search.currentResult - 1 + search.matchCount) % search.matchCount);
         }
     }
@@ -108,29 +154,37 @@ Item {
     PdfDocument {
         id: pdf // not “document”: PdfPageImage.document would bind to itself
     }
+    PdfContents {
+        id: bookmarks
+    }
     // Finds page by page in the background; the first match shows as soon as it's found.
     // QML doesn't get the model's count and status properties (newer than its QML
     // registration): the count comes from the model's rows.
-    PdfSearchModel {
-        id: search
+    // Made only while the find bar is open: an idle search model still wakes the viewer
+    // ten times a second (measured 2026-11-23), also while the preview is hidden.
+    readonly property PdfSearchModel search: searchLoader.item
+    Loader {
+        id: searchLoader
+        active: Viewer.searchOpen
+        sourceComponent: PdfSearchModel {
+            property int matchCount: 0
+            property bool showFirst: true
 
-        property int matchCount: 0
-        property bool showFirst: true
-
-        function updateCount() {
-            matchCount = rowCount();
-            if (matchCount > 0 && showFirst) {
-                showFirst = false;
-                view.showResult(0);
+            function updateCount() {
+                matchCount = rowCount();
+                if (matchCount > 0 && showFirst) {
+                    showFirst = false;
+                    view.showResult(0);
+                }
             }
-        }
 
-        document: pdf
-        searchString: Viewer.searchOpen ? Viewer.searchText : ""
-        onSearchStringChanged: showFirst = true
-        onRowsInserted: updateCount()
-        onRowsRemoved: updateCount()
-        onModelReset: updateCount()
+            document: pdf
+            searchString: Viewer.searchText
+            onSearchStringChanged: showFirst = true
+            onRowsInserted: updateCount()
+            onRowsRemoved: updateCount()
+            onModelReset: updateCount()
+        }
     }
     // The PDF itself, or an office document converted to one; only once the file's
     // details say so (not the previous file's type). Kept, not cleared, when the next
@@ -142,7 +196,8 @@ Item {
             // Thumbnails of the old PDF go first: a kept one would show the old page.
             thumbnailsLoader.active = false;
             pdf.source = Viewer.pdfUrl;
-            thumbnailsLoader.active = Qt.binding(() => sidebar.visible);
+            bookmarks.source = Viewer.pdfUrl;
+            thumbnailsLoader.active = Qt.binding(() => sidebar.visible && view.sidebarTab === "pages");
         }
     }
     Component.onCompleted: updateSource()
@@ -153,14 +208,17 @@ Item {
         }
     }
 
-    // The page overview.
+    // The sidebar: page overview or contents.
     Item {
         id: sidebar
         objectName: "pageOverview"
+
+        readonly property real fullWidth: Kirigami.Units.gridUnit * (view.sidebarTab === "contents" ? 12 : 8)
+
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.bottom: scroll.bottom
-        width: Viewer.pagesOpen && view.pageCount > 1 ? Kirigami.Units.gridUnit * 8 : 0
+        width: Viewer.pagesOpen && view.sidebarAvailable ? fullWidth : 0
         visible: width > 0
         clip: true
         Behavior on width {
@@ -177,14 +235,45 @@ Item {
             color: Kirigami.Theme.backgroundColor
         }
 
+        QQC2.TabBar {
+            id: tabs
+            objectName: "sidebarTabs"
+            width: sidebar.fullWidth
+            visible: view.pageCount > 1 && view.contents.length > 0
+            currentIndex: view.sidebarTab === "contents" ? 1 : 0
+
+            QQC2.TabButton {
+                objectName: "pagesTab"
+                text: i18nc("@title:tab small pages of a PDF", "Pages")
+                onClicked: Viewer.sidebarTab = "pages"
+            }
+            QQC2.TabButton {
+                objectName: "contentsTab"
+                text: i18nc("@title:tab headings of a document", "Contents")
+                onClicked: Viewer.sidebarTab = "contents"
+            }
+        }
+
         // Only while shown: no rendering for a closed overview.
         Loader {
             id: thumbnailsLoader
             // Full width while sliding, so the pages don't resize.
-            width: Kirigami.Units.gridUnit * 8
-            height: parent.height
-            active: sidebar.visible
+            width: sidebar.fullWidth
+            anchors.top: tabs.visible ? tabs.bottom : parent.top
+            anchors.bottom: parent.bottom
+            active: sidebar.visible && view.sidebarTab === "pages"
             sourceComponent: thumbnailsComponent
+        }
+        Loader {
+            width: sidebar.fullWidth
+            anchors.top: tabs.visible ? tabs.bottom : parent.top
+            anchors.bottom: parent.bottom
+            active: sidebar.visible && view.sidebarTab === "contents"
+            sourceComponent: ContentsList {
+                entries: view.contents
+                currentIndex: view.currentContentsEntry
+                onActivated: index => view.showDestination(view.contents[index].page, view.contents[index].y)
+            }
         }
         Component {
             id: thumbnailsComponent
@@ -328,7 +417,7 @@ Item {
                     // Matches on this page (in page points), the current one stronger.
                     Shape {
                         anchors.fill: parent
-                        visible: search.matchCount > 0
+                        visible: view.search !== null && view.search.matchCount > 0
 
                         ShapePath {
                             strokeWidth: -1
@@ -338,7 +427,7 @@ Item {
                                 id: pageMatches
                                 objectName: "pdfMatches"
                                 function update() {
-                                    paths = search.boundingPolygonsOnPage(row.index);
+                                    paths = view.search ? view.search.boundingPolygonsOnPage(row.index) : [];
                                 }
                                 Component.onCompleted: update()
                             }
@@ -348,13 +437,13 @@ Item {
                             fillColor: Qt.alpha(Kirigami.Theme.highlightColor, 0.5)
                             scale: Qt.size(page.width / row.pointSize.width, page.width / row.pointSize.width)
                             PathMultiline {
-                                paths: search.currentPage === row.index ? search.currentResultBoundingPolygons : []
+                                paths: view.search && view.search.currentPage === row.index ? view.search.currentResultBoundingPolygons : []
                             }
                         }
                     }
                     // As Qt's PDF views do: when the matches change, every page asks again.
                     Connections {
-                        target: search
+                        target: view.search
                         function onCurrentPageBoundingPolygonsChanged() {
                             pageMatches.update();
                         }
@@ -372,8 +461,8 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        count: search.matchCount
-        current: search.currentResult
+        count: view.search ? view.search.matchCount : 0
+        current: view.search ? view.search.currentResult : -1
         onNext: view.findNext()
         onPrevious: view.findPrevious()
     }
