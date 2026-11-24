@@ -4,6 +4,10 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-24
+
+Contents in the sidebar, archives listed, and a quieter background viewer.
+
 ### Added
 
 - Contents in the sidebar: a PDF's bookmarks (also the headings of Word and Writer documents), and the headings of Markdown and HTML files, in the formatted and the source view. The section you're reading is marked; a click goes there. PDFs with both show “Pages” and “Contents” tabs, and the sidebar remembers the last one.

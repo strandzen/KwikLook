@@ -18,6 +18,16 @@
   <launchable type="desktop-id">io.github.strandzen.KwikLook.desktop</launchable>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.4.0" date="2026-11-24">
+      <description>
+        <p>Contents in the sidebar, archives listed, and a quieter background viewer.</p>
+        <ul>
+          <li>PDFs, office documents, Markdown and HTML files list their headings in the sidebar; the section you're reading is marked and a click goes there.</li>
+          <li>Archives (zip, 7z, tar, RAR, ISO and more) show what's inside as folders, with sizes and dates, without unpacking anything.</li>
+          <li>The viewer no longer uses the processor in the background after an animated picture or a PDF.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.0" date="2026-11-23">
       <description>
         <p>Find in text and PDFs, formatted views, fonts, tables and cards, and small edits to pictures and videos.</p>
