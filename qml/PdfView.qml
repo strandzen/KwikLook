@@ -24,6 +24,9 @@ Item {
     // The user zoomed (for the zoom indicator).
     signal zoomed()
 
+    // Opened (Main fades from the previous file's view then).
+    readonly property bool ready: pdf.status === PdfDocument.Ready || pdf.status === PdfDocument.Error
+
     // Page width as a share of the fitted width.
     property real zoom: 1
     readonly property int pageCount: pdf.status === PdfDocument.Ready ? pdf.pageCount : 0
@@ -254,19 +257,28 @@ Item {
             }
         }
 
+        // One tab only: its name as the heading.
+        PanelHeading {
+            id: sidebarHeading
+            width: sidebar.fullWidth
+            height: tabs.implicitHeight
+            visible: !tabs.visible
+            text: view.sidebarTab === "contents" ? i18nc("@title headings of a document", "Contents") : i18nc("@title small pages of a PDF", "Pages")
+        }
+
         // Only while shown: no rendering for a closed overview.
         Loader {
             id: thumbnailsLoader
             // Full width while sliding, so the pages don't resize.
             width: sidebar.fullWidth
-            anchors.top: tabs.visible ? tabs.bottom : parent.top
+            anchors.top: tabs.visible ? tabs.bottom : sidebarHeading.bottom
             anchors.bottom: parent.bottom
             active: sidebar.visible && view.sidebarTab === "pages"
             sourceComponent: thumbnailsComponent
         }
         Loader {
             width: sidebar.fullWidth
-            anchors.top: tabs.visible ? tabs.bottom : parent.top
+            anchors.top: tabs.visible ? tabs.bottom : sidebarHeading.bottom
             anchors.bottom: parent.bottom
             active: sidebar.visible && view.sidebarTab === "contents"
             sourceComponent: ContentsList {
@@ -361,6 +373,7 @@ Item {
 
         ListView {
             id: pages
+            objectName: "pdfPages"
 
             readonly property real fittedWidth: Math.max(Kirigami.Units.gridUnit * 4, scroll.availableWidth - Kirigami.Units.gridUnit * 2)
             readonly property real pageWidth: fittedWidth * view.zoom
@@ -451,6 +464,35 @@ Item {
                             pageMatches.update();
                         }
                     }
+                }
+            }
+        }
+    }
+
+    // “3 / 12” while scrolling (not when a document opens).
+    FloatingLabel {
+        id: pageNumber
+        objectName: "pageNumber"
+        anchors.horizontalCenter: scroll.horizontalCenter
+        anchors.bottom: scroll.bottom
+        anchors.bottomMargin: Kirigami.Units.largeSpacing * 2
+        text: i18nc("@info page number while scrolling, e.g. 3 / 12", "%1 / %2", view.currentPage + 1, view.pageCount)
+
+        Timer {
+            id: openedTimer // a new document scrolls to its start by itself
+            interval: 500
+        }
+        Connections {
+            target: pdf
+            function onStatusChanged() {
+                openedTimer.restart();
+            }
+        }
+        Connections {
+            target: pages
+            function onContentYChanged() {
+                if (view.pageCount > 1 && !openedTimer.running) {
+                    pageNumber.flash();
                 }
             }
         }

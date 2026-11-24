@@ -10,7 +10,6 @@ url='https://github.com/strandzen/KwikLook'
 license=('GPL-3.0-or-later')
 depends=(
   'dolphin'
-  'exiv2'  # photo metadata kept when a picture is edited
   'gcc-libs'
   'glibc'
   'kcalendarcore'  # event cards (.ics)
@@ -36,7 +35,6 @@ depends=(
 )
 optdepends=(
   'libreoffice: previews of office documents'
-  'ffmpeg: trimming and rotating videos'
 )
 makedepends=('cmake' 'extra-cmake-modules')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")

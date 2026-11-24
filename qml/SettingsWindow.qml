@@ -32,8 +32,8 @@ Kirigami.ApplicationWindow {
         || officePreviews !== KwikLookSettings.officePreviews
         || autoplayMedia !== KwikLookSettings.autoplayMedia
         || startMuted !== KwikLookSettings.startMuted
-        || JSON.stringify(barEditor.leftItems) !== JSON.stringify(KwikLookSettings.barLeft)
-        || JSON.stringify(barEditor.rightItems) !== JSON.stringify(KwikLookSettings.barRight)
+        || JSON.stringify(barEditor.leftItems) !== JSON.stringify(KwikLookSettings.barLeft.filter(item => BarItems.known(item)))
+        || JSON.stringify(barEditor.rightItems) !== JSON.stringify(KwikLookSettings.barRight.filter(item => BarItems.known(item)))
 
     function reset() {
         matchBreeze = KwikLookSettings.matchBreezeCorners;
@@ -44,8 +44,8 @@ Kirigami.ApplicationWindow {
         officePreviews = KwikLookSettings.officePreviews;
         autoplayMedia = KwikLookSettings.autoplayMedia;
         startMuted = KwikLookSettings.startMuted;
-        barEditor.leftItems = KwikLookSettings.barLeft;
-        barEditor.rightItems = KwikLookSettings.barRight;
+        barEditor.leftItems = KwikLookSettings.barLeft.filter(item => BarItems.known(item)); // names of removed items dropped
+        barEditor.rightItems = KwikLookSettings.barRight.filter(item => BarItems.known(item));
         officeAvailable = Viewer.officePreviewsAvailable();
         errorMessage.visible = false;
     }

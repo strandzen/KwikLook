@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
 #include "headings.h"
+#include "textblocks.h"
+
+#include <QSignalSpy>
 
 #include <QTest>
 #include <QTextBlock>
@@ -126,6 +129,40 @@ private Q_SLOTS:
     {
         QVERIFY(Headings::fromSource(u"# x\n"_s, u"json"_s).isEmpty());
         QVERIFY(Headings::fromSource(QString(), u"markdown"_s).isEmpty());
+    }
+
+    // Code blocks (split where the language changes) and quotes (a run per level).
+    void findsCodeAndQuotes()
+    {
+        QTextDocument d;
+        d.setMarkdown(u"Text\n\n```cpp\na\nb\n```\n```py\nc\n```\n\n    ind\n\n> q\n>\n> > n\n\nafter\n"_s);
+        const QList<TextBlocks::Run> runs = TextBlocks::find(d);
+        QStringList got;
+        for (const auto &r : runs) {
+            got << u"%1 %2-%3 %4"_s.arg(r.kind == TextBlocks::Kind::Code ? u"code"_s : u"quote"_s, d.findBlock(r.start).text(), d.findBlock(r.end).text())
+                       .arg(r.level);
+        }
+        QCOMPARE(got, (QStringList{u"code a-b 0"_s, u"code c-c 0"_s, u"code ind-ind 0"_s, u"quote n-n 2"_s, u"quote q-n 1"_s}));
+        QCOMPARE(runs.first().end, d.findBlock(runs.first().end).position() + 1); // end of "b"
+
+        // HTML: <pre> and <blockquote>.
+        QTextDocument h;
+        h.setHtml(u"<p>x</p><pre>one\ntwo</pre><blockquote><p>q</p></blockquote>"_s);
+        QStringList html;
+        for (const auto &r : TextBlocks::find(h)) {
+            html << h.findBlock(r.start).text() + u'-' + h.findBlock(r.end).text();
+        }
+        QCOMPARE(html, (QStringList{u"one-two"_s, u"q-q"_s}));
+
+        // Padding once; a second pass changes nothing (it runs on every update).
+        TextBlocks::padCode(d, runs, 8);
+        QCOMPARE(d.findBlock(runs.first().start).blockFormat().topMargin(), 20.0);
+        QCOMPARE(d.findBlock(runs.first().start).blockFormat().leftMargin(), 8.0);
+        QCOMPARE(d.findBlock(runs.first().start).blockFormat().bottomMargin(), 0.0);
+        QCOMPARE(d.findBlock(runs.first().end).blockFormat().bottomMargin(), 20.0);
+        QSignalSpy changed(&d, &QTextDocument::contentsChanged);
+        TextBlocks::padCode(d, TextBlocks::find(d), 8);
+        QCOMPARE(changed.count(), 0);
     }
 };
 

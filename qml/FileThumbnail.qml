@@ -17,6 +17,10 @@ Item {
     // Shown when the type has no icon of its own.
     property string fallbackIcon: "unknown"
 
+    // The thumbnail shown (audio: the cover), for a blurred copy behind it.
+    readonly property bool hasThumbnail: thumbnail.visible
+    readonly property Item thumbnailItem: thumbnail
+
     implicitWidth: size
     implicitHeight: size
 

@@ -2,7 +2,7 @@
 
 KwikLook shows a quick preview of a file when you press Space in Dolphin, on KDE Plasma 6. Press Space or Esc again and it's gone; ← and → go through the folder.
 
-It keeps running in the background, so previews open at once. It shows pictures, text and code, Markdown and web pages, PDFs, office documents, videos and audio, fonts, tables, contacts and calendar events, and the details of any file, without starting a full application. Small edits work right in the preview: crop and turn a picture, trim and turn a video. The preview window fits in with Plasma: its corners, outline and shadow follow your Breeze window decoration settings, and its buttons, colours and fonts follow your application style and colour scheme.
+It keeps running in the background, so previews open at once. It shows pictures, text and code, Markdown and web pages, PDFs, office documents, videos and audio, fonts, tables, contacts and calendar events, and the details of any file, without starting a full application. The preview window fits in with Plasma: its corners, outline and shadow follow your Breeze window decoration settings, and its buttons, colours and fonts follow your application style and colour scheme.
 
 This is version 0.4.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my own machine (Arch Linux, Plasma 6 on Wayland, Dolphin 26.08), so other distributions and setups may need some work.
 
@@ -15,14 +15,13 @@ This is version 0.4.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my
 - Press Space in Dolphin to preview the selected file; ← and → go through the folder in Dolphin's order and Dolphin's selection follows along, and the bar shows where you are (“2 / 5”). With several files selected, the preview goes through just those. Enter opens the file in its usual application.
 - An index sheet shows all the files as thumbnails to pick one from (Ctrl+Enter).
 - Pictures fill the preview window; small ones stay at their real size. Animated GIFs and WebPs play.
-- Pictures can be cropped and turned, saved as a copy next to the original or in its place (the original goes to the Trash). Date taken, camera and other photo details are kept.
 - Text and code files show with syntax colours and line numbers; long files show their beginning. Find with Ctrl+F, also in PDFs.
 - Markdown, HTML, JSON, SVG and .desktop files show formatted, and one button in the bar switches to their source. Nothing is ever loaded from the internet.
 - CSV and TSV files show as a table; contacts (.vcf) and calendar files (.ics) as cards.
 - PDFs show all their pages, fitted to the window, with a sidebar of small pages and their contents (bookmarks); the section you're reading is marked. Markdown and HTML files list their headings there too.
 - Archives (zip, 7z, tar, RAR, ISO and more) show what's inside as folders you can open, with sizes and dates, without unpacking anything. Password-protected ones are marked.
 - Office documents (Word, Excel, PowerPoint and OpenDocument files) show like PDFs, when LibreOffice is installed.
-- Videos and audio play, with the usual controls, volume, repeat and full screen; audio shows its cover, title and artist. With ffmpeg installed, videos can be trimmed and turned; the result is saved as a new file next to the original.
+- Videos and audio play, with the usual controls, volume, repeat and full screen; audio shows its cover, title and artist.
 - Fonts show their alphabet and a sample in the font itself, at a size you choose, or your own text; “Install Font” installs one for you.
 - Zoom pictures, text and PDFs; pictures zoom towards the mouse pointer and can be dragged around.
 - Any other file shows a large thumbnail (as in Dolphin) or its type's icon, with its type, size and when it was changed.
@@ -36,12 +35,10 @@ This is version 0.4.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my
 - KDE Plasma 6 with Dolphin.
 - Qt 6.8 or newer, with Qt PDF (part of Qt WebEngine on Arch) and Qt Multimedia with its FFmpeg backend.
 - KDE Frameworks 6.19 or newer, including Kirigami, KIO, Purpose, KFileMetaData, KSyntaxHighlighting, KContacts and KCalendarCore.
-- exiv2, to keep photo details when a picture is cropped or turned.
 - Kirigami Addons 1.0 or newer.
 - libarchive, to list what's inside archives.
-- libseccomp, and a recent Linux kernel for the sandbox around office previews, archive listings and video editing (Landlock with its newer rules for local sockets). If the kernel is too old, office documents just show their details and a note says why, and videos can't be edited.
+- libseccomp, and a recent Linux kernel for the sandbox around office previews and archive listings (Landlock with its newer rules for local sockets). If the kernel is too old, office documents and archives just show their details and a note says why.
 - Optional: LibreOffice, for previews of office documents.
-- Optional: ffmpeg, for trimming and turning videos.
 
 ## Installation
 
@@ -73,10 +70,10 @@ Arch:
 ```sh
 sudo pacman -S --needed cmake extra-cmake-modules qt6-base qt6-declarative qt6-webengine qt6-multimedia qt6-multimedia-ffmpeg \
     kconfig kcoreaddons ki18n kwindowsystem kio kservice purpose kfilemetadata \
-    kirigami kirigami-addons syntax-highlighting kcontacts kcalendarcore exiv2 libarchive libseccomp
+    kirigami kirigami-addons syntax-highlighting kcontacts kcalendarcore libarchive libseccomp
 ```
 
-Other distributions: the development packages of CMake, Extra CMake Modules, Qt 6 (Base, Declarative, PDF, Multimedia) and the KDE Frameworks 6 listed above (Config, CoreAddons, I18n, WindowSystem, KIO, Service, Purpose, FileMetaData, Kirigami, SyntaxHighlighting, Contacts, CalendarCore), plus Kirigami Addons, exiv2, libarchive and libseccomp. Package names differ between distributions.
+Other distributions: the development packages of CMake, Extra CMake Modules, Qt 6 (Base, Declarative, PDF, Multimedia) and the KDE Frameworks 6 listed above (Config, CoreAddons, I18n, WindowSystem, KIO, Service, Purpose, FileMetaData, Kirigami, SyntaxHighlighting, Contacts, CalendarCore), plus Kirigami Addons, libarchive and libseccomp. Package names differ between distributions.
 
 </details>
 
@@ -87,7 +84,7 @@ After installing, close every Dolphin window (or log out and back in) so Dolphin
 - In Dolphin, select a file and press Space. The preview opens; Dolphin's selection follows it as you go through the folder.
 - Drag the preview's bar to move the window, drag an edge or corner to resize it.
 - (i) shows the file's details; “Open with…” opens the file in another application and closes the preview.
-- The crop button (pictures) and ✂ (videos, in the controls below) start editing; “Save Copy” writes a new file next to the original.
+- To edit a picture or a video, use “Open with…”: for pictures it offers Spectacle's editor.
 
 ### Keys
 
@@ -133,8 +130,8 @@ Open “KwikLook Settings” from the app launcher (or run `kwiklook --settings`
 A preview reads the file, so a file made to attack a bug in a picture, PDF or other file reader could do harm when you preview it. What KwikLook does about that:
 
 - **Not sandboxed:** pictures, PDFs, text and file details are read inside KwikLook itself, with the same rights as you; thumbnails come from KDE's thumbnail service, also unsandboxed. Dolphin already reads the same files the same way when it shows thumbnails or indexes files for search, whether you preview them or not. The protection here is keeping your system up to date.
-- **Sandboxed:** external programs KwikLook runs on a file are locked in a sandbox: no network, no connection to other programs, read access only to that one file (plus the system's programs and fonts), and they can only write to a scratch folder in KwikLook's cache. In `/tmp` they may only create and remove entries, because LibreOffice puts its own connection there. This applies to office documents, which LibreOffice turns into PDFs, to videos you trim or turn, which ffmpeg reads and writes, and anything similar added later. The PDF it makes is then shown like any PDF, unsandboxed.
-- **No sandbox, no conversion:** on systems whose kernel can't lock these programs in this way, office documents aren't converted (the preview says so) and videos can't be edited.
+- **Sandboxed:** external programs KwikLook runs on a file are locked in a sandbox: no network, no connection to other programs, read access only to that one file (plus the system's programs and fonts), and they can only write to a scratch folder in KwikLook's cache. In `/tmp` they may only create and remove entries, because LibreOffice puts its own connection there. This applies to office documents, which LibreOffice turns into PDFs, to archives, which a small helper lists, and anything similar added later. The PDF it makes is then shown like any PDF, unsandboxed.
+- **No sandbox, no conversion:** on systems whose kernel can't lock these programs in this way, office documents aren't converted and archives aren't listed (the preview says so).
 
 ## Troubleshooting
 

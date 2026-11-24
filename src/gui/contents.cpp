@@ -3,6 +3,7 @@
 #include "contents.h"
 
 #include "headings.h"
+#include "textblocks.h"
 
 #include <QAbstractItemModel>
 #include <QFutureWatcher>
@@ -116,6 +117,26 @@ QVariantList Contents::fromText(QQuickTextDocument *document, const QString &kin
     }
     for (const Headings::Heading &heading : std::as_const(headings)) {
         out.append(QVariantMap{{u"title"_s, heading.title}, {u"level"_s, heading.level}, {u"position"_s, heading.at}});
+    }
+    return out;
+}
+
+QVariantList Contents::blocks(QQuickTextDocument *document, qreal padding) const
+{
+    QVariantList out;
+    if (!document || !document->textDocument()) {
+        return out;
+    }
+    QTextDocument *doc = document->textDocument();
+    const QList<TextBlocks::Run> runs = TextBlocks::find(*doc);
+    TextBlocks::padCode(*doc, runs, padding);
+    for (const TextBlocks::Run &run : runs) {
+        out.append(QVariantMap{
+            {u"kind"_s, run.kind == TextBlocks::Kind::Code ? u"code"_s : u"quote"_s},
+            {u"start"_s, run.start},
+            {u"end"_s, run.end},
+            {u"level"_s, run.level},
+        });
     }
     return out;
 }

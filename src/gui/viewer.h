@@ -36,6 +36,11 @@ class Viewer : public QObject
     Q_PROPERTY(QString fileName READ fileName NOTIFY currentChanged)
     Q_PROPERTY(int currentIndex READ currentIndex NOTIFY currentChanged)
     Q_PROPERTY(int count READ count NOTIFY currentChanged)
+    // While the window is shown, the current file (address, name, number and details)
+    // stays until the next one's details are read, then all change in one step:
+    // `switching` meanwhile (a busy indicator after a moment), aboutToSwitch() one frame
+    // before (QML keeps a still picture of the old view to fade from).
+    Q_PROPERTY(bool switching READ switching NOTIFY switchingChanged)
     // About the current file, filled in shortly after it becomes current (read off the
     // main thread); empty until then.
     Q_PROPERTY(QString view READ view NOTIFY fileInfoChanged) // QML file that shows it
@@ -65,10 +70,6 @@ class Viewer : public QObject
     Q_PROPERTY(QString sidebarTab READ sidebarTab WRITE setSidebarTab NOTIFY sidebarTabChanged)
     // The index sheet (all files as a grid, to pick one) is shown; until the preview closes.
     Q_PROPERTY(bool indexOpen MEMBER m_indexOpen NOTIFY indexOpenChanged)
-    // A still picture on this computer that can be cropped and turned (not animated,
-    // not SVG); and whether that is happening (until the file changes or the preview closes).
-    Q_PROPERTY(bool imageEditable READ imageEditable NOTIFY fileInfoChanged)
-    Q_PROPERTY(bool pictureEditing MEMBER m_pictureEditing NOTIFY pictureEditingChanged)
     // Text font size factor (Ctrl+wheel in text): kept from file to file until the preview closes.
     Q_PROPERTY(qreal textZoom MEMBER m_textZoom NOTIFY textZoomChanged)
     // Video and audio volume, 0-1 as the slider shows it (perceived loudness); remembered.
@@ -130,6 +131,7 @@ public:
     QString fileName() const;
     int currentIndex() const;
     int count() const;
+    bool switching() const;
     bool isOpen() const;
     QString view() const;
     QString mimeType() const;
@@ -153,9 +155,6 @@ public:
     Q_INVOKABLE QVariantMap fileAt(int index) const;
     // Shows the file at `index` (the index sheet's choice).
     Q_INVOKABLE void showFile(int index);
-    bool imageEditable() const;
-    // The current file was replaced by an edited one (perhaps under a new name): read again.
-    Q_INVOKABLE void replaceCurrent(const QUrl &url);
     bool pagesOpen() const;
     void setPagesOpen(bool open);
     QString sidebarTab() const;
@@ -194,11 +193,12 @@ Q_SIGNALS:
     Q_SCRIPTABLE void Closed(const QString &sessionId);
     void currentChanged();
     void fileInfoChanged();
+    void switchingChanged();
+    void aboutToSwitch();
     void infoOpenChanged();
     void pagesOpenChanged();
     void sidebarTabChanged();
     void indexOpenChanged();
-    void pictureEditingChanged();
     void textZoomChanged();
     void mediaVolumeChanged();
     void mediaRepeatChanged();
@@ -215,6 +215,8 @@ private:
     void showWindow(const QString &activationToken);
     void markClosed();
     void readFileInfo(int generation);
+    // The file at m_index becomes the one shown, with these details.
+    void showCurrent(FileInfo info);
     void closeIfFocusLeft();
     void startOfficePreview();
     // Font files: adds the current font to the app's fonts (the previous one goes).
@@ -222,7 +224,9 @@ private:
     void unloadFont();
 
     QList<QUrl> m_urls;
-    int m_index = -1;
+    int m_index = -1; // the current file (Next / Previous go from here)
+    QUrl m_shownUrl; // the file shown, see `switching`
+    int m_shownIndex = -1;
     QString m_sessionId;
     bool m_open = false;
     QPointer<QWindow> m_window;
@@ -232,7 +236,6 @@ private:
     bool m_pagesOpen = false;
     QString m_sidebarTab;
     bool m_indexOpen = false;
-    bool m_pictureEditing = false;
     qreal m_textZoom = 1;
     qreal m_mediaVolume = 1;
     bool m_mediaRepeat = false;

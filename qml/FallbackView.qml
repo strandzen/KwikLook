@@ -47,10 +47,10 @@ Item {
             text: Viewer.details
         }
 
-        QQC2.BusyIndicator {
+        DelayedBusyIndicator {
+            id: busy
             Layout.alignment: Qt.AlignHCenter
-            running: Viewer.previewBusy
-            visible: running
+            busy: Viewer.previewBusy
         }
     }
 
@@ -62,7 +62,8 @@ Item {
         anchors.right: parent.right
         position: Kirigami.InlineMessage.Position.Header
         type: Viewer.previewBusy ? Kirigami.MessageType.Information : Kirigami.MessageType.Warning
-        visible: text !== ""
+        // “Preparing preview…” only when it takes a moment (a cached one is there at once).
+        visible: text !== "" && (!Viewer.previewBusy || busy.shown)
         text: Viewer.previewNote
     }
 }

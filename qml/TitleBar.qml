@@ -17,6 +17,8 @@ QQC2.ToolBar {
     required property FileMenus menus
     // The view has a sidebar (PDF pages, contents): the sidebar button shows.
     property bool sidebarAvailable: false
+    // The current document's pages, when the view knows them (PDF), for the name's tooltip.
+    property int pageCount: 0
 
     component BarButton: QQC2.ToolButton {
         display: QQC2.AbstractButton.IconOnly
@@ -54,7 +56,6 @@ QQC2.ToolBar {
         visible: modelData === "ViewMode" ? Viewer.formattedKind !== ""
             : modelData === "Pages" ? bar.sidebarAvailable
             : modelData === "IndexSheet" ? Viewer.count > 1
-            : modelData === "CropRotate" ? Viewer.imageEditable
             : true
         sourceComponent: modelData === "Spacer" ? spacer : button
 
@@ -68,12 +69,11 @@ QQC2.ToolBar {
                 objectName: "bar" + slot.modelData
                 icon.name: BarItems.iconName(slot.modelData)
                 text: BarItems.text(slot.modelData)
-                checkable: slot.modelData === "Information" || slot.modelData === "ViewMode" || slot.modelData === "Pages" || slot.modelData === "IndexSheet" || slot.modelData === "CropRotate"
+                checkable: slot.modelData === "Information" || slot.modelData === "ViewMode" || slot.modelData === "Pages" || slot.modelData === "IndexSheet"
                 checked: slot.modelData === "Information" ? Viewer.infoOpen
                     : slot.modelData === "ViewMode" ? Viewer.showFormatted
                     : slot.modelData === "Pages" ? Viewer.pagesOpen
                     : slot.modelData === "IndexSheet" ? Viewer.indexOpen
-                    : slot.modelData === "CropRotate" ? Viewer.pictureEditing
                     : false
                 enabled: slot.modelData === "Previous" ? Viewer.currentIndex > 0
                     : slot.modelData === "Next" ? Viewer.currentIndex + 1 < Viewer.count
@@ -91,7 +91,6 @@ QQC2.ToolBar {
         case "ViewMode": Viewer.showFormatted = !Viewer.showFormatted; break;
         case "Pages": Viewer.pagesOpen = !Viewer.pagesOpen; break;
         case "IndexSheet": Viewer.indexOpen = !Viewer.indexOpen; break;
-        case "CropRotate": Viewer.pictureEditing = !Viewer.pictureEditing; break;
         case "Share": bar.menus.showShare(button); break;
         case "OpenWith": bar.menus.showOpenWith(button); break;
         case "Open": bar.menus.openWithDefault(); break;
@@ -116,7 +115,7 @@ QQC2.ToolBar {
             spacing: parent.spacing
 
             Repeater {
-                model: KwikLookSettings.barLeft
+                model: KwikLookSettings.barLeft.filter(item => BarItems.known(item))
                 delegate: BarItem {}
             }
         }
@@ -131,7 +130,7 @@ QQC2.ToolBar {
             spacing: parent.spacing
 
             Repeater {
-                model: KwikLookSettings.barRight
+                model: KwikLookSettings.barRight.filter(item => BarItems.known(item))
                 delegate: BarItem {}
             }
         }
@@ -145,6 +144,25 @@ QQC2.ToolBar {
         width: Math.min(implicitWidth, parent.width - 2 * (Math.max(leftButtons.implicitWidth, rightButtons.implicitWidth) + Kirigami.Units.largeSpacing))
         spacing: Kirigami.Units.largeSpacing
 
+        // Name, type icon and details in a tooltip: the full name, type · size · date,
+        // picture size or pages.
+        HoverHandler {
+            id: nameHover
+        }
+        QQC2.ToolTip.visible: nameHover.hovered && Viewer.fileName !== ""
+        QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+        QQC2.ToolTip.text: [Viewer.fileName, Viewer.details,
+            Viewer.imageSize.width > 0 ? i18nc("@info picture size in pixels", "%1 × %2 pixels", Viewer.imageSize.width, Viewer.imageSize.height) : "",
+            bar.pageCount > 0 ? i18ncp("@info", "%1 page", "%1 pages", bar.pageCount) : ""].filter(line => line !== "").join("\n")
+
+        Kirigami.Icon {
+            objectName: "fileIcon"
+            Layout.preferredWidth: Kirigami.Units.iconSizes.small
+            Layout.preferredHeight: Kirigami.Units.iconSizes.small
+            source: Viewer.iconName
+            fallback: "unknown"
+            visible: Viewer.iconName !== ""
+        }
         Kirigami.Heading {
             Layout.fillWidth: true
             Layout.minimumWidth: 0

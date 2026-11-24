@@ -28,6 +28,11 @@ public:
     // (`rendered` false, the TextEdit shows `source` as plain text): the headings as
     // rendered, at their lines in the source.
     Q_INVOKABLE QVariantList fromText(QQuickTextDocument *document, const QString &kind, bool rendered, const QString &source) const;
+
+    // Also for TextView: the code blocks and quotes of a rendered document, [{kind
+    // ("code" / "quote"), start, end, level}], with code padded by `padding` (see
+    // TextBlocks::padCode()) for the shaded box drawn under it.
+    Q_INVOKABLE QVariantList blocks(QQuickTextDocument *document, qreal padding) const;
 };
 
 /*

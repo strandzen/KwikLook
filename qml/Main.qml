@@ -66,8 +66,6 @@ Kirigami.ApplicationWindow {
         onActivated: {
             if (root.fullScreen) {
                 root.showNormal();
-            } else if (Viewer.pictureEditing) {
-                Viewer.pictureEditing = false;
             } else if (Viewer.indexOpen) {
                 Viewer.indexOpen = false;
             } else if (Viewer.searchOpen && viewLoader.searchable) {
@@ -80,7 +78,7 @@ Kirigami.ApplicationWindow {
     // The index sheet: all files as a grid.
     Shortcut {
         sequences: ["Ctrl+Return", "Ctrl+Enter"]
-        enabled: Viewer.count > 1 && !Viewer.pictureEditing
+        enabled: Viewer.count > 1
         onActivated: Viewer.indexOpen = !Viewer.indexOpen
     }
     // Find, for the views that have it (text, PDF).
@@ -104,18 +102,18 @@ Kirigami.ApplicationWindow {
     }
     Shortcut {
         sequence: "Left"
-        enabled: !root.typing && !Viewer.indexOpen && !Viewer.pictureEditing // the index sheet moves itself; an edit stays on its picture
+        enabled: !root.typing && !Viewer.indexOpen // the index sheet moves itself
         onActivated: Viewer.Previous()
     }
     Shortcut {
         sequence: "Right"
-        enabled: !root.typing && !Viewer.indexOpen && !Viewer.pictureEditing
+        enabled: !root.typing && !Viewer.indexOpen
         onActivated: Viewer.Next()
     }
     // Enter: open the file in its usual application (the preview then closes).
     Shortcut {
         sequences: ["Return", "Enter"]
-        enabled: !root.typing && !Viewer.indexOpen && !Viewer.pictureEditing
+        enabled: !root.typing && !Viewer.indexOpen
         onActivated: fileMenus.openWithDefault()
     }
     // Zoom, for the views that have it (pictures, text, PDF).
@@ -161,6 +159,7 @@ Kirigami.ApplicationWindow {
                 window: root
                 menus: fileMenus
                 sidebarAvailable: viewLoader.item !== null && viewLoader.item.sidebarAvailable === true
+                pageCount: viewLoader.item !== null && viewLoader.item.pageCount !== undefined ? viewLoader.item.pageCount : 0
             }
 
             RowLayout {
@@ -178,19 +177,70 @@ Kirigami.ApplicationWindow {
                     Loader {
                         id: viewLoader
 
-                        readonly property bool zoomable: item !== null && typeof item.zoomBy === "function" && !Viewer.pictureEditing
+                        readonly property bool zoomable: item !== null && typeof item.zoomBy === "function"
                         readonly property bool searchable: item !== null && typeof item.findNext === "function"
 
                         anchors.fill: parent
                         source: Viewer.view ? Qt.resolvedUrl(Viewer.view + ".qml") : ""
                     }
 
-                    // Crop and rotate, over the picture, while editing.
-                    Loader {
+                    // The previous file's view, still, over the next one until that is ready
+                    // (at most 300 ms), then faded out: no blank or icon page in between.
+                    ShaderEffectSource {
+                        id: lastView
+                        objectName: "lastView"
                         anchors.fill: parent
-                        z: 2
-                        active: Viewer.pictureEditing && Viewer.imageEditable
-                        sourceComponent: PictureEditor {}
+                        live: false
+                        hideSource: false
+                        visible: opacity > 0
+                        opacity: 0
+
+                        NumberAnimation {
+                            id: lastViewFade
+                            target: lastView
+                            property: "opacity"
+                            to: 0
+                            duration: Kirigami.Units.shortDuration
+                            onFinished: lastView.sourceItem = null // frees the picture
+                        }
+                        Timer {
+                            id: lastViewWait
+                            interval: 16
+                            repeat: true
+                            property int ticks: 0
+                            onTriggered: {
+                                const item = viewLoader.item;
+                                const ready = viewLoader.status === Loader.Ready && item && item.ready !== false;
+                                if (ready || ++ticks >= 300 / interval) {
+                                    stop();
+                                    lastViewFade.start();
+                                }
+                            }
+                        }
+                        Connections {
+                            target: Viewer
+                            function onAboutToSwitch() {
+                                lastViewWait.stop();
+                                lastViewFade.stop();
+                                lastView.sourceItem = viewLoader;
+                                lastView.scheduleUpdate();
+                                lastView.opacity = 1;
+                            }
+                            function onCurrentChanged() {
+                                if (lastView.opacity > 0) {
+                                    lastViewWait.ticks = 0;
+                                    lastViewWait.restart();
+                                }
+                            }
+                        }
+                    }
+
+                    // Reading the next file takes a while (a remote folder): say so, after a moment.
+                    DelayedBusyIndicator {
+                        objectName: "switchingBusy"
+                        anchors.centerIn: parent
+                        z: 3
+                        busy: Viewer.switching
                     }
 
                     // The index sheet over the view, while open.
@@ -203,40 +253,20 @@ Kirigami.ApplicationWindow {
                     }
 
                     // The zoom level, shown briefly while zooming.
-                    Rectangle {
+                    FloatingLabel {
                         id: zoomIndicator
                         objectName: "zoomIndicator"
                         anchors.right: parent.right
                         anchors.bottom: parent.bottom
                         anchors.margins: Kirigami.Units.largeSpacing * 2
-                        width: zoomLabel.implicitWidth + Kirigami.Units.largeSpacing * 2
-                        height: zoomLabel.implicitHeight + Kirigami.Units.smallSpacing * 2
-                        radius: Kirigami.Units.cornerRadius
-                        color: Kirigami.Theme.backgroundColor
-                        opacity: 0
-                        visible: opacity > 0
-                        Behavior on opacity {
-                            NumberAnimation {
-                                duration: Kirigami.Units.longDuration
-                            }
-                        }
+                        z: 3
+                        text: viewLoader.zoomable ? i18nc("@info zoom level", "%1%", viewLoader.item.zoomPercent) : ""
 
-                        QQC2.Label {
-                            id: zoomLabel
-                            anchors.centerIn: parent
-                            text: viewLoader.zoomable ? i18nc("@info zoom level", "%1%", viewLoader.item.zoomPercent) : ""
-                        }
-                        Timer {
-                            id: zoomIndicatorTimer
-                            interval: 1000
-                            onTriggered: zoomIndicator.opacity = 0
-                        }
                         Connections {
                             target: viewLoader.item
                             ignoreUnknownSignals: true
                             function onZoomed() {
-                                zoomIndicator.opacity = 1;
-                                zoomIndicatorTimer.restart();
+                                zoomIndicator.flash();
                             }
                         }
                     }

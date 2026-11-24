@@ -212,7 +212,7 @@ void Viewer::closeIfFocusLeft()
 
 QUrl Viewer::currentUrl() const
 {
-    return m_urls.value(m_index);
+    return m_shownUrl;
 }
 
 QString Viewer::fileName() const
@@ -222,7 +222,12 @@ QString Viewer::fileName() const
 
 int Viewer::currentIndex() const
 {
-    return m_index;
+    return m_shownIndex;
+}
+
+bool Viewer::switching() const
+{
+    return m_index != m_shownIndex || m_urls.value(m_index) != m_shownUrl;
 }
 
 int Viewer::count() const
@@ -557,23 +562,6 @@ void Viewer::showFile(int index)
     }
 }
 
-bool Viewer::imageEditable() const
-{
-    return m_view == u"ImageView"_s && m_info.exists && currentUrl().isLocalFile() && !m_info.animated && m_info.imageSize.isValid()
-        && m_info.formattedKind.isEmpty(); // SVG: a drawing, not pixels
-}
-
-void Viewer::replaceCurrent(const QUrl &url)
-{
-    if (m_index < 0 || m_index >= m_urls.size()) {
-        return;
-    }
-    m_urls[m_index] = url;
-    const int index = m_index;
-    m_index = -1; // read again even when the name is the same
-    setCurrent(index);
-}
-
 bool Viewer::pagesOpen() const
 {
     return m_pagesOpen;
@@ -699,21 +687,15 @@ void Viewer::setCurrent(int index)
         return;
     }
     m_index = index;
-    if (m_pictureEditing) {
-        m_pictureEditing = false; // an edit belongs to its picture
-        Q_EMIT pictureEditingChanged();
-    }
-    // The previous file's details go first: QML must never see the new URL with
-    // the old type (it asked the JPEG thumbnailer for a PNG that way).
     const int generation = ++m_generation;
-    m_info = FileInfo();
-    m_office->cancel();
-    m_convertedPdf.clear();
-    m_previewNote.clear();
-    m_previewBusy = false;
-    Q_EMIT fileInfoChanged();
-    Q_EMIT currentChanged();
-    Q_EMIT CurrentChanged(m_sessionId, currentUrl().toString(), m_index);
+    Q_EMIT CurrentChanged(m_sessionId, m_urls.value(m_index).toString(), m_index); // Dolphin follows at once
+    if (!m_window || !m_window->isVisible()) {
+        // Nothing on screen to keep: the previous file's details go first. QML must
+        // never see the new URL with the old type (it asked the JPEG thumbnailer for a
+        // PNG that way).
+        showCurrent(FileInfo());
+    }
+    Q_EMIT switchingChanged();
     readFileInfo(generation);
 }
 
@@ -725,16 +707,57 @@ void Viewer::readFileInfo(int generation)
         if (generation != m_generation) {
             return; // another file became current meanwhile
         }
-        m_info = watcher->result();
+        FileInfo info = watcher->result();
+        auto *window = qobject_cast<QQuickWindow *>(m_window.data());
+        if (!window || !window->isVisible()) {
+            showCurrent(std::move(info));
+            return;
+        }
+        // QML takes its picture of the old view in the next frame; the switch follows
+        // that frame (or a moment later: a covered window may get no frames).
+        Q_EMIT aboutToSwitch();
+        auto shown = std::make_shared<bool>(false);
+        auto apply = [this, generation, shown, info = std::move(info)]() mutable {
+            if (!*shown && generation == m_generation) {
+                *shown = true;
+                showCurrent(std::move(info));
+            }
+        };
+        auto connection = std::make_shared<QMetaObject::Connection>();
+        *connection = connect(window, &QQuickWindow::frameSwapped, this, [apply, connection]() mutable {
+            QObject::disconnect(*connection);
+            apply();
+        }, Qt::QueuedConnection);
+        QTimer::singleShot(100, this, [apply, connection]() mutable {
+            QObject::disconnect(*connection);
+            apply();
+        });
+        window->update();
+    });
+    watcher->setFuture(QtConcurrent::run([url = m_urls.value(m_index)] {
+        return FileInfo::read(url);
+    }));
+}
+
+void Viewer::showCurrent(FileInfo info)
+{
+    m_shownUrl = m_urls.value(m_index);
+    m_shownIndex = m_index;
+    m_info = std::move(info);
+    m_office->cancel();
+    m_convertedPdf.clear();
+    m_previewNote.clear();
+    m_previewBusy = false;
+    if (m_info.known) {
         m_table->setRows(std::exchange(m_info.tableRows, {})); // the model keeps them
         m_view = viewFor(m_info, showFormatted());
         loadFont();
         startOfficePreview(); // the fallback view meanwhile, then the PDF view
-        Q_EMIT fileInfoChanged();
-    });
-    watcher->setFuture(QtConcurrent::run([url = currentUrl()] {
-        return FileInfo::read(url);
-    }));
+    }
+    // Everything is set before either goes out; views clear on the first, load on the second.
+    Q_EMIT currentChanged();
+    Q_EMIT fileInfoChanged();
+    Q_EMIT switchingChanged();
 }
 
 void Viewer::showWindow(const QString &activationToken)
@@ -772,10 +795,6 @@ void Viewer::markClosed()
     if (m_indexOpen) {
         m_indexOpen = false;
         Q_EMIT indexOpenChanged();
-    }
-    if (m_pictureEditing) {
-        m_pictureEditing = false;
-        Q_EMIT pictureEditingChanged();
     }
     if (!m_searchText.isEmpty()) {
         m_searchText.clear();

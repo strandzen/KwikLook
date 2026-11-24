@@ -4,6 +4,23 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Removed
+
+- Cropping and turning pictures, and trimming and turning videos, inside the preview. Use “Open with…” instead: it offers Spectacle's editor for pictures and your video editor for videos. KwikLook no longer needs exiv2, or ffmpeg for editing.
+
+### Changed
+
+- The contents sidebar looks like a panel: a heading, lines that show which heading belongs under which, and arrows to fold sections in and out. Long documents start with only the top level open.
+- Going to the next or previous file no longer flashes an empty or icon page: the current file stays until the next one is ready, then fades over.
+- Busy indicators and “Preparing preview…” appear only when something takes a moment, so quick files never flicker.
+- Code blocks in Markdown and HTML have a shaded box, and quotes a bar on the left.
+- Songs with a cover show it large, with a blurred copy of it filling the background.
+- Videos that don't start by themselves show their first picture with a large play button, instead of black.
+- PDFs show the page number (“3 / 12”) while you scroll.
+- The index sheet marks the chosen file and the one under the pointer the way Dolphin does.
+- Archive lists have alternating row colours, with sizes and dates dimmed.
+- The bar shows the file's type icon before its name; hovering the name shows its full name, type, size and date, and the picture size or page count.
+
 ## [0.4.0] - 2026-11-24
 
 Contents in the sidebar, archives listed, and a quieter background viewer.

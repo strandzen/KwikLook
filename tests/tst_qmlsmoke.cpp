@@ -4,7 +4,6 @@
 #include "gui/filemenus.h"
 #include "gui/offlinenetwork.h"
 #include "gui/thumbnailprovider.h"
-#include "gui/videoeditor.h"
 #include "gui/viewer.h"
 #include "kwiklooksettings.h"
 
@@ -332,8 +331,11 @@ private Q_SLOTS:
         const QList<QQuickItem *> before = labels();
         QVERIFY(!before.isEmpty());
         QObject *flickable = area->parentItem()->parentItem(); // ScrollView's Flickable
-        QVERIFY(flickable->setProperty("contentY", 100 * QFontMetricsF(area->property("font").value<QFont>()).lineSpacing()));
-        QTRY_VERIFY2(!shown().contains(u"1"_s) && shown().contains(u"110"_s),
+        // Scrolled again while the gutter widens for three digits (the text area then
+        // scrolls back to its cursor, once).
+        const qreal target = 100 * QFontMetricsF(area->property("font").value<QFont>()).lineSpacing();
+        QTRY_VERIFY2((flickable->property("contentY").toReal() == target || flickable->setProperty("contentY", target))
+                         && !shown().contains(u"1"_s) && shown().contains(u"110"_s),
                      qPrintable(u"shown %1; contentY %2, contentHeight %3, height %4, visible %5"_s.arg(shown().join(u","_s))
                                     .arg(flickable->property("contentY").toReal())
                                     .arg(flickable->property("contentHeight").toReal())
@@ -836,6 +838,16 @@ private Q_SLOTS:
         QTRY_VERIFY(sidebar->isVisible() && sidebar->width() > 0);
         QVERIFY(window->findChild<QQuickItem *>(u"sidebarTabs"_s)->isVisible());
         QTRY_COMPARE(itemsNamed(sidebar, u"contentsEntry"_s).size(), 3);
+        QCOMPARE(itemsNamed(sidebar, u"contentsFold"_s).size(), 1); // Chapter 1 has a section
+        // Folded, Chapter 1 hides its section, and stands for it when that's current.
+        QObject *tree = sidebar->findChild<QObject *>(u"contentsTree"_s);
+        QMetaObject::invokeMethod(tree, "toggle", Q_ARG(QVariant, 0));
+        QTRY_COMPARE(itemsNamed(sidebar, u"contentsEntry"_s).size(), 2);
+        tree->setProperty("currentIndex", 1);
+        QCOMPARE(tree->property("currentEntry").toInt(), 0);
+        QMetaObject::invokeMethod(tree, "toggle", Q_ARG(QVariant, 0));
+        QTRY_COMPARE(itemsNamed(sidebar, u"contentsEntry"_s).size(), 3);
+        QCOMPARE(tree->property("currentEntry").toInt(), 1);
         // The current entry follows the view; going to an entry scrolls there.
         QTRY_COMPARE(pdfView->property("currentContentsEntry").toInt(), 0);
         QMetaObject::invokeMethod(pdfView, "showDestination", Q_ARG(QVariant, 0), Q_ARG(QVariant, 400.0));
@@ -961,6 +973,44 @@ private Q_SLOTS:
         QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 
+    // While shown, the next file replaces the current one in one step, after its details
+    // are read; the old view stays as a still picture and fades out.
+    void switchesFilesInOneStep()
+    {
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        QTemporaryDir dir;
+        QStringList files;
+        for (const QString &name : {u"a.txt"_s, u"b.txt"_s}) {
+            QFile f(dir.filePath(name));
+            QVERIFY(f.open(QIODevice::WriteOnly));
+            f.write("text of " + name.toUtf8() + "\n");
+            files << f.fileName();
+        }
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open(files, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QTRY_COMPARE(v->text(), u"text of a.txt\n"_s);
+        QTRY_VERIFY(!v->switching());
+        QSignalSpy aboutToSwitch(v, &Viewer::aboutToSwitch);
+        v->Next();
+        QVERIFY(v->switching());
+        QCOMPARE(v->currentIndex(), 0); // still the first, with its text
+        QCOMPARE(v->text(), u"text of a.txt\n"_s);
+        QTRY_COMPARE(v->currentIndex(), 1);
+        QCOMPARE(v->text(), u"text of b.txt\n"_s);
+        QVERIFY(!v->switching());
+        QCOMPARE(aboutToSwitch.count(), 1);
+        QQuickItem *lastView = findItem(window, u"lastView"_s);
+        QVERIFY(lastView);
+        QTRY_COMPARE(lastView->opacity(), 0.0); // faded
+        QVERIFY(!lastView->property("sourceItem").value<QQuickItem *>()); // picture freed
+        QVERIFY(!findItem(window, u"switchingBusy"_s)->isVisible());
+        v->Close();
+    }
+
     void indexSheetPicksAFile()
     {
         MainWindow main;
@@ -992,7 +1042,7 @@ private Q_SLOTS:
         QCOMPARE(grid->property("currentIndex").toInt(), 2);
         QCOMPARE(v->currentIndex(), 0);
         QTest::keyClick(window, Qt::Key_Return);
-        QCOMPARE(v->currentIndex(), 2);
+        QTRY_COMPARE(v->currentIndex(), 2); // once its details are read
         QVERIFY(!v->property("indexOpen").toBool());
         QVERIFY(window->isVisible());
         // Esc closes the sheet first, then the preview.
@@ -1223,12 +1273,7 @@ private Q_SLOTS:
         QTRY_VERIFY((pdfView = window->findChild<QQuickItem *>(u"pdfView"_s)));
         QTRY_VERIFY(pdfView->property("zoomPercent").toInt() > 0);
 
-        QQuickItem *list = nullptr;
-        for (QQuickItem *item : pdfView->findChildren<QQuickItem *>()) {
-            if (item->inherits("QQuickListView")) {
-                list = item;
-            }
-        }
+        QQuickItem *list = pdfView->findChild<QQuickItem *>(u"pdfPages"_s);
         QVERIFY(list);
         auto *content = list->property("contentItem").value<QQuickItem *>();
         // Every page's centre is the centre of the list's content, whatever was scrolled.
@@ -1254,10 +1299,14 @@ private Q_SLOTS:
             return pages > 0 ? wrong.join(u"; "_s) : u"no pages"_s;
         };
         QTRY_COMPARE(offCentre(), QString());
+        QQuickItem *pageNumber = findItem(window, u"pageNumber"_s);
+        QVERIFY(pageNumber && pageNumber->opacity() == 0); // not when the document opens
         for (int i = 0; i < 20; ++i) { // scroll down, pages get created and reused
             QMetaObject::invokeMethod(list, "flick", Q_ARG(qreal, 0), Q_ARG(qreal, -3000));
             QTest::qWait(50);
         }
+        QVERIFY(pageNumber->isVisible()); // while scrolling: “5 / 6”
+        QVERIFY2(pageNumber->property("text").toString().endsWith(u" / 6"_s), qPrintable(pageNumber->property("text").toString()));
         QTest::qWait(500);
         QCOMPARE(offCentre(), QString()); // scrolled
         QTest::keyClick(window, Qt::Key_Plus, Qt::ControlModifier);
@@ -1415,7 +1464,8 @@ private Q_SLOTS:
     {
         KwikLookSettings *settings = KwikLookSettings::self();
         settings->setBarLeft({u"Close"_s});
-        settings->setBarRight({u"Spacer"_s, u"CopyPath"_s, u"Open"_s});
+        // "CropRotate": an item that no longer exists, from an older version's settings.
+        settings->setBarRight({u"Spacer"_s, u"CopyPath"_s, u"CropRotate"_s, u"Open"_s});
         const auto restore = qScopeGuard([settings] {
             settings->setBarLeft(settings->defaultBarLeftValue());
             settings->setBarRight(settings->defaultBarRightValue());
@@ -1433,6 +1483,7 @@ private Q_SLOTS:
         QTRY_VERIFY(findItem(window, u"barCopyPath"_s));
         QVERIFY(findItem(window, u"barOpen"_s));
         QVERIFY(!findItem(window, u"barPrevious"_s));
+        QVERIFY(!findItem(window, u"barCropRotate"_s)); // left out, no empty button
         QQuickItem *close = findItem(window, u"barClose"_s);
         QVERIFY(close);
         QQuickItem *bar = window->findChild<QQuickItem *>(u"titleBar"_s);
@@ -1483,8 +1534,8 @@ private Q_SLOTS:
         QVERIFY(!items("available").contains(u"Previous"_s));
         QCOMPARE(items("available").last(), u"Spacer"_s);
         // Out of the bar, along it, into it; the flexible space is copied, not moved.
-        move(u"right"_s, 5, u"available"_s, 0); // Close out
-        QCOMPARE(items("rightItems"), QStringList({u"ViewMode"_s, u"CropRotate"_s, u"Information"_s, u"Share"_s, u"OpenWith"_s}));
+        move(u"right"_s, 4, u"available"_s, 0); // Close out
+        QCOMPARE(items("rightItems"), QStringList({u"ViewMode"_s, u"Information"_s, u"Share"_s, u"OpenWith"_s}));
         QVERIFY(items("available").contains(u"Close"_s));
         move(u"left"_s, 0, u"left"_s, 2); // Previous after Next
         QCOMPARE(items("leftItems"), QStringList({u"Next"_s, u"Previous"_s, u"IndexSheet"_s, u"Pages"_s}));
@@ -1494,7 +1545,7 @@ private Q_SLOTS:
         QCOMPARE(items("rightItems").count(u"Spacer"_s), 2);
         QVERIFY(items("available").contains(u"Spacer"_s));
         QCOMPARE(window->property("changed").toBool(), true);
-        QCOMPARE(settings->barRight().size(), 6); // not until Apply
+        QCOMPARE(settings->barRight().size(), 5); // not until Apply
 
         // A real drag: Copy Path from below into the bar's left side (once the rows have
         // been laid out again after the moves above).
@@ -1549,148 +1600,6 @@ private Q_SLOTS:
         menus.setProperty("mimeType", u"text/plain"_s);
         menu.reset(menus.openWithMenu());
         QVERIFY(!menu->findChild<QAction *>(u"openWithSpectacle"_s));
-    }
-
-    void videoTrimAndRotate()
-    {
-        if (!VideoEditor::available()) {
-            QSKIP("ffmpeg, ffprobe or the sandbox isn't available");
-        }
-        QTemporaryDir dir;
-        const QString clip = dir.filePath(u"clip.mp4"_s);
-        QProcess ffmpeg;
-        ffmpeg.start(u"ffmpeg"_s, {u"-loglevel"_s, u"error"_s, u"-y"_s, u"-f"_s, u"lavfi"_s, u"-i"_s, u"testsrc=duration=4:size=160x120:rate=25"_s,
-                                   u"-g"_s, u"25"_s, u"-pix_fmt"_s, u"yuv420p"_s, clip});
-        QVERIFY(ffmpeg.waitForFinished(30000) && ffmpeg.exitCode() == 0);
-        KwikLookSettings::self()->setAutoplayMedia(false);
-        KwikLookSettings::self()->setStartMuted(true);
-        MainWindow main;
-        QQuickWindow *window = main.window();
-        QVERIFY(window);
-        Viewer *v = Viewer::instance();
-        v->setWindow(window);
-        v->Open({clip}, 0, QString(), QString());
-        QVERIFY(QTest::qWaitForWindowExposed(window));
-        QQuickItem *media = nullptr;
-        QTRY_VERIFY((media = window->findChild<QQuickItem *>(u"mediaView"_s)));
-        QQuickItem *edit = window->findChild<QQuickItem *>(u"editButton"_s);
-        QTRY_VERIFY(edit->isVisible()); // once the player knows it's a video
-        // Playing, then Edit: stopped at the start; only Play plays (inside the part).
-        QObject *player = window->findChild<QObject *>(u"mediaPlayer"_s);
-        QMetaObject::invokeMethod(window->findChild<QQuickItem *>(u"playButton"_s), "clicked");
-        QTRY_COMPARE(player->property("playbackState").toInt(), 1); // PlayingState
-        QMetaObject::invokeMethod(edit, "clicked");
-        QVERIFY(media->property("editing").toBool());
-        QTRY_COMPARE(player->property("playbackState").toInt(), 2); // PausedState
-        QTRY_VERIFY(player->property("position").toLongLong() < 100);
-        QMetaObject::invokeMethod(media, "toggleFullScreen");
-        QCOMPARE(window->visibility(), QWindow::Windowed); // not while editing
-        // Edit: the bar, keyframes read; nothing to save until something changes.
-        QQuickItem *save = window->findChild<QQuickItem *>(u"saveCopy"_s);
-        QTRY_VERIFY(save->isVisible() && !save->isEnabled());
-        auto *editor = media->findChild<VideoEditor *>();
-        QVERIFY(editor);
-        QTRY_VERIFY(!editor->probing());
-        QCOMPARE(editor->keyframes().size(), 4);
-        // Rotate left: a quarter turn counterclockwise, then Save Copy.
-        QMetaObject::invokeMethod(window->findChild<QQuickItem *>(u"rotateLeft"_s), "clicked");
-        QCOMPARE(media->property("turn").toInt(), 90);
-        QTRY_VERIFY(save->isEnabled());
-        QSignalSpy saved(editor, &VideoEditor::saved);
-        QMetaObject::invokeMethod(save, "clicked");
-        QTRY_VERIFY_WITH_TIMEOUT(saved.size() == 1, 30000);
-        QVERIFY(QFile::exists(dir.filePath(u"clip (edited).mp4"_s)));
-        QTRY_VERIFY(!media->property("editing").toBool()); // done: the bar closes
-        // A start between keyframes: an exact cut.
-        QMetaObject::invokeMethod(edit, "clicked");
-        QTRY_VERIFY(!editor->probing());
-        QQuickItem *range = window->findChild<QQuickItem *>(u"trimRange"_s);
-        QObject *first = range->property("first").value<QObject *>();
-        QQuickItem *kind = window->findChild<QQuickItem *>(u"cutKind"_s);
-        QCOMPARE(kind->property("text").toString(), u"Quick"_s);
-        first->setProperty("value", 1500); // ms; keyframes every second
-        QCOMPARE(kind->property("text").toString(), u"Exact, slower"_s);
-        saved.clear();
-        QMetaObject::invokeMethod(save, "clicked");
-        QTRY_VERIFY_WITH_TIMEOUT(saved.size() == 1, 60000);
-        QCOMPARE(QDir(dir.path()).entryList({u"clip (edited)*"_s}).size(), 2); // a second copy, the first kept
-        v->Close();
-        v->setWindow(nullptr);
-        KwikLookSettings::self()->setAutoplayMedia(true);
-        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
-    }
-
-    void cropsAndTurnsAPicture()
-    {
-        QTemporaryDir dir;
-        QImage image(400, 200, QImage::Format_RGB32);
-        image.fill(Qt::darkCyan);
-        const QString png = dir.filePath(u"picture.png"_s);
-        QVERIFY(image.save(png));
-        QFile gif(dir.filePath(u"moving.gif"_s));
-        QVERIFY(gif.open(QIODevice::WriteOnly));
-        gif.write(TwoFrameGif);
-        gif.close();
-        MainWindow main;
-        QQuickWindow *window = main.window();
-        QVERIFY(window);
-        window->resize(800, 600);
-        Viewer *v = Viewer::instance();
-        v->setWindow(window);
-        v->Open({png, gif.fileName()}, 0, QString(), QString());
-        QVERIFY(QTest::qWaitForWindowExposed(window));
-        QTRY_VERIFY(window->findChild<QQuickItem *>(u"imageView"_s));
-        QQuickItem *button = nullptr;
-        QTRY_VERIFY((button = findItem(window, u"barCropRotate"_s)) && button->isVisible());
-        QMetaObject::invokeMethod(button, "clicked");
-        QVERIFY(v->property("pictureEditing").toBool());
-        QQuickItem *editor = nullptr;
-        QTRY_VERIFY((editor = window->findChild<QQuickItem *>(u"pictureEditor"_s)));
-        QQuickItem *size = window->findChild<QQuickItem *>(u"cropSize"_s);
-        QCOMPARE(size->property("text").toString(), u"400 × 200"_s);
-        // Drag the bottom-right handle up and left: a smaller part.
-        QQuickItem *handle = nullptr;
-        QTRY_VERIFY((handle = findItem(window, u"cropHandle22"_s)) && handle->width() > 0);
-        QTest::qWait(100);
-        const QPoint from = handle->mapToScene(QPointF(handle->width() / 2, handle->height() / 2)).toPoint();
-        const QPoint to = from - QPoint(150, 60);
-        QTest::mousePress(window, Qt::LeftButton, {}, from);
-        for (int i = 1; i <= 10; ++i) {
-            QTest::mouseMove(window, from + (to - from) * i / 10);
-        }
-        QTest::mouseRelease(window, Qt::LeftButton, {}, to);
-        QTRY_VERIFY(editor->property("cropW").toReal() < 0.9 && editor->property("cropH").toReal() < 0.9);
-        // Square: the part's pixels are square.
-        QQuickItem *ratio = window->findChild<QQuickItem *>(u"cropRatio"_s);
-        QMetaObject::invokeMethod(ratio, "activated", Q_ARG(int, 2));
-        QCOMPARE(editor->property("pixelWidth").toInt(), editor->property("pixelHeight").toInt());
-        QVERIFY(!findItem(window, u"cropHandle12"_s)->isVisible()); // with a ratio: corners only
-        // Free again, all of it, a quarter turn left: 200 × 400.
-        QMetaObject::invokeMethod(ratio, "activated", Q_ARG(int, 0));
-        editor->setProperty("cropX", 0.0);
-        editor->setProperty("cropY", 0.0);
-        editor->setProperty("cropW", 1.0);
-        editor->setProperty("cropH", 1.0);
-        QMetaObject::invokeMethod(window->findChild<QQuickItem *>(u"pictureRotateLeft"_s), "clicked");
-        QCOMPARE(size->property("text").toString(), u"200 × 400"_s);
-        // Crop the top half of the turned picture and save a copy.
-        editor->setProperty("cropH", 0.5);
-        QMetaObject::invokeMethod(window->findChild<QQuickItem *>(u"pictureSaveCopy"_s), "clicked");
-        QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(dir.filePath(u"picture (edited).png"_s)), 15000);
-        QCOMPARE(QImage(dir.filePath(u"picture (edited).png"_s)).size(), QSize(200, 200));
-        QTRY_VERIFY(!v->property("pictureEditing").toBool()); // done: the editor closes
-        // Esc cancels an edit; an animated picture has no button.
-        QMetaObject::invokeMethod(button, "clicked");
-        QTRY_VERIFY(window->findChild<QQuickItem *>(u"pictureEditor"_s));
-        QTest::keyClick(window, Qt::Key_Escape);
-        QVERIFY(!v->property("pictureEditing").toBool());
-        QVERIFY(window->isVisible());
-        v->Next();
-        QTRY_VERIFY(window->findChild<QQuickItem *>(u"animatedImage"_s));
-        QTRY_VERIFY(!button->isVisible());
-        v->Close();
-        v->setWindow(nullptr);
-        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 
     void settingsWindowAppliesOnlyOnApply()

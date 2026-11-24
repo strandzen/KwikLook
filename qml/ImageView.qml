@@ -20,6 +20,8 @@ Item {
 
     // The user zoomed (for the zoom indicator).
     signal zoomed()
+    // Decoded (Main fades from the previous file's view then).
+    readonly property bool ready: image.status !== Image.Loading
 
     readonly property real dpr: Screen.devicePixelRatio
     // Real size in logical pixels (from the file's details, which also tell that the
@@ -195,11 +197,10 @@ Item {
         }
     }
 
-    QQC2.BusyIndicator {
+    DelayedBusyIndicator {
         anchors.centerIn: parent
         // Not while a zoomed picture loads in full: the smaller one stays visible.
-        running: view.image.status === Image.Loading && view.userZoom === 0
-        visible: running
+        busy: view.image.status === Image.Loading && view.userZoom === 0
     }
 
     // Created only when needed: it would ask for a thumbnail of every picture.

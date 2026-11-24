@@ -104,6 +104,7 @@ ColumnLayout {
             readonly property real dateWidth: Kirigami.Units.gridUnit * 9
 
             model: archive
+            alternatingRows: true // like Dolphin's details view
             clip: true
             boundsBehavior: Flickable.StopAtBounds
             columnWidthProvider: column => column === 0 ? Math.max(Kirigami.Units.gridUnit * 8, width - sizeWidth - dateWidth)
@@ -114,6 +115,8 @@ ColumnLayout {
                 required property string iconName
 
                 objectName: "archiveEntry"
+                // Size and date dimmed, the name in full (the tree's colours: no loop).
+                Kirigami.Theme.textColor: column === 0 ? tree.Kirigami.Theme.textColor : tree.Kirigami.Theme.disabledTextColor
                 icon.name: column === 0 ? iconName : ""
                 icon.width: Kirigami.Units.iconSizes.small
                 icon.height: Kirigami.Units.iconSizes.small
@@ -126,10 +129,9 @@ ColumnLayout {
             visible: archive.status === "ready" && tree.rows === 0
             text: i18nc("@info", "This archive is empty")
         }
-        QQC2.BusyIndicator {
+        DelayedBusyIndicator {
             anchors.centerIn: parent
-            running: archive.status === "reading"
-            visible: running
+            busy: archive.status === "reading"
         }
     }
 }

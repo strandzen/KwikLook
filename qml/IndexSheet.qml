@@ -35,62 +35,67 @@ QQC2.ScrollView {
 
         // Columns fill the width; tiles keep their size.
         cellWidth: Math.max(thumbnailSize + Kirigami.Units.gridUnit, Math.floor(width / Math.max(1, Math.floor(width / (thumbnailSize + Kirigami.Units.gridUnit * 2)))))
-        cellHeight: thumbnailSize + Kirigami.Units.gridUnit * 3
+        cellHeight: thumbnailSize + Kirigami.Units.gridUnit * 4
         topMargin: Kirigami.Units.largeSpacing
         bottomMargin: Kirigami.Units.largeSpacing
         model: Viewer.count
         keyNavigationEnabled: true
         highlightMoveDuration: 0
-        highlight: Rectangle {
-            radius: Kirigami.Units.cornerRadius
-            color: Qt.alpha(Kirigami.Theme.highlightColor, 0.3)
-            border.color: Kirigami.Theme.highlightColor
-        }
         Keys.onReturnPressed: Viewer.showFile(currentIndex)
         Keys.onEnterPressed: Viewer.showFile(currentIndex)
 
-        delegate: Item {
+        // The KDE style's own highlight (current) and hover, as Dolphin's icons.
+        delegate: QQC2.ItemDelegate {
             id: tile
 
             required property int index
             readonly property var file: Viewer.fileAt(index)
 
+            objectName: "indexTile"
             width: GridView.view.cellWidth
             height: GridView.view.cellHeight
+            leftInset: Kirigami.Units.smallSpacing
+            rightInset: Kirigami.Units.smallSpacing
+            topInset: Kirigami.Units.smallSpacing
+            bottomInset: Kirigami.Units.smallSpacing
+            padding: Kirigami.Units.largeSpacing
+            highlighted: GridView.isCurrentItem
+            focusPolicy: Qt.NoFocus // the grid keeps the keys
+            onClicked: Viewer.showFile(index)
 
-            Image {
-                id: thumbnail
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: Kirigami.Units.largeSpacing
-                width: grid.thumbnailSize
-                height: width
-                fillMode: Image.PreserveAspectFit
-                asynchronous: true
-                sourceSize.width: width * Screen.devicePixelRatio
-                sourceSize.height: height * Screen.devicePixelRatio
-                source: "image://thumbnail/" + encodeURIComponent(tile.file.mimeType) + "/" + encodeURIComponent(tile.file.url.toString())
-                visible: status === Image.Ready && implicitWidth > 1 // 1×1: no thumbnail
-            }
-            Kirigami.Icon {
-                anchors.fill: thumbnail
-                source: tile.file.iconName
-                fallback: "unknown"
-                visible: !thumbnail.visible
-            }
-            QQC2.Label {
-                anchors.top: thumbnail.bottom
-                anchors.topMargin: Kirigami.Units.smallSpacing
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: parent.width - Kirigami.Units.largeSpacing * 2
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.Wrap
-                maximumLineCount: 2
-                elide: Text.ElideMiddle
-                textFormat: Text.PlainText
-                text: tile.file.name
-            }
-            TapHandler {
-                onTapped: Viewer.showFile(tile.index)
+            contentItem: Item {
+                Image {
+                    id: thumbnail
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: grid.thumbnailSize
+                    height: width
+                    fillMode: Image.PreserveAspectFit
+                    asynchronous: true
+                    sourceSize.width: width * Screen.devicePixelRatio
+                    sourceSize.height: height * Screen.devicePixelRatio
+                    source: "image://thumbnail/" + encodeURIComponent(tile.file.mimeType) + "/" + encodeURIComponent(tile.file.url.toString())
+                    visible: status === Image.Ready && implicitWidth > 1 // 1×1: no thumbnail
+                }
+                Kirigami.Icon {
+                    anchors.fill: thumbnail
+                    source: tile.file.iconName
+                    fallback: "unknown"
+                    selected: tile.highlighted
+                    visible: !thumbnail.visible
+                }
+                QQC2.Label {
+                    anchors.top: thumbnail.bottom
+                    anchors.topMargin: Kirigami.Units.smallSpacing
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.Wrap
+                    maximumLineCount: 2
+                    elide: Text.ElideMiddle
+                    textFormat: Text.PlainText
+                    color: tile.highlighted ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
+                    text: tile.file.name
+                }
             }
         }
     }

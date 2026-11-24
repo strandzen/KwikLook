@@ -109,7 +109,11 @@ ColumnLayout {
     function updateContents() {
         const kind = Viewer.formattedKind;
         contents = kind === "markdown" || kind === "html" ? Contents.fromText(area.textDocument, kind, view.rendered, Viewer.text) : [];
+        blocks = view.rendered ? Contents.blocks(area.textDocument, codePadding) : [];
     }
+    // Rendered: code blocks and quotes, [{kind, start, end, level}], drawn under the text.
+    property var blocks: []
+    readonly property real codePadding: Kirigami.Units.largeSpacing
     // Where each heading is in the laid-out text.
     readonly property var contentsY: {
         area.contentHeight; // laid out again (zoom, width)
@@ -183,10 +187,16 @@ ColumnLayout {
                 anchors.fill: parent
                 color: Kirigami.Theme.backgroundColor
             }
+            PanelHeading {
+                id: textContentsHeading
+                width: Kirigami.Units.gridUnit * 12
+                text: i18nc("@title headings of a document", "Contents")
+            }
             Loader {
                 // Full width while sliding, so the titles don't reflow.
                 width: Kirigami.Units.gridUnit * 12
-                height: parent.height
+                anchors.top: textContentsHeading.bottom
+                anchors.bottom: parent.bottom
                 active: sidebar.visible
                 sourceComponent: ContentsList {
                     entries: view.contents
@@ -290,6 +300,29 @@ ColumnLayout {
                 FontMetrics {
                     id: numberMetrics
                     font: area.font
+                }
+
+                // Rendered: a shaded box under code, a bar beside quotes (Qt draws neither).
+                Repeater {
+                    model: view.blocks
+
+                    Rectangle {
+                        required property var modelData
+                        readonly property bool code: modelData.kind === "code"
+                        readonly property rect from: { area.contentHeight; area.width; return area.positionToRectangle(Math.min(modelData.start, area.length)); }
+                        readonly property rect to: { area.contentHeight; area.width; return area.positionToRectangle(Math.min(modelData.end, area.length)); }
+
+                        objectName: code ? "codeBox" : "quoteBar"
+                        z: -1 // under the text
+                        // Quotes: in the 40 px margin Qt gives each level.
+                        x: code ? area.leftPadding : area.leftPadding + (modelData.level - 1) * 40 + 12
+                        y: from.y - (code ? view.codePadding : 0)
+                        width: code ? area.width - area.leftPadding - area.rightPadding : 3
+                        height: to.y + to.height - from.y + (code ? view.codePadding * 2 : 0)
+                        radius: code ? Kirigami.Units.cornerRadius : width / 2
+                        color: code ? Kirigami.ColorUtils.tintWithAlpha(Kirigami.Theme.backgroundColor, Kirigami.Theme.textColor, 0.06)
+                            : Kirigami.ColorUtils.tintWithAlpha(Kirigami.Theme.backgroundColor, Kirigami.Theme.textColor, 0.3)
+                    }
                 }
 
                 // The matches on screen, marked under the text (all of them could be thousands).

@@ -5,7 +5,7 @@
 #include <QString>
 
 // kwiklook-sandbox (src/sandbox): runs a converter locked in. Used for LibreOffice
-// (OfficeConverter) and ffmpeg (VideoEditor).
+// (OfficeConverter) and the archive lister (ArchiveModel).
 namespace Sandbox
 {
 // Its exit code when the kernel's Landlock is too old to lock a program in.
