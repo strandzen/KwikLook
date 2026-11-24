@@ -4,6 +4,10 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-24
+
+A visual review, and editing handed to other apps.
+
 ### Removed
 
 - Cropping and turning pictures, and trimming and turning videos, inside the preview. Use “Open with…” instead: it offers Spectacle's editor for pictures and your video editor for videos. KwikLook no longer needs exiv2, or ffmpeg for editing.

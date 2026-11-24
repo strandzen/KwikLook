@@ -18,6 +18,18 @@
   <launchable type="desktop-id">io.github.strandzen.KwikLook.desktop</launchable>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.5.0" date="2026-11-24">
+      <description>
+        <p>A visual review, and editing handed to other apps.</p>
+        <ul>
+          <li>The contents sidebar shows headings as a tree that folds in and out.</li>
+          <li>Going to the next file no longer flashes an empty page; it fades over once the file is ready.</li>
+          <li>Code blocks and quotes stand out in Markdown and HTML; PDFs show the page number while you scroll.</li>
+          <li>Songs show their cover large on a blurred backdrop; videos that don't start by themselves show their first picture.</li>
+          <li>Cropping pictures and trimming videos moved out of the preview: “Open with…” offers Spectacle's editor and your video editor.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.4.0" date="2026-11-24">
       <description>
         <p>Contents in the sidebar, archives listed, and a quieter background viewer.</p>
