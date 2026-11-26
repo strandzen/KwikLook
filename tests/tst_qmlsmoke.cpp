@@ -517,6 +517,57 @@ private Q_SLOTS:
         v->setWindow(nullptr);
     }
 
+    // KDE's highlighter re-colours the next line a moment later when a line's folding
+    // changes; a new file's text must not arrive while such a call waits (it crashed:
+    // the file name, and with it the rules, changed before the text did).
+    void switchingAwayFromCodeDoesNotCrash()
+    {
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        QTemporaryDir dir;
+        const auto write = [&dir](const QString &name, const QByteArray &text) {
+            QFile f(dir.filePath(name));
+            f.open(QIODevice::WriteOnly);
+            f.write(text);
+            return f.fileName();
+        };
+        QByteArray code;
+        QByteArray python;
+        for (int i = 0; i < 40; ++i) {
+            code += "void f" + QByteArray::number(i) + "()\n{\n    if (x) {\n        y();\n    }\n}\n";
+            python += "def f" + QByteArray::number(i) + "():\n    if x:\n        y()\n\n";
+        }
+        const QString cpp = write(u"code.cpp"_s, code);
+        const QString py = write(u"script.py"_s, python);
+        const QString png = dir.filePath(u"picture.png"_s);
+        QImage picture(64, 48, QImage::Format_RGB32);
+        picture.fill(Qt::darkCyan);
+        QVERIFY(picture.save(png));
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        for (int round = 0; round < 3; ++round) {
+            // Shown: switches while the window is open.
+            v->Open({cpp, py, png, cpp}, 0, QString(), QString());
+            QVERIFY(QTest::qWaitForWindowExposed(window));
+            QTRY_VERIFY(v->text().startsWith(u"void f0"_s));
+            for (int i = 0; i < 3; ++i) {
+                v->Next();
+                QTRY_VERIFY(!v->switching());
+                QTest::qWait(50);
+            }
+            // Hidden: the next opening starts on another kind of file.
+            v->Close();
+            QTRY_VERIFY(!window->isVisible());
+            v->Open({png, cpp}, 0, QString(), QString());
+            QTRY_VERIFY(!v->switching());
+            QTest::qWait(50);
+            v->Close();
+            QTRY_VERIFY(!window->isVisible());
+        }
+        v->setWindow(nullptr);
+    }
+
     void markdownRendersWithoutFetching()
     {
         // Stands in for a web server: no connection may arrive.

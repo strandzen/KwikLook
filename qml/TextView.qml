@@ -239,6 +239,23 @@ ColumnLayout {
                     Qt.callLater(view.runSearch); // a new file, or rendered / source
                     Qt.callLater(view.updateContents);
                 }
+                // The file the highlighter's rules are for. They change only once the new
+                // file's text is in: new rules colour the text again at once and leave
+                // calls for the following lines waiting, which crash on text replaced
+                // before they run (KDE's highlighter keeps those lines).
+                property string rulesFileName
+                property string rulesMimeType
+                Component.onCompleted: updateRules()
+                function updateRules() {
+                    rulesFileName = Viewer.fileName;
+                    rulesMimeType = Viewer.mimeType;
+                }
+                Connections {
+                    target: Viewer
+                    function onFileInfoChanged() {
+                        Qt.callLater(area.updateRules);
+                    }
+                }
                     baseUrl: Viewer.currentUrl // pictures next to the file
                 leftPadding: view.rendered ? sideMargin : gutterWidth + Kirigami.Units.largeSpacing
                 rightPadding: view.rendered ? sideMargin : Kirigami.Units.largeSpacing
@@ -282,8 +299,8 @@ ColumnLayout {
                         // By name first (Kate's choice for e.g. CMakeLists.txt), then by the type
                         // read from the content (scripts without an extension). "None": not known.
                         definition: {
-                            const byName = Repository.definitionForFileName(Viewer.fileName);
-                            return byName.name !== "None" ? byName : Repository.definitionForMimeType(Viewer.mimeType);
+                            const byName = Repository.definitionForFileName(area.rulesFileName);
+                            return byName.name !== "None" ? byName : Repository.definitionForMimeType(area.rulesMimeType);
                         }
                         theme: Repository.defaultTheme(Kirigami.ColorUtils.brightnessForColor(Kirigami.Theme.backgroundColor) === Kirigami.ColorUtils.Dark
                             ? Repository.DarkTheme : Repository.LightTheme)

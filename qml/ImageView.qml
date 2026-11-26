@@ -24,7 +24,12 @@ Item {
     // Decoded (Main fades from the previous file's view then).
     readonly property bool ready: image.status !== Image.Loading
 
-    readonly property real dpr: Screen.devicePixelRatio
+    // The window's scale, the one the picture is drawn at (and the one Viewer::Placement
+    // shapes the window by). Not Screen.devicePixelRatio: with fractional scaling on
+    // Wayland the screen says 2 at 125 % and real-size pictures came out too small.
+    // The window's is in QML from Qt 6.11; before that, the screen's.
+    readonly property real dpr: Window.window && Window.window.devicePixelRatio !== undefined
+        ? Window.window.devicePixelRatio : Screen.devicePixelRatio
     // Real size in logical pixels (from the file's details, which also tell that the
     // current file is a picture: until they arrive, nothing is loaded).
     readonly property real naturalWidth: Viewer.imageSize.width / dpr

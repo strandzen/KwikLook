@@ -21,6 +21,8 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 ### Fixed
 
 - PDF pages are drawn once their size has settled, instead of at every step while you resize the window or zoom, and the small pages in the sidebar no longer redraw over and over at some window sizes. Both could make the preview crash now and then.
+- The preview no longer crashes now and then when you go from a code or text file to another file.
+- With the screen scaled (for example to 125 %), pictures shown at their real size were drawn too small, with an empty border around them. They now fill the preview.
 
 ## [0.5.0] - 2026-11-24
 
