@@ -4,10 +4,13 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-26
+
+The preview opens where you want it, and pictures give it their shape.
+
 ### Added
 
 - AppImages show an “Install with AppImage Manager” button when [AppImage Manager](https://github.com/strandzen/AppImage-Manager) is installed. It opens AppImage Manager's install window for the file and closes the preview.
-
 - Pictures give the preview window their shape, centred: as large as the picture, or up to most of the screen. A size you set by dragging the window's edge stays until the preview closes.
 - Pictures fill the preview edge to edge, without a margin. Vector pictures (SVG) are enlarged to fill the window and stay sharp; other small pictures still show at their real size.
 - A new setting chooses where the preview opens: centred on the screen, centred on the Dolphin window, at the mouse pointer, or where the window manager puts it. If another window-position script moves the preview back, the README's Troubleshooting section says what to do.

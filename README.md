@@ -4,7 +4,7 @@ KwikLook shows a quick preview of a file when you press Space in Dolphin, on KDE
 
 It keeps running in the background, so previews open at once. It shows pictures, text and code, Markdown and web pages, PDFs, office documents, videos and audio, fonts, tables, contacts and calendar events, and the details of any file, without starting a full application. The preview window fits in with Plasma: its corners, outline and shadow follow your Breeze window decoration settings, and its buttons, colours and fonts follow your application style and colour scheme.
 
-This is version 0.5.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my own machine (Arch Linux, Plasma 6 on Wayland, Dolphin 26.08), so other distributions and setups may need some work.
+This is version 0.6.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my own machine (Arch Linux, Plasma 6 on Wayland, Dolphin 26.08), so other distributions and setups may need some work.
 
 ## Screenshots
 

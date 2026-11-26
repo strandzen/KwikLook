@@ -18,6 +18,18 @@
   <launchable type="desktop-id">io.github.strandzen.KwikLook.desktop</launchable>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.6.0" date="2026-11-26">
+      <description>
+        <p>The preview opens where you want it, and pictures give it their shape.</p>
+        <ul>
+          <li>A new setting chooses where the preview opens: centred on the screen, on the Dolphin window, or at the mouse pointer.</li>
+          <li>Pictures give the window their shape and fill it edge to edge; vector pictures fill the window and stay sharp.</li>
+          <li>Where you are among the files shows for a moment in the bottom-right corner, together with the zoom level.</li>
+          <li>The up and down arrow keys switch files too; AppImages can be installed with AppImage Manager.</li>
+          <li>Contact and calendar libraries are optional; fixes for a crash after code files and for pictures on scaled screens.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.5.0" date="2026-11-24">
       <description>
         <p>A visual review, and editing handed to other apps.</p>
