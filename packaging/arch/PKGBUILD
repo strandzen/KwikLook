@@ -39,7 +39,7 @@ optdepends=(
 makedepends=('cmake' 'extra-cmake-modules' 'kcontacts' 'kcalendarcore')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 # After pushing a new tag: updpkgsums (or gh release download vX --archive=tar.gz while the repository is private)
-sha256sums=('9456ba6c30f23d2aeb58c54d7589844d6a1fc9dba74add9265294e1c7d465c3e')
+sha256sums=('45adb17303e3badfbdb54c556748b1c134910c771cd14189d2b50f46f145be5e')
 
 build() {
   cmake -B build -S "KwikLook-$pkgver" \
