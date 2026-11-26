@@ -4,6 +4,21 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Added
+
+- EPUB books: their cover, title and author, then the chapters as text you can scroll, search and zoom, with the book's table of contents in the sidebar. Books are opened shut away from your files and the network, and nothing in them runs or is fetched.
+- Going to the next or previous file is instant for most files: the files next to the one you're looking at are read, and pictures decoded, while you look at it. A camera RAW photo went from about two thirds of a second to at once.
+- Camera RAW photos (DNG, CR2, NEF and others) show as pictures, with KDE's image plugins installed.
+- Share offers LocalSend, when it's installed.
+
+### Fixed
+
+- The PDF sidebar keeps one width on both tabs, and the “Pages” and “Contents” tabs fill it evenly; “Contents” was cut off on the narrower Pages tab.
+- Some EPUB books made the preview crash while it read their details.
+- Going from a long text or book to another file could take seconds: the old text was coloured for code just before it went away.
+- Web pages and books with a table: after scrolling down past it and back up, the beginning (text and pictures) stayed blank.
+- Markdown files with a picture, line break or rule written the HTML way (`<img src="…">`, `<br>`, `<hr>`), as many READMEs start with a centred logo, showed nothing after it, and their contents listed “(Untitled)”.
+
 ## [0.6.0] - 2026-11-26
 
 The preview opens where you want it, and pictures give it their shape.

@@ -49,6 +49,9 @@ public:
     // That application's icon name; empty when it isn't installed.
     Q_INVOKABLE static QString applicationIcon(const QString &desktopEntry);
     Q_INVOKABLE void showShare(QQuickItem *button);
+    // The share menu, filled for the current file: KDE's share targets, then LocalSend
+    // when it's installed. Kept for reuse. Null without a file.
+    QMenu *shareMenu();
     // Opens the file manager at the file's folder with the file selected.
     Q_INVOKABLE void showInFileManager(QQuickItem *from);
     // The local path (or the URL of a remote file) to the clipboard.
@@ -65,6 +68,7 @@ Q_SIGNALS:
 private:
     void popup(QMenu *menu, QQuickItem *button);
     void launch(const QUrl &url, const QString &desktopEntry);
+    void addLocalSend(QMenu *menu);
     QString mimeType() const;
 
     QUrl m_url;

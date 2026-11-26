@@ -5,6 +5,7 @@
 // kwiklook-sandbox (it may read the archive and nothing else); no Qt.
 //
 //   kwiklook-archive FILE [LIMIT] [SECONDS]
+//   kwiklook-archive --files FILE MAXFILE MAXTOTAL SUFFIX...
 //
 // Prints one line per entry, at most LIMIT (default 10000), tab-separated:
 //   e <kind d|f|l> <size, -1 unknown> <modified, Unix time, -1 unknown> <encrypted 0|1> <path>
@@ -13,10 +14,21 @@
 // The path has \ → \\, tab → \t, line break → \n, carriage return → \r.
 // A single compressed file (notes.txt.gz) is one entry named like the file without
 // its last extension, its size counted by unpacking (within the time).
+//
+// --files hands over the files themselves (an EPUB book's text and pictures): for each
+// file whose name ends in one of the SUFFIXes (any case), unpacked to at most MAXFILE
+// bytes, a line
+//   f <size> <path>
+// then exactly <size> bytes of it and a line break; a file over MAXFILE gives
+//   s <size so far> <path>
+// and no bytes. It stops after MAXTOTAL bytes in all, or 5 seconds, and ends with
+//   end <files> <bytes> <status ok|limit|time|error> <message>
 
 #include <archive.h>
 #include <archive_entry.h>
 
+#include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <clocale>
 #include <cstdio>
@@ -64,18 +76,114 @@ std::string oneLine(const char *text)
     }
     return out;
 }
+bool endsWithAny(const std::string &name, char **suffixes, int count)
+{
+    for (int i = 0; i < count; ++i) {
+        const std::string suffix = suffixes[i];
+        if (name.size() >= suffix.size()
+            && std::equal(suffix.rbegin(), suffix.rend(), name.rbegin(), [](char a, char b) {
+                   return std::tolower(static_cast<unsigned char>(a)) == std::tolower(static_cast<unsigned char>(b));
+               })) {
+            return true;
+        }
+    }
+    return false;
+}
+
+int handOverFiles(const char *file, long long maxFile, long long maxTotal, char **suffixes, int count)
+{
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    archive *a = archive_read_new();
+    archive_read_support_filter_all(a);
+    archive_read_support_format_zip(a); // books are zip files
+    if (archive_read_open_filename(a, file, 64 * 1024) != ARCHIVE_OK) {
+        std::printf("end\t0\t0\terror\t%s\n", oneLine(archive_error_string(a)).c_str());
+        archive_read_free(a);
+        return 0;
+    }
+    long files = 0;
+    long long total = 0;
+    std::string status = "ok";
+    std::string message;
+    archive_entry *entry = nullptr;
+    std::string data;
+    static char buffer[64 * 1024];
+    while (status == "ok") {
+        const int r = archive_read_next_header(a, &entry);
+        if (r == ARCHIVE_EOF) {
+            break;
+        }
+        if (r == ARCHIVE_FATAL) {
+            status = "error";
+            message = oneLine(archive_error_string(a));
+            break;
+        }
+        const char *path = archive_entry_pathname_utf8(entry);
+        if (!path) {
+            path = archive_entry_pathname(entry);
+        }
+        if (archive_entry_filetype(entry) != AE_IFREG || !path || !endsWithAny(path, suffixes, count)) {
+            continue;
+        }
+        data.clear();
+        bool tooLarge = false;
+        la_ssize_t n;
+        while ((n = archive_read_data(a, buffer, sizeof buffer)) > 0) {
+            if (static_cast<long long>(data.size()) + n > maxFile) {
+                tooLarge = true;
+                break;
+            }
+            data.append(buffer, static_cast<size_t>(n));
+            if (std::chrono::steady_clock::now() > deadline) {
+                status = "time";
+                break;
+            }
+        }
+        if (status != "ok") {
+            break;
+        }
+        if (n < 0) {
+            message = oneLine(archive_error_string(a));
+            continue; // a damaged file: the others may still be fine
+        }
+        if (tooLarge) {
+            std::printf("s\t%zu\t%s\n", data.size(), escaped(path).c_str());
+            continue;
+        }
+        if (total + static_cast<long long>(data.size()) > maxTotal) {
+            status = "limit";
+            break;
+        }
+        std::printf("f\t%zu\t%s\n", data.size(), escaped(path).c_str());
+        std::fwrite(data.data(), 1, data.size(), stdout);
+        std::fputc('\n', stdout);
+        total += static_cast<long long>(data.size());
+        ++files;
+    }
+    std::printf("end\t%ld\t%lld\t%s\t%s\n", files, total, status.c_str(), message.c_str());
+    archive_read_free(a);
+    return 0;
+}
+
 }
 
 int main(int argc, char **argv)
 {
     if (argc < 2) {
-        std::fprintf(stderr, "usage: kwiklook-archive FILE [LIMIT] [SECONDS]\n");
+        std::fprintf(stderr, "usage: kwiklook-archive FILE [LIMIT] [SECONDS]\n"
+                             "       kwiklook-archive --files FILE MAXFILE MAXTOTAL SUFFIX...\n");
         return 2;
     }
     // The sandbox starts it with no environment: names are only converted with a
     // UTF-8 locale (else non-ASCII names come out empty).
     if (!std::setlocale(LC_CTYPE, "C.UTF-8")) {
         std::setlocale(LC_CTYPE, "en_US.UTF-8");
+    }
+    if (std::strcmp(argv[1], "--files") == 0) {
+        if (argc < 6) {
+            return 2;
+        }
+        return handOverFiles(argv[2], std::strtoll(argv[3], nullptr, 10), std::strtoll(argv[4], nullptr, 10), argv + 5, argc - 5);
     }
     const char *file = argv[1];
     const long limit = argc > 2 ? std::strtol(argv[2], nullptr, 10) : 10000;

@@ -45,6 +45,22 @@ ecm_add_test(tst_archivelisting.cpp
 target_compile_definitions(tst_archivelisting PRIVATE ARCHIVE_HELPER="$<TARGET_FILE:kwiklook-archive>")
 add_dependencies(tst_archivelisting kwiklook-archive)
 
+# EPUB books: the helper hands over the files, Epub::build makes the document.
+ecm_add_test(tst_epub.cpp
+    TEST_NAME tst_epub
+    LINK_LIBRARIES Qt6::Test kwiklook_core
+    NAME_PREFIX "kwiklook-"
+)
+target_compile_definitions(tst_epub PRIVATE ARCHIVE_HELPER="$<TARGET_FILE:kwiklook-archive>")
+add_dependencies(tst_epub kwiklook-archive)
+
+# Markdown for Qt's reader (empty HTML elements closed).
+ecm_add_test(tst_markdown.cpp
+    TEST_NAME tst_markdown
+    LINK_LIBRARIES Qt6::Test kwiklook_core
+    NAME_PREFIX "kwiklook-"
+)
+
 # Headings of Markdown and HTML for the contents sidebar.
 ecm_add_test(tst_headings.cpp
     TEST_NAME tst_headings

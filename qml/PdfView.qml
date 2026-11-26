@@ -216,7 +216,8 @@ Item {
         id: sidebar
         objectName: "pageOverview"
 
-        readonly property real fullWidth: Kirigami.Units.gridUnit * (view.sidebarTab === "contents" ? 12 : 8)
+        // One width for both tabs: nothing jumps when switching, and both names fit.
+        readonly property real fullWidth: Kirigami.Units.gridUnit * 12
 
         anchors.left: parent.left
         anchors.top: parent.top
@@ -245,13 +246,16 @@ Item {
             visible: view.pageCount > 1 && view.contents.length > 0
             currentIndex: view.sidebarTab === "contents" ? 1 : 0
 
+            // The two tabs share the bar (on their own they keep their text's width).
             QQC2.TabButton {
                 objectName: "pagesTab"
+                width: tabs.width / 2
                 text: i18nc("@title:tab small pages of a PDF", "Pages")
                 onClicked: Viewer.sidebarTab = "pages"
             }
             QQC2.TabButton {
                 objectName: "contentsTab"
+                width: tabs.width / 2
                 text: i18nc("@title:tab headings of a document", "Contents")
                 onClicked: Viewer.sidebarTab = "contents"
             }

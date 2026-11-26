@@ -22,9 +22,10 @@ ColumnLayout {
     id: view
     objectName: "textView"
 
-    // What shows: "markdown", "html", "json" formatted, or "" for the source.
+    // What shows: "markdown", "html", "json" formatted, "book" (an EPUB as HTML, see
+    // Viewer.bookContents), or "" for the source.
     readonly property string kind: Viewer.showFormatted ? Viewer.formattedKind : ""
-    readonly property bool rendered: kind === "markdown" || kind === "html"
+    readonly property bool rendered: kind === "markdown" || kind === "html" || kind === "book"
 
     // The user zoomed (for the zoom indicator).
     signal zoomed()
@@ -105,10 +106,22 @@ ColumnLayout {
     // The headings: [{title, level, position}] (positions in the text shown).
     property var contents: []
     readonly property bool sidebarAvailable: contents.length > 0
-    onRenderedChanged: Qt.callLater(updateContents) // same text, other format: other positions
+    onRenderedChanged: {
+        Contents.drawWhole(area, rendered); // see Contents::drawWhole: tables in rich text
+        Qt.callLater(updateContents); // same text, other format: other positions
+        Qt.callLater(area.updateRules); // source: colours on (see `colouring`)
+    }
     function updateContents() {
         const kind = Viewer.formattedKind;
-        contents = kind === "markdown" || kind === "html" ? Contents.fromText(area.textDocument, kind, view.rendered, Viewer.text) : [];
+        if (kind === "book") { // its own table of contents, else its headings
+            contents = Viewer.bookContents.length > 0 ? Contents.fromAnchors(area.textDocument, Viewer.bookContents)
+                : Contents.fromText(area.textDocument, "html", true, "");
+        } else {
+            // Markdown: the copy Qt's reader can take, also for the source view's titles
+            // (the same lines: Markdown::forQt only adds characters within them).
+            const source = kind === "markdown" && Viewer.formattedText !== "" ? Viewer.formattedText : Viewer.text;
+            contents = kind === "markdown" || kind === "html" ? Contents.fromText(area.textDocument, kind, view.rendered, source) : [];
+        }
         blocks = view.rendered ? Contents.blocks(area.textDocument, codePadding) : [];
     }
     // Rendered: code blocks and quotes, [{kind, start, end, level}], drawn under the text.
@@ -230,11 +243,12 @@ ColumnLayout {
 
                 readOnly: true
                 selectByMouse: true
-                textFormat: view.kind === "markdown" ? TextEdit.MarkdownText : view.kind === "html" ? TextEdit.RichText : TextEdit.PlainText
+                textFormat: view.kind === "markdown" ? TextEdit.MarkdownText : view.kind === "html" || view.kind === "book" ? TextEdit.RichText : TextEdit.PlainText
                 wrapMode: TextEdit.Wrap
                 font.family: baseFont.family
                 font.pointSize: baseFont.pointSize * Viewer.textZoom
-                text: view.kind === "json" && Viewer.formattedText !== "" ? Viewer.formattedText : Viewer.text
+                // JSON indented; Markdown as Qt's reader can take it (see Markdown::forQt).
+                text: (view.kind === "json" || view.kind === "markdown") && Viewer.formattedText !== "" ? Viewer.formattedText : Viewer.text
                 onTextChanged: {
                     Qt.callLater(view.runSearch); // a new file, or rendered / source
                     Qt.callLater(view.updateContents);
@@ -245,10 +259,18 @@ ColumnLayout {
                 // before they run (KDE's highlighter keeps those lines).
                 property string rulesFileName
                 property string rulesMimeType
-                Component.onCompleted: updateRules()
+                // Colours at all: also only once a switch has settled. During one, `rendered`
+                // can be false for a moment while the text is still the last file's (a
+                // book's 1.4 MB took 18 s to colour, for nothing).
+                property bool colouring: false
+                Component.onCompleted: {
+                    updateRules();
+                    Contents.drawWhole(area, view.rendered);
+                }
                 function updateRules() {
                     rulesFileName = Viewer.fileName;
                     rulesMimeType = Viewer.mimeType;
+                    colouring = !view.rendered;
                 }
                 Connections {
                     target: Viewer
@@ -287,7 +309,7 @@ ColumnLayout {
 
                 // Source only: removing it takes its colours off rendered Markdown.
                 Loader {
-                    active: !view.rendered
+                    active: area.colouring && !view.rendered
                     sourceComponent: highlighterComponent
                 }
                 Component {

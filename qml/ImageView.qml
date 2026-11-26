@@ -126,7 +126,7 @@ Item {
             asynchronous: true
             retainWhileLoading: true // the screen-size picture stays while the full one decodes
             autoTransform: true // EXIF orientation
-            cache: false
+            cache: true // finds the pictures Main.qml decoded ahead
             smooth: true
             mipmap: true // clean when shrunk a lot
             fillMode: Image.PreserveAspectFit

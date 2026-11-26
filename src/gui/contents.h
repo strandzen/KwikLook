@@ -6,6 +6,7 @@
 #include <QQmlEngine>
 #include <QtQml/qqmlregistration.h>
 
+#include <QQuickItem>
 #include <QQuickTextDocument>
 
 /*
@@ -13,6 +14,8 @@
  *
  *   PDFs:            PdfContents { source: url } → entries [{title, level, page, y}]
  *   Markdown / HTML: Contents.fromText(area.textDocument, kind, rendered, source)
+ *                    → [{title, level, position}]
+ *   EPUB books:      Contents.fromAnchors(area.textDocument, Viewer.bookContents)
  *                    → [{title, level, position}]
  */
 class Contents : public QObject
@@ -33,6 +36,15 @@ public:
     // ("code" / "quote"), start, end, level}], with code padded by `padding` (see
     // TextBlocks::padCode()) for the shaded box drawn under it.
     Q_INVOKABLE QVariantList blocks(QQuickTextDocument *document, qreal padding) const;
+    // A book's own table of contents ({title, level, anchor}, see Epub::Book) at the
+    // places its anchors (<a name>) landed in the document; entries whose anchor isn't
+    // there are left out.
+    // Rendered text (HTML, Markdown, books): `item` (a TextEdit) builds its whole document,
+    // not only the part on screen. Qt 6.12.1's partial building loses what comes before
+    // a table in the middle of a long rich text once it was scrolled out of view: the
+    // top stayed blank (2026-11-26). Plain text keeps the partial building.
+    Q_INVOKABLE void drawWhole(QQuickItem *item, bool whole) const;
+    Q_INVOKABLE QVariantList fromAnchors(QQuickTextDocument *document, const QVariantList &entries) const;
 };
 
 /*

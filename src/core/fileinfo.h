@@ -34,7 +34,9 @@ struct FileInfo {
     // Files that show formatted or as source (the bar's view toggle): "markdown",
     // "html", "svg", "json", "desktop", "csv", "vcard", "calendar"; empty for the others.
     QString formattedKind;
-    QString formattedText; // JSON: the text indented, if it parses; else empty
+    // JSON: the text indented, if it parses; Markdown: the text as Qt's reader can take
+    // it (Markdown::forQt), if that differs; else empty.
+    QString formattedText;
     // .desktop files: name, genericName, comment, icon, type, exec, url, categories,
     // terminal, hidden (in the menus), as read by KDesktopFile.
     QVariantMap desktopEntry;

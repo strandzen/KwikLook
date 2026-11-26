@@ -39,6 +39,8 @@ add_library(kwiklook_core STATIC
     core/textblocks.cpp
     core/archivelisting.cpp
     core/cards.cpp
+    core/epub.cpp
+    core/markdown.cpp
 )
 target_include_directories(kwiklook_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/core)
 target_link_libraries(kwiklook_core PUBLIC Qt6::Gui KF6::ConfigCore KF6::ConfigGui) # ConfigGui: QColor entries
@@ -93,6 +95,8 @@ qt_add_qml_module(kwiklook_qml
         gui/sandbox.cpp
         gui/kwinscript.h
         gui/kwinscript.cpp
+        gui/bookreader.h
+        gui/bookreader.cpp
     RESOURCE_PREFIX "/qt/qml" # Qt searches here by default
     OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/kwiklook"
 )

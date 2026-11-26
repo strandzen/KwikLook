@@ -34,6 +34,7 @@
 #include <QLoggingCategory>
 #include <QTimer>
 #include <QtConcurrentRun>
+#include <QFuture>
 
 using namespace Qt::StringLiterals;
 
@@ -55,6 +56,14 @@ KConfigGroup stateGroup()
 {
     // Window state, not a setting: ~/.local/state/kwiklookstaterc.
     return KSharedConfig::openStateConfig()->group(u"Viewer"_s);
+}
+
+// Details read ahead still describe the file: same size and date (local files).
+bool unchangedOnDisk(const FileInfo &info)
+{
+    const QFileInfo now(info.url.toLocalFile());
+    return info.url.isLocalFile() && now.exists() == info.exists
+        && (!info.exists || (now.lastModified() == info.modified && (info.isDir || now.size() == info.size)));
 }
 
 QString formatDate(const QDateTime &date)
@@ -95,6 +104,7 @@ Viewer::Viewer(QObject *parent)
     , m_sidebarTab(stateGroup().readEntry("SidebarTab", u"contents"_s))
     , m_mediaVolume(std::clamp(stateGroup().readEntry("MediaVolume", 1.0), 0.0, 1.0))
     , m_office(new OfficeConverter(this))
+    , m_book(new BookReader(this))
     , m_table(new TableModel(this))
 {
     connect(m_office, &OfficeConverter::converted, this, [this](const QString &path, const QUrl &pdf) {
@@ -105,6 +115,35 @@ Viewer::Viewer(QObject *parent)
         m_previewNote.clear();
         m_previewBusy = false;
         m_view = u"PdfView"_s;
+        Q_EMIT fileInfoChanged();
+    });
+    connect(m_book, &BookReader::finished, this, [this](const QString &path, const Epub::Book &book) {
+        if (path != currentUrl().toLocalFile()) {
+            return;
+        }
+        m_info.text = book.html;
+        m_info.textTruncated = book.truncated;
+        m_info.formattedKind = u"book"_s;
+        m_bookContents = book.contents;
+        if (!book.title.isEmpty()) {
+            m_info.details.append({i18nc("@label of a book", "Title"), book.title});
+        }
+        if (!book.author.isEmpty()) {
+            m_info.details.append({i18nc("@label of a book", "Author"), book.author});
+        }
+        m_previewNote.clear();
+        m_previewBusy = false;
+        m_view = u"TextView"_s;
+        Q_EMIT fileInfoChanged();
+    });
+    connect(m_book, &BookReader::failed, this, [this](const QString &path, BookReader::Failure failure) {
+        if (path != currentUrl().toLocalFile()) {
+            return;
+        }
+        m_previewBusy = false;
+        m_previewNote = failure == BookReader::Failure::NoSandbox
+            ? i18n("This system can't open books shut away from your files and the network, so books aren't previewed.")
+            : i18n("This book couldn't be read.");
         Q_EMIT fileInfoChanged();
     });
     connect(m_office, &OfficeConverter::failed, this, [this](const QString &path, OfficeConverter::Failure failure) {
@@ -282,6 +321,9 @@ QString Viewer::textNote() const
     if (!m_info.textTruncated) {
         return QString();
     }
+    if (m_info.formattedKind == u"book"_s) {
+        return i18n("This book is long: showing only its beginning.");
+    }
     return i18n("This file is long: showing only its beginning.");
 }
 
@@ -306,6 +348,17 @@ bool Viewer::previewBusy() const
 bool Viewer::officePreviewsAvailable() const
 {
     return OfficeConverter::available();
+}
+
+void Viewer::startBookPreview()
+{
+    if (m_info.mimeType != u"application/epub+zip"_s || !m_info.exists || !currentUrl().isLocalFile()) {
+        return;
+    }
+    m_previewBusy = true;
+    m_previewNote = i18n("Preparing preview…");
+    m_view = u"FallbackView"_s;
+    m_book->read(currentUrl().toLocalFile());
 }
 
 void Viewer::startOfficePreview()
@@ -492,6 +545,11 @@ QString Viewer::formattedKind() const
     return m_info.formattedKind;
 }
 
+QVariantList Viewer::bookContents() const
+{
+    return m_bookContents;
+}
+
 QString Viewer::formattedText() const
 {
     return m_info.formattedText;
@@ -528,12 +586,13 @@ KConfigGroup formattedGroup()
 
 bool Viewer::showFormatted() const
 {
-    return m_info.formattedKind.isEmpty() || formattedGroup().readEntry(m_info.formattedKind, true);
+    return m_info.formattedKind.isEmpty() || m_info.formattedKind == u"book"_s // no source view
+        || formattedGroup().readEntry(m_info.formattedKind, true);
 }
 
 void Viewer::setShowFormatted(bool formatted)
 {
-    if (m_info.formattedKind.isEmpty() || formatted == showFormatted()) {
+    if (m_info.formattedKind.isEmpty() || m_info.formattedKind == u"book"_s || formatted == showFormatted()) {
         return;
     }
     KConfigGroup group = formattedGroup();
@@ -749,9 +808,69 @@ void Viewer::readFileInfo(int generation)
         });
         window->update();
     });
-    watcher->setFuture(QtConcurrent::run([url = m_urls.value(m_index)] {
+    // Read ahead and unchanged since: no need to read it again.
+    const QUrl url = m_urls.value(m_index);
+    if (const auto ahead = m_ahead.constFind(url); ahead != m_ahead.cend() && unchangedOnDisk(*ahead)) {
+        watcher->setFuture(QtFuture::makeReadyValueFuture(*ahead));
+        return;
+    }
+    watcher->setFuture(QtConcurrent::run([url] {
         return FileInfo::read(url);
     }));
+}
+
+void Viewer::readAhead()
+{
+    QList<QUrl> neighbours;
+    for (const int i : {m_index + 1, m_index - 1}) {
+        const QUrl url = m_urls.value(i);
+        if (url.isLocalFile() && url != m_urls.value(m_index)) {
+            neighbours << url;
+        }
+    }
+    const qsizetype before = m_ahead.size();
+    m_ahead.removeIf([&neighbours](const auto &entry) {
+        return !neighbours.contains(entry.key());
+    });
+    bool changed = m_ahead.size() != before;
+    for (const QUrl &url : std::as_const(neighbours)) {
+        if (m_ahead.contains(url) || m_aheadReading.contains(url)) {
+            continue;
+        }
+        m_aheadReading.insert(url);
+        auto *watcher = new QFutureWatcher<FileInfo>(this);
+        connect(watcher, &QFutureWatcher<FileInfo>::finished, this, [this, watcher, url] {
+            watcher->deleteLater();
+            m_aheadReading.remove(url);
+            // Still next to the current file? (← → may have moved on meanwhile.)
+            if (m_open && (m_urls.value(m_index + 1) == url || m_urls.value(m_index - 1) == url)) {
+                m_ahead.insert(url, watcher->result());
+                Q_EMIT picturesAheadChanged();
+            }
+        });
+        watcher->setFuture(QtConcurrent::run([url] {
+            return FileInfo::read(url);
+        }));
+    }
+    if (changed) {
+        Q_EMIT picturesAheadChanged();
+    }
+}
+
+QVariantList Viewer::picturesAhead() const
+{
+    QVariantList pictures;
+    for (const int i : {m_index + 1, m_index - 1}) {
+        const FileInfo info = m_ahead.value(m_urls.value(i));
+        // Still pictures only, as ImageView loads them (SVG is drawn at the size shown).
+        if (info.known && viewFor(info, false) == u"ImageView"_s && !info.animated && info.formattedKind.isEmpty()
+            && info.imageSize.isValid()) {
+            pictures << QVariantMap{{u"url"_s, info.url}, {u"width"_s, info.imageSize.width()}, {u"height"_s, info.imageSize.height()}};
+        } else {
+            pictures << QVariantMap();
+        }
+    }
+    return pictures;
 }
 
 void Viewer::showCurrent(FileInfo info)
@@ -760,6 +879,8 @@ void Viewer::showCurrent(FileInfo info)
     m_shownIndex = m_index;
     m_info = std::move(info);
     m_office->cancel();
+    m_book->cancel();
+    m_bookContents.clear();
     m_convertedPdf.clear();
     m_previewNote.clear();
     m_previewBusy = false;
@@ -768,6 +889,7 @@ void Viewer::showCurrent(FileInfo info)
         m_view = viewFor(m_info, showFormatted());
         loadFont();
         startOfficePreview(); // the fallback view meanwhile, then the PDF view
+        startBookPreview();
     }
     // Everything is set before either goes out; views clear on the first, load on the second.
     Q_EMIT currentChanged();
@@ -775,6 +897,9 @@ void Viewer::showCurrent(FileInfo info)
     Q_EMIT switchingChanged();
     if (m_info.known) {
         answerPlacements();
+        if (m_open) {
+            readAhead();
+        }
     }
 }
 
@@ -855,7 +980,10 @@ void Viewer::markClosed()
     }
     m_open = false;
     m_showPending = false;
+    m_ahead.clear(); // read again next time: the files may change meanwhile
+    Q_EMIT picturesAheadChanged();
     m_office->cancel();
+    m_book->cancel();
     unloadFont();
     if (!m_fontSampleText.isEmpty()) {
         m_fontSampleText.clear();

@@ -4,12 +4,15 @@
 
 #include "dbusnames.h"
 #include "fileinfo.h"
+#include "bookreader.h"
 #include "officeconverter.h"
 #include "tablemodel.h"
 
 #include <QDBusContext>
 #include <QDBusMessage>
 #include <QFutureWatcher>
+#include <QHash>
+#include <QSet>
 #include <QList>
 #include <QObject>
 #include <QPointer>
@@ -98,6 +101,9 @@ class Viewer : public QObject, protected QDBusContext
     Q_PROPERTY(QString formattedKind READ formattedKind NOTIFY fileInfoChanged)
     Q_PROPERTY(bool showFormatted READ showFormatted WRITE setShowFormatted NOTIFY fileInfoChanged)
     Q_PROPERTY(QString formattedText READ formattedText NOTIFY fileInfoChanged) // JSON indented
+    // EPUB books (formattedKind "book", `text` the book as HTML): the book's table of
+    // contents, {title, level, anchor}; see Epub::Book.
+    Q_PROPERTY(QVariantList bookContents READ bookContents NOTIFY fileInfoChanged)
     Q_PROPERTY(QVariantMap desktopEntry READ desktopEntry NOTIFY fileInfoChanged)
     // vCard / iCalendar: the contacts or events (FileInfo::cards), and how many more
     // the file has beyond those.
@@ -108,6 +114,10 @@ class Viewer : public QObject, protected QDBusContext
     // The room around a picture shown at real size: the window's size minus the
     // picture's (bar, margins, information panel). Set by Main.qml; for Placement().
     Q_PROPERTY(QSize windowChrome MEMBER m_windowChrome NOTIFY windowChromeChanged)
+    // The pictures next to the current file, for Main.qml to decode ahead: two maps,
+    // the next file's and the previous one's, each {url, width, height} (pixels) or
+    // empty (not a still picture, or not read yet). See readAhead().
+    Q_PROPERTY(QVariantList picturesAhead READ picturesAhead NOTIFY picturesAheadChanged)
 
 public:
     static constexpr auto ServiceName = KwikLookDBus::Service;
@@ -178,6 +188,7 @@ public:
     Q_INVOKABLE void installFont();
     QString formattedKind() const;
     QString formattedText() const;
+    QVariantList bookContents() const;
     QVariantMap desktopEntry() const;
     QVariantList cards() const;
     int moreCards() const;
@@ -224,6 +235,7 @@ Q_SIGNALS:
     void searchOpenChanged();
     void searchTextChanged();
     void windowChromeChanged();
+    void picturesAheadChanged();
     // main.cpp creates the settings window on the first request and shows it.
     void settingsRequested(const QString &activationToken);
 
@@ -235,10 +247,15 @@ private:
     void answerPlacements(); // the Placement() calls waiting for details
     void markClosed();
     void readFileInfo(int generation);
+    // Reads the details of the files next to the current one while it's shown, so
+    // ← → can use them at once (and Main.qml can decode their pictures ahead).
+    void readAhead();
+    QVariantList picturesAhead() const;
     // The file at m_index becomes the one shown, with these details.
     void showCurrent(FileInfo info);
     void closeIfFocusLeft();
     void startOfficePreview();
+    void startBookPreview(); // EPUB: the fallback view meanwhile, then the book as text
     // Font files: adds the current font to the app's fonts (the previous one goes).
     void loadFont();
     void unloadFont();
@@ -269,6 +286,8 @@ private:
     QString m_searchText;
     int m_generation = 0; // drops details read for a file that's no longer current
     OfficeConverter *m_office = nullptr;
+    BookReader *m_book = nullptr;
+    QVariantList m_bookContents;
     TableModel *m_table = nullptr;
     QUrl m_convertedPdf; // the current office document as PDF
     QString m_previewNote;
@@ -278,4 +297,6 @@ private:
     bool m_showPending = false; // waiting for the first file's details, see setPlacementActive()
     QString m_pendingToken;
     QList<QDBusMessage> m_placementCalls; // waiting for the current file's details
+    QHash<QUrl, FileInfo> m_ahead; // details of the files next to the current one
+    QSet<QUrl> m_aheadReading;
 };

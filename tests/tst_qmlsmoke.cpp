@@ -25,6 +25,9 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
+#include <QQuickTextDocument>
+#include <QTextDocument>
+#include <QTextBlock>
 #include <QTemporaryFile>
 #include <QStandardPaths>
 #include <QTest>
@@ -528,7 +531,9 @@ private Q_SLOTS:
         QTemporaryDir dir;
         const auto write = [&dir](const QString &name, const QByteArray &text) {
             QFile f(dir.filePath(name));
-            f.open(QIODevice::WriteOnly);
+            if (!f.open(QIODevice::WriteOnly)) {
+                return QString();
+            }
             f.write(text);
             return f.fileName();
         };
@@ -620,6 +625,65 @@ private Q_SLOTS:
         v->setWindow(nullptr);
         KSharedConfig::openStateConfig()->group(u"FormattedView"_s).deleteGroup();
         QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+    }
+
+    // A README that starts with a centred logo (<img> without its slash): Qt's reader
+    // dropped everything after it, and the contents showed “(Untitled)”.
+    void markdownWithAPictureHeader()
+    {
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        // Kept: the shared viewer may still load the picture after this test.
+        QDir dir(m_keptDir.filePath(u"readme"_s));
+        QVERIFY(dir.mkpath(u"."_s));
+        QImage icon(8, 8, QImage::Format_RGB32);
+        icon.fill(Qt::darkBlue);
+        QVERIFY(icon.save(dir.filePath(u"icon.png"_s)));
+        QFile f(dir.filePath(u"README.md"_s));
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("<div align=\"center\">\n    <img width=\"64\" src=\"icon.png\">\n    <h1><b>Project</b></h1>\n</div>\n\n"
+                "Intro text.\n\n## Features\n\nMore text.\n\n## Usage\n\nThe end.\n");
+        f.close();
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open({f.fileName()}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QTRY_COMPARE(v->formattedKind(), u"markdown"_s);
+        const bool wasFormatted = v->showFormatted();
+        QQuickItem *textView = nullptr;
+        QTRY_VERIFY((textView = window->findChild<QQuickItem *>(u"textView"_s)));
+        const auto titles = [textView] {
+            QStringList found;
+            for (const QVariant &entry : textView->property("contents").toList()) {
+                found << entry.toMap().value(u"title"_s).toString();
+            }
+            return found;
+        };
+        const QStringList expected{u"Project"_s, u"Features"_s, u"Usage"_s};
+        for (const bool formatted : {true, false}) {
+            v->setShowFormatted(formatted);
+            QTRY_COMPARE(titles(), expected);
+            QQuickItem *area = window->findChild<QQuickItem *>(u"textArea"_s);
+            QTRY_VERIFY(area->property("text").toString().contains(u"The end."_s));
+            if (formatted) { // the text after the picture is there, rendered
+                QVERIFY(area->property("textDocument").value<QQuickTextDocument *>()->textDocument()->toPlainText().contains(u"The end."_s));
+            } else { // the source as written, without the added slash
+                QVERIFY(area->property("text").toString().contains(u"src=\"icon.png\">"_s));
+            }
+        }
+        v->setShowFormatted(wasFormatted);
+        QVERIFY2(main.warnings().isEmpty(), qPrintable(main.warnings()));
+        // End on a file without pictures: on the next test's switch the text view gets
+        // the new folder a moment before the new text, and would look for icon.png there.
+        QFile plain(dir.filePath(u"plain.txt"_s));
+        QVERIFY(plain.open(QIODevice::WriteOnly));
+        plain.write("plain\n");
+        plain.close();
+        v->Open({plain.fileName()}, 0, QString(), QString());
+        QTRY_COMPARE(v->text(), u"plain\n"_s);
+        v->Close();
+        v->setWindow(nullptr);
     }
 
     void showsFontsAndTypedText()
@@ -1078,10 +1142,19 @@ private Q_SLOTS:
         QMetaObject::invokeMethod(chapter2, "clicked");
         QTRY_COMPARE(pdfView->property("currentContentsEntry").toInt(), 2);
         QTRY_COMPARE(pdfView->property("currentPage").toInt(), 2);
+        // The two tabs share the bar evenly; the sidebar keeps its width on both tabs.
+        QQuickItem *tabs = window->findChild<QQuickItem *>(u"sidebarTabs"_s);
+        QQuickItem *pagesTab = window->findChild<QQuickItem *>(u"pagesTab"_s);
+        QQuickItem *contentsTab = window->findChild<QQuickItem *>(u"contentsTab"_s);
+        QTRY_COMPARE(sidebar->width(), tabs->width());
+        const qreal sidebarWidth = sidebar->width();
+        QCOMPARE(pagesTab->width(), tabs->width() / 2);
+        QCOMPARE(contentsTab->width(), tabs->width() / 2);
         // The Pages tab shows the small pages, and is remembered.
-        QMetaObject::invokeMethod(window->findChild<QQuickItem *>(u"pagesTab"_s), "clicked");
+        QMetaObject::invokeMethod(pagesTab, "clicked");
         QCOMPARE(v->sidebarTab(), u"pages"_s);
         QTRY_COMPARE(itemsNamed(sidebar, u"pageThumbnail"_s).size(), 3);
+        QCOMPARE(sidebar->width(), sidebarWidth);
         QTRY_COMPARE(itemsNamed(sidebar, u"contentsEntry"_s).size(), 0);
 
         // Markdown: its headings in the sidebar (no tabs), rendered and as source.
@@ -1197,6 +1270,87 @@ private Q_SLOTS:
 
     // While shown, the next file replaces the current one in one step, after its details
     // are read; the old view stays as a still picture and fades out.
+    // An EPUB book: unpacked in the sandbox, shown as formatted text with its own
+    // table of contents in the sidebar and its pictures; no formatted / source toggle.
+    void showsAnEpubBook()
+    {
+        const QString bsdtar = QStandardPaths::findExecutable(u"bsdtar"_s);
+        if (bsdtar.isEmpty()) {
+            QSKIP("bsdtar is needed to make the test book");
+        }
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        QTemporaryDir dir;
+        const auto write = [&dir](const QString &name, const QByteArray &data) {
+            const QString path = dir.filePath(u"book/"_s + name);
+            QDir().mkpath(QFileInfo(path).absolutePath());
+            QFile f(path);
+            if (f.open(QIODevice::WriteOnly)) {
+                f.write(data);
+            }
+        };
+        write(u"mimetype"_s, "application/epub+zip");
+        write(u"META-INF/container.xml"_s, "<container><rootfiles><rootfile full-path=\"book.opf\"/></rootfiles></container>");
+        write(u"book.opf"_s,
+              "<package xmlns=\"http://www.idpf.org/2007/opf\"><metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:title>Tiny Book</dc:title>"
+              "</metadata><manifest><item id=\"toc\" href=\"toc.ncx\"/><item id=\"a\" href=\"a.xhtml\"/><item id=\"b\" href=\"b.xhtml\"/>"
+              "</manifest><spine toc=\"toc\"><itemref idref=\"a\"/><itemref idref=\"b\"/></spine></package>");
+        write(u"toc.ncx"_s,
+              "<ncx><navMap><navPoint><navLabel><text>First</text></navLabel><content src=\"a.xhtml\"/></navPoint>"
+              "<navPoint><navLabel><text>Second</text></navLabel><content src=\"b.xhtml\"/></navPoint></navMap></ncx>");
+        write(u"a.xhtml"_s, "<html><body><h1>First</h1><p>Once upon a time.</p><p><img src=\"pic.png\"/></p></body></html>");
+        write(u"b.xhtml"_s, "<html><body><h1>Second</h1><p>The end.</p></body></html>");
+        QImage picture(40, 30, QImage::Format_RGB32);
+        picture.fill(Qt::darkGreen);
+        QVERIFY(picture.save(dir.filePath(u"book/pic.png"_s)));
+        QProcess pack;
+        pack.setWorkingDirectory(dir.filePath(u"book"_s));
+        pack.start(bsdtar, {u"--format"_s, u"zip"_s, u"-cf"_s, dir.filePath(u"tiny.epub"_s), u"mimetype"_s, u"META-INF"_s, u"book.opf"_s, u"toc.ncx"_s,
+                            u"a.xhtml"_s, u"b.xhtml"_s, u"pic.png"_s});
+        QVERIFY(pack.waitForFinished(10000) && pack.exitCode() == 0);
+
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open({dir.filePath(u"tiny.epub"_s)}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QTRY_COMPARE_WITH_TIMEOUT(v->property("view").toString(), u"TextView"_s, 10000);
+        QCOMPARE(v->formattedKind(), u"book"_s);
+        QVERIFY(v->showFormatted());
+        QVERIFY(v->text().contains(u"Once upon a time."_s));
+        QQuickItem *textView = nullptr;
+        QTRY_VERIFY((textView = window->findChild<QQuickItem *>(u"textView"_s)));
+        QVERIFY(textView->property("rendered").toBool());
+        // The book's table of contents, at its chapters.
+        QTRY_COMPARE(textView->property("contents").toList().size(), 2);
+        const QVariantList contents = textView->property("contents").toList();
+        QCOMPARE(contents.at(0).toMap().value(u"title"_s).toString(), u"First"_s);
+        QVERIFY(contents.at(1).toMap().value(u"position"_s).toInt() > contents.at(0).toMap().value(u"position"_s).toInt());
+        // Built whole: Qt's partial building lost the top after a table (Contents::drawWhole).
+        QVERIFY(!window->findChild<QQuickItem *>(u"textArea"_s)->flags().testFlag(QQuickItem::ItemObservesViewport));
+        // Never coloured as code (it once was, for a moment, during the switch).
+        QVERIFY(!window->findChild<QQuickItem *>(u"textArea"_s)->findChild<QObject *>(u"highlighter"_s));
+        // No formatted / source toggle for books.
+        QQuickItem *toggle = findItem(window, u"barViewMode"_s);
+        QVERIFY(!toggle || !toggle->isVisible());
+        // The picture inside the book loads from its data address.
+        QQuickItem *area = window->findChild<QQuickItem *>(u"textArea"_s);
+        QTextDocument *doc = area->property("textDocument").value<QQuickTextDocument *>()->textDocument();
+        QString image;
+        for (QTextBlock block = doc->begin(); block.isValid() && image.isEmpty(); block = block.next()) {
+            for (auto it = block.begin(); !it.atEnd(); ++it) {
+                if (it.fragment().charFormat().isImageFormat()) {
+                    image = it.fragment().charFormat().toImageFormat().name();
+                }
+            }
+        }
+        QVERIFY(image.startsWith(u"data:image/png;base64,"_s));
+        QTRY_VERIFY(!doc->resource(QTextDocument::ImageResource, QUrl(image)).isNull());
+        QVERIFY2(main.warnings().isEmpty(), qPrintable(main.warnings()));
+        v->Close();
+        v->setWindow(nullptr);
+    }
+
     void switchesFilesInOneStep()
     {
         MainWindow main;
@@ -1800,6 +1954,97 @@ private Q_SLOTS:
             qWarning().noquote() << e.toString();
         }
         QVERIFY(errors.isEmpty());
+    }
+
+    // The pictures next to the current file are decoded ahead: ← → shows them without
+    // loading. Both kinds: one larger than the screen (decoded at screen size), one not.
+    void picturesAreDecodedAhead()
+    {
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        QTemporaryDir dir;
+        QStringList files;
+        for (const QSize size : {QSize(64, 48), QSize(4000, 3000), QSize(120, 90)}) {
+            QImage picture(size, QImage::Format_RGB32);
+            picture.fill(Qt::darkCyan);
+            files << dir.filePath(u"%1.png"_s.arg(size.width()));
+            QVERIFY(picture.save(files.last()));
+        }
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open(files, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        // Repeater rows aren't children of the window: walk the items (hidden ones too).
+        QList<QObject *> slots;
+        QList<QQuickItem *> todo{window->contentItem()};
+        while (!todo.isEmpty()) {
+            QQuickItem *item = todo.takeFirst();
+            if (item->objectName() == u"pictureAhead"_s) {
+                slots << item;
+            }
+            todo << item->childItems();
+        }
+        QCOMPARE(slots.size(), 2);
+        const auto ahead = [&slots](const QString &file) {
+            for (QObject *slot : slots) {
+                if (slot->property("source").toUrl() == QUrl::fromLocalFile(file) && slot->property("status").toInt() == 1) {
+                    return true;
+                }
+            }
+            return false;
+        };
+        for (int i = 1; i < files.size(); ++i) {
+            QTRY_VERIFY2(ahead(files.at(i)), qPrintable(files.at(i)));
+            // Settled: an idle slot doesn't load again.
+            QList<std::shared_ptr<QSignalSpy>> spies;
+            for (QObject *slot : slots) {
+                spies << std::make_shared<QSignalSpy>(slot, SIGNAL(statusChanged(QQuickImageBase::Status)));
+            }
+            QTest::qWait(300);
+            for (const auto &spy : spies) {
+                QCOMPARE(spy->count(), 0);
+            }
+            v->Next();
+            QTRY_COMPARE(v->currentIndex(), i);
+            QQuickItem *view = nullptr;
+            QTRY_VERIFY((view = findItem(window, u"imageView"_s)));
+            QObject *image = view->property("image").value<QObject *>();
+            QTRY_COMPARE(image->property("source").toUrl(), QUrl::fromLocalFile(files.at(i)));
+            QCOMPARE(image->property("status").toInt(), 1); // Ready at once: from the cache
+        }
+        // Closed: the slots let go of their pictures.
+        v->Close();
+        for (QObject *slot : slots) {
+            QTRY_COMPARE(slot->property("source").toUrl(), QUrl());
+        }
+        v->setWindow(nullptr);
+    }
+
+    void shareOffersLocalSend()
+    {
+        const bool installed = KService::serviceByDesktopName(u"localsend"_s) || KService::serviceByDesktopName(u"org.localsend.localsend_app"_s)
+            || KService::serviceByDesktopName(u"localsend_app"_s);
+        if (!installed) {
+            QSKIP("LocalSend isn't installed");
+        }
+        const QString txt = m_keptDir.filePath(u"share.txt"_s);
+        QFile f(txt);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.close();
+        FileMenus menus;
+        menus.setProperty("url", QUrl::fromLocalFile(txt));
+        menus.setProperty("mimeType", u"text/plain"_s);
+        QMenu *menu = menus.shareMenu();
+        QVERIFY(menu);
+        QVERIFY(menu->findChild<QAction *>(u"shareLocalSend"_s));
+        // Once only, also when the menu is filled again.
+        menu = menus.shareMenu();
+        QCOMPARE(menu->findChildren<QAction *>(u"shareLocalSend"_s).size(), 1);
+        // Not for a file that isn't on this computer.
+        menus.setProperty("url", QUrl(u"https://example.org/share.txt"_s));
+        menu = menus.shareMenu();
+        QVERIFY(!menu->findChild<QAction *>(u"shareLocalSend"_s));
     }
 
     void openWithOffersSpectacleForPictures()

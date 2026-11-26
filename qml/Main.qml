@@ -46,6 +46,49 @@ Kirigami.ApplicationWindow {
         }
     }
 
+    // The pictures next to the current file, decoded ahead and hidden: ← → then finds
+    // them ready in Qt's image cache. Loaded as ImageView's stillImage loads them (the
+    // cache key: address, sourceSize, autoTransform, fillMode); keep the two in step.
+    // A slot takes its next picture only once the one it has is loaded: cancelling a
+    // load can crash Qt 6.12 (CLAUDE.md, Known Pitfalls). Nothing while hidden.
+    Item {
+        visible: false
+        Repeater {
+            model: 2 // next, previous
+            delegate: Image {
+                id: ahead
+                required property int index
+                readonly property var wanted: root.visible && Viewer.picturesAhead[index] ? Viewer.picturesAhead[index] : ({})
+                readonly property real dpr: root.devicePixelRatio !== undefined ? root.devicePixelRatio : Screen.devicePixelRatio
+                objectName: "pictureAhead"
+                asynchronous: true
+                cache: true
+                autoTransform: true
+                fillMode: Image.PreserveAspectFit
+                // What the slot holds: the picture's address and the size it's decoded at.
+                property string taken: ""
+                function take() {
+                    if (status === Image.Loading) {
+                        return;
+                    }
+                    const url = wanted.url ? String(wanted.url) : "";
+                    const fitted = wanted.width > Screen.width * dpr || wanted.height > Screen.height * dpr;
+                    const size = fitted ? Qt.size(Screen.width * dpr, Screen.height * dpr) : undefined;
+                    const key = url === "" ? "" : url + (fitted ? " " + size.width + "x" + size.height : "");
+                    if (key === taken) {
+                        return;
+                    }
+                    taken = key;
+                    source = ""; // no load at the old address with the new size
+                    sourceSize = size;
+                    source = url;
+                }
+                onWantedChanged: take()
+                onStatusChanged: take()
+            }
+        }
+    }
+
     // For KwikLook's KWin script: the room around a picture shown at real size (the bar,
     // the information panel; pictures go edge to edge), so the window can take its shape.
     Binding {

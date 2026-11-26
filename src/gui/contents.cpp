@@ -7,6 +7,7 @@
 
 #include <QAbstractItemModel>
 #include <QFutureWatcher>
+#include <QHash>
 #include <QtConcurrent>
 #include <QPdfBookmarkModel>
 #include <QPdfDocument>
@@ -14,6 +15,7 @@
 #include <QQuickTextDocument>
 #include <QTextBlock>
 #include <QTextDocument>
+#include <QTextFragment>
 
 using namespace Qt::StringLiterals;
 
@@ -117,6 +119,41 @@ QVariantList Contents::fromText(QQuickTextDocument *document, const QString &kin
     }
     for (const Headings::Heading &heading : std::as_const(headings)) {
         out.append(QVariantMap{{u"title"_s, heading.title}, {u"level"_s, heading.level}, {u"position"_s, heading.at}});
+    }
+    return out;
+}
+
+void Contents::drawWhole(QQuickItem *item, bool whole) const
+{
+    if (item && item->flags().testFlag(QQuickItem::ItemObservesViewport) == whole) {
+        item->setFlag(QQuickItem::ItemObservesViewport, !whole);
+        item->update();
+    }
+}
+
+QVariantList Contents::fromAnchors(QQuickTextDocument *document, const QVariantList &entries) const
+{
+    QVariantList out;
+    const QTextDocument *doc = document ? document->textDocument() : nullptr;
+    if (!doc) {
+        return out;
+    }
+    // Qt puts an empty <a name> on the text that follows it.
+    QHash<QString, int> places;
+    for (QTextBlock block = doc->begin(); block.isValid(); block = block.next()) {
+        for (auto it = block.begin(); !it.atEnd(); ++it) {
+            const QTextFragment fragment = it.fragment();
+            for (const QString &name : fragment.charFormat().anchorNames()) {
+                places.insert(name, fragment.position()); // the last one: anchors at a chapter's start come in order
+            }
+        }
+    }
+    for (const QVariant &entry : entries) {
+        const QVariantMap map = entry.toMap();
+        const auto place = places.constFind(map.value(u"anchor"_s).toString());
+        if (place != places.cend()) {
+            out.append(QVariantMap{{u"title"_s, map.value(u"title"_s)}, {u"level"_s, map.value(u"level"_s)}, {u"position"_s, *place}});
+        }
     }
     return out;
 }

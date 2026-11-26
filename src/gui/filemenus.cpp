@@ -13,6 +13,7 @@
 #include <KWindowSystem>
 #include <KLocalizedString>
 #include <KService>
+#include <KShell>
 #include <Purpose/AlternativesModel>
 #include <Purpose/Menu>
 
@@ -28,6 +29,7 @@
 #include <QMimeDatabase>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QRegularExpression>
 
 using namespace Qt::StringLiterals;
 
@@ -146,8 +148,15 @@ void FileMenus::launch(const QUrl &url, const QString &desktopEntry)
 
 void FileMenus::showShare(QQuickItem *button)
 {
+    if (QMenu *menu = shareMenu()) {
+        popup(menu, button);
+    }
+}
+
+QMenu *FileMenus::shareMenu()
+{
     if (m_url.isEmpty()) {
-        return;
+        return nullptr;
     }
     if (!m_shareMenu) {
         m_shareMenu = std::make_unique<Purpose::Menu>();
@@ -167,8 +176,53 @@ void FileMenus::showShare(QQuickItem *button)
         {u"urls"_s, QJsonArray{m_url.toString()}},
         {u"mimeType"_s, mimeType()},
     });
-    m_shareMenu->reload();
-    popup(m_shareMenu.get(), button);
+    m_shareMenu->reload(); // rebuilds its entries: ours go after
+    addLocalSend(m_shareMenu.get());
+    return m_shareMenu.get();
+}
+
+void FileMenus::addLocalSend(QMenu *menu)
+{
+    // LocalSend sends files to nearby devices, but its launcher declares no file types,
+    // so KDE's share menu doesn't offer it. Given files on its command line, it opens
+    // ready to send them. Packaged (`localsend`) or from Flathub.
+    if (!m_url.isLocalFile()) {
+        return;
+    }
+    KService::Ptr app;
+    for (const QString &name : {u"localsend"_s, u"org.localsend.localsend_app"_s, u"localsend_app"_s}) {
+        if ((app = KService::serviceByDesktopName(name))) {
+            break;
+        }
+    }
+    if (!app) {
+        return;
+    }
+    menu->addSeparator();
+    QAction *action = menu->addAction(QIcon::fromTheme(app->icon()), app->name());
+    action->setObjectName(u"shareLocalSend"_s);
+    const QString path = m_url.toLocalFile();
+    connect(action, &QAction::triggered, this, [this, app, path] {
+        KJob *job = nullptr;
+        if (app->exec().contains(QRegularExpression(u"%[fFuU]"_s))) {
+            auto *appJob = new KIO::ApplicationLauncherJob(app);
+            appJob->setUrls({QUrl::fromLocalFile(path)});
+            appJob->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, nullptr));
+            job = appJob;
+        } else {
+            // No place for files in its command (the Arch package's): add the file at the end.
+            auto *commandJob = new KIO::CommandLauncherJob(app->exec() + u' ' + KShell::quoteArg(path));
+            commandJob->setDesktopName(app->desktopEntryName());
+            commandJob->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, nullptr));
+            job = commandJob;
+        }
+        connect(job, &KJob::result, this, [this](KJob *job) {
+            if (job->error()) {
+                Q_EMIT message(i18n("Could not share the file: %1", job->errorString()));
+            }
+        });
+        job->start();
+    });
 }
 
 void FileMenus::popup(QMenu *menu, QQuickItem *button)

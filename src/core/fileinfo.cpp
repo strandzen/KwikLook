@@ -4,6 +4,7 @@
 
 #include "archivelisting.h"
 #include "cards.h"
+#include "markdown.h"
 
 #include <KConfigGroup>
 #include <KDesktopFile>
@@ -67,6 +68,12 @@ bool isImage(const QString &mimeType)
 
 QList<FileInfo::Detail> readDetails(const QString &path, const QString &mimeType, bool skipSize)
 {
+    // Not books: KFileMetaData's EPUB extractor (libepub, in this process) crashed on a
+    // small valid book (2026-11-26, KF 6.32). Title and author come from BookReader,
+    // which reads the book in the sandbox.
+    if (mimeType == u"application/epub+zip"_s) {
+        return {};
+    }
     // One collection per worker thread: loading the extractor plugins takes a moment.
     thread_local KFileMetaData::ExtractorCollection extractors;
     QList<FileInfo::Detail> details;
@@ -148,6 +155,13 @@ FileInfo FileInfo::read(const QUrl &url)
             const QJsonDocument json = QJsonDocument::fromJson(info.text.toUtf8());
             if (!json.isNull()) {
                 info.formattedText = QString::fromUtf8(json.toJson(QJsonDocument::Indented));
+            }
+        }
+        if (info.formattedKind == u"markdown"_s) {
+            // Rendered from a copy Qt's reader can take (see Markdown::forQt); the source
+            // view shows the file as it is.
+            if (const QString forQt = Markdown::forQt(info.text); forQt != info.text) {
+                info.formattedText = forQt;
             }
         }
         if (info.formattedKind == u"csv"_s) {

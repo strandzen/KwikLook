@@ -58,7 +58,7 @@ QQC2.ToolBar {
         id: slot
         required property string modelData
         Layout.fillWidth: modelData === "Spacer"
-        visible: modelData === "ViewMode" ? Viewer.formattedKind !== ""
+        visible: modelData === "ViewMode" ? Viewer.formattedKind !== "" && Viewer.formattedKind !== "book" // books: no source view
             : modelData === "Pages" ? bar.sidebarAvailable
             : modelData === "IndexSheet" ? Viewer.count > 1
             : true
