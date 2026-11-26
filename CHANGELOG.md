@@ -4,6 +4,10 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-26
+
+Books, and the next file ready before you get there.
+
 ### Added
 
 - EPUB books: their cover, title and author, then the chapters as text you can scroll, search and zoom, with the book's table of contents in the sidebar. Books are opened shut away from your files and the network, and nothing in them runs or is fetched.

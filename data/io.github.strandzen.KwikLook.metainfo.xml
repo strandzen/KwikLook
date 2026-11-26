@@ -18,6 +18,17 @@
   <launchable type="desktop-id">io.github.strandzen.KwikLook.desktop</launchable>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.7.0" date="2026-11-26">
+      <description>
+        <p>Books, and the next file ready before you get there.</p>
+        <ul>
+          <li>EPUB books show their cover, title and author, then the chapters as text with the book's table of contents.</li>
+          <li>The files next to the one you're looking at are prepared in the background, so going to the next picture is instant.</li>
+          <li>Camera RAW photos show as pictures; Share offers LocalSend when it's installed.</li>
+          <li>Fixes for web pages and books with tables, Markdown files that start with a logo, and the PDF sidebar's tabs.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.6.0" date="2026-11-26">
       <description>
         <p>The preview opens where you want it, and pictures give it their shape.</p>
