@@ -107,6 +107,11 @@ sudo cmake --install build/dev
 # Release build
 cmake --preset release && cmake --build --preset release
 
+# Stress tests (stress/README.md): sanitizer build + fast switching in a nested session,
+# and libFuzzer targets for the parsers (clang)
+cmake --preset asan && cmake --build --preset asan && stress/run-nested.sh switching.sh 30
+cmake --preset fuzz && cmake --build --preset fuzz && stress/fuzz/run.sh 600
+
 # Clean rebuild
 rm -rf build/ && cmake --preset dev && cmake --build --preset dev
 
@@ -136,6 +141,7 @@ Packaging: `packaging/arch/PKGBUILD` (builds the GitHub tag tarball; not on the 
 | `src/cards/` | `kwiklook-cards.so`: contacts and events as cards; the only code linked against KContacts / KCalendarCore (both optional) |
 | `src/archive/` | `kwiklook-archive`: lists an archive, or hands over a book's files (`--files`), with libarchive, run in `kwiklook-sandbox` (no Qt) |
 | `qml/` | All QML files (top level, wired in with `qt_add_qml_module`) |
+| `stress/` | Stress tests: `switching.sh` (run by `run-nested.sh` in a nested session), `fuzz/` (libFuzzer targets, `run.sh`); reports in `stress/reports/` (not in git) |
 | `tests/` | Unit tests (`tst_*.cpp`), QML smoke tests; `tests/dolphin/` the hook against KDEGlance's mock Dolphin; `run-with-bus.sh` runs a test on a private bus |
 | `data/` | Desktop file, metainfo, icons, notifyrc, D-Bus service files; `kwin/` the KWin script |
 | `po/` | `Messages.sh` and the `.pot`; reviewed translations in `po/<lang>/` |
@@ -467,6 +473,10 @@ General Qt / KF6 / Kirigami ones first; add project-specific rows below them.
 | **Remember Window Positions' blacklist** | Counts only in its “All except blacklisted apps” mode (`restoreType=2`); with “All apps” (`0`) it logs “on blacklist” and restores the window anyway, about 1 s after it opens |
 | **KSyntaxHighlighting and replaced text** | Checked 2026-11-26 (KF 6.32, Qt 6.12): when a line's folding changes, the highlighter queues `rehighlightBlock(next line)`; if the document's text is replaced before it runs, the stale `QTextBlock` crashes in `QTextBlock::position()`. Changing the rules (`definition`) colours the old text again and queues such calls: change them only after the new text is in (TextView: `updateRules()` via `Qt.callLater` on `fileInfoChanged`) |
 | **`Screen.devicePixelRatio` with fractional scaling** | Checked 2026-11-26 (Qt 6.12, Plasma at 125 %): QML's `Screen.devicePixelRatio` (the `QScreen`'s) said 2 while the window drew at 1.25 (`QWindow::devicePixelRatio()`, QML `Window.window.devicePixelRatio` since 6.11). Sizes in real pixels go through the window's value (ImageView's `dpr`, `Viewer::Placement`); the screen's is fine only for `sourceSize` oversampling. A nested session doesn't show the difference |
+| **KJob ends the background viewer** | Found 2026-11-26 by `stress/switching.sh`: every KJob (KIO's thumbnail `PreviewJob`) holds a `QEventLoopLocker`; when the last one is released while no window is shown, Qt posts `QEvent::Quit` and `exec()` returns 0, with no message. `setQuitOnLastWindowClosed(false)` doesn't cover it: main.cpp also calls `QCoreApplication::setQuitLockEnabled(false)` |
+| **Sanitizers and the sandbox** | Programs inside kwiklook-sandbox get an empty environment (ASAN_OPTIONS doesn't reach them) and no ptrace, which LeakSanitizer needs: “LeakSanitizer has encountered a fatal error”, exit 1. In the asan build `src/sanitizeroptions.cpp` sets `detect_leaks=0` in them |
+| **Kirigami's CMake config with clang** | `find_package(KF6Kirigami)` wants OpenMP, which clang here lacks (no libomp): the fuzz preset points `OpenMP_*` at gcc's libgomp |
+| **Debugging a quit under gdb** | In `gdb -batch`, breakpoints in libraries not loaded yet are refused unless `set breakpoint pending on`; `break QCoreApplication::exit` also matches `QThread::exit` (the player stops threads all the time): use exact signatures or a command file (`-x`), and `$rsi`-style conditions only there (the shell eats them) |
 | **Qt Quick TextEdit loses rich text before a table** | Checked 2026-11-26 (Qt 6.12.1, also in a bare TextArea, nested session; offscreen didn't show it): rich text with an HTML `<table>` in the middle of a long document, scrolled past the table and back, shows the part before it blank (text and pictures). TextEdit only builds the part on screen (`ItemObservesViewport`); with that flag off it builds everything and the bug is gone (`Contents.drawWhole()`, rendered views only; the 1.4 MB test book: first frame 196 ms, scroll steps ≤ 52 ms). A Markdown table, or a table near the start or end, didn't trigger it |
 | **Qt's Markdown reader and empty HTML elements** | Checked 2026-11-26 (Qt 6.12.1): `<img src="a.png">`, `<br>` or `<hr>` without the slash, in an HTML block or inline, makes `setMarkdown` drop all the text after it (headings left empty). `<img … />` and `![](…)` work. `Markdown::forQt()` adds the slash outside code; FileInfo keeps the result in `formattedText` for the rendered view and the contents (lines unchanged); the source view shows the file as written. `tst_markdown` says when Qt no longer needs it |
 | **TextView switches: old text, new kind** | During a switch the view's `kind` can be empty (so `rendered` false) for a moment while `text` is still the last file's: anything bound to `!rendered` acts on the old text. The highlighter's Loader did, and coloured a 1.4 MB book for 18 s (2026-11-26). It now turns on only from `updateRules()` (`Qt.callLater` after the switch), off at once |

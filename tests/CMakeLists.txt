@@ -93,6 +93,9 @@ add_test(NAME kwiklook-tst_dolphinhook COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run-w
 
 # kwiklook-sandbox: a probe program run inside it tries each thing it must not do.
 add_executable(sandboxprobe sandboxprobe.cpp)
+if(KWIKLOOK_SANITIZER_OPTIONS)
+    target_sources(sandboxprobe PRIVATE ${KWIKLOOK_SANITIZER_OPTIONS}) # runs inside the sandbox
+endif()
 ecm_add_test(tst_sandbox.cpp
     TEST_NAME tst_sandbox
     LINK_LIBRARIES Qt6::Test

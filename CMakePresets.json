@@ -1,6 +1,10 @@
 {
     "version": 3,
-    "cmakeMinimumRequired": { "major": 3, "minor": 22, "patch": 0 },
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 22,
+        "patch": 0
+    },
     "configurePresets": [
         {
             "name": "base",
@@ -26,10 +30,65 @@
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_INSTALL_PREFIX": "/usr"
             }
+        },
+        {
+            "name": "asan",
+            "displayName": "Sanitizer build (AddressSanitizer + UBSan), for stress tests",
+            "inherits": "base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_INSTALL_PREFIX": "/usr",
+                "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined",
+                "CMAKE_C_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined",
+                "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined",
+                "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address,undefined",
+                "CMAKE_MODULE_LINKER_FLAGS": "-fsanitize=address,undefined"
+            }
+        },
+        {
+            "name": "fuzz",
+            "displayName": "Fuzz targets (clang, libFuzzer + AddressSanitizer + UBSan)",
+            "inherits": "base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_CXX_FLAGS": "-fsanitize=fuzzer-no-link,address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined",
+                "CMAKE_C_FLAGS": "-fsanitize=fuzzer-no-link,address,undefined -fno-omit-frame-pointer",
+                "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined",
+                "KWIKLOOK_FUZZ": "ON",
+                "BUILD_TESTING": "OFF",
+                "OpenMP_CXX_FLAGS": "-fopenmp=libgomp",
+                "OpenMP_CXX_LIB_NAMES": "gomp",
+                "OpenMP_C_FLAGS": "-fopenmp=libgomp",
+                "OpenMP_C_LIB_NAMES": "gomp",
+                "OpenMP_gomp_LIBRARY": "/usr/lib/libgomp.so"
+            }
         }
     ],
     "buildPresets": [
-        { "name": "dev",     "configurePreset": "dev" },
-        { "name": "release", "configurePreset": "release" }
+        {
+            "name": "dev",
+            "configurePreset": "dev"
+        },
+        {
+            "name": "release",
+            "configurePreset": "release"
+        },
+        {
+            "name": "asan",
+            "configurePreset": "asan"
+        },
+        {
+            "name": "fuzz",
+            "configurePreset": "fuzz",
+            "targets": [
+                "fuzz_epub",
+                "fuzz_markdown",
+                "fuzz_archivelisting",
+                "fuzz_csv",
+                "fuzz_fileinfo"
+            ]
+        }
     ]
 }

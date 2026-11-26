@@ -178,3 +178,10 @@ install(TARGETS kwiklook-archive DESTINATION ${KDE_INSTALL_LIBEXECDIR})
 add_executable(kwiklook-sandbox sandbox/main.cpp)
 target_link_libraries(kwiklook-sandbox PRIVATE PkgConfig::SECCOMP)
 install(TARGETS kwiklook-sandbox DESTINATION ${KDE_INSTALL_LIBEXECDIR})
+# Sanitizer builds (preset "asan"): programs inside the sandbox can't run LeakSanitizer
+# (src/sanitizeroptions.cpp).
+if(CMAKE_CXX_FLAGS MATCHES "-fsanitize=[^ ]*address")
+    set(KWIKLOOK_SANITIZER_OPTIONS ${CMAKE_CURRENT_SOURCE_DIR}/sanitizeroptions.cpp CACHE INTERNAL "")
+    target_sources(kwiklook-archive PRIVATE ${KWIKLOOK_SANITIZER_OPTIONS})
+    target_sources(kwiklook-sandbox PRIVATE ${KWIKLOOK_SANITIZER_OPTIONS})
+endif()

@@ -7,3 +7,5 @@ Todo.md
 
 # Example files
 testfiles/
+# Stress test and fuzzing results (stress/README.md)
+stress/reports/

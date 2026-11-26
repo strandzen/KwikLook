@@ -62,6 +62,11 @@ find_package(KF6KirigamiAddons 1.0 REQUIRED)
 
 add_subdirectory(src)
 add_subdirectory(data)
+# Fuzz targets for the parsers (stress/README.md): preset "fuzz", clang only.
+option(KWIKLOOK_FUZZ "Build the libFuzzer targets in stress/fuzz (clang)" OFF)
+if(KWIKLOOK_FUZZ)
+    add_subdirectory(stress/fuzz)
+endif()
 
 include(CTest)
 if(BUILD_TESTING)
