@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com> -->
+<!-- KwikLook's settings (~/.config/kwiklookrc). The Dolphin hook reads OpenKey from
+     the same file directly (src/dolphin/bridge.cpp); keep the name in step. -->
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0 http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+  <kcfgfile name="kwiklookrc"/>
+  <group name="General">
+    <entry name="MatchBreezeCorners" type="Bool">
+      <label>Use the corner radius of Breeze windows</label>
+      <default>true</default>
+    </entry>
+    <entry name="CornerRadius" type="Int">
+      <label>Corner radius in pixels, when not matching Breeze</label>
+      <default>5</default>
+      <min>0</min>
+      <max>20</max>
+    </entry>
+    <entry name="OpenKey" type="String">
+      <label>Key that opens the preview in Dolphin (one of src/core/openkey.h)</label>
+      <default>Space</default>
+    </entry>
+    <entry name="CloseOnFocusLoss" type="Bool">
+      <label>Close the preview when another application gets the focus</label>
+      <default>true</default>
+    </entry>
+    <entry name="AutoplayMedia" type="Bool">
+      <label>Start playing videos and audio when they open</label>
+      <default>true</default>
+    </entry>
+    <entry name="StartMuted" type="Bool">
+      <label>Start videos and audio without sound</label>
+      <default>false</default>
+    </entry>
+    <entry name="BarLeft" type="StringList">
+      <label>Items left of the file name in the preview's bar (names in qml/BarItems.qml)</label>
+      <default>Previous,Next,IndexSheet,Pages</default>
+    </entry>
+    <entry name="BarRight" type="StringList">
+      <label>Items right of the file name in the preview's bar</label>
+      <default>ViewMode,Information,Share,OpenWith,Close</default>
+    </entry>
+    <entry name="OfficePreviews" type="Bool">
+      <label>Preview office documents by converting them with LibreOffice (sandboxed)</label>
+      <default>true</default>
+    </entry>
+  </group>
+</kcfg>

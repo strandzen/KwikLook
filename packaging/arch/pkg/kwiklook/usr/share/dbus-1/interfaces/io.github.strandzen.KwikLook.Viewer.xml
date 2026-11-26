@@ -1,0 +1,36 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN" "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com> -->
+<!-- KwikLook's background viewer: service io.github.strandzen.KwikLook, object /Viewer.
+     Must match src/gui/viewer.h (the Q_SCRIPTABLE slots and signals). -->
+<node>
+  <interface name="io.github.strandzen.KwikLook.Viewer">
+    <!-- Shows urls[index]; the others are reachable with Next/Previous. URLs or local paths.
+         sessionId is chosen by the caller and comes back in the signals.
+         activationToken (Wayland, may be empty) lets the preview take keyboard focus. -->
+    <method name="Open">
+      <arg name="urls" type="as" direction="in"/>
+      <arg name="index" type="i" direction="in"/>
+      <arg name="sessionId" type="s" direction="in"/>
+      <arg name="activationToken" type="s" direction="in"/>
+    </method>
+    <method name="Close"/>
+    <method name="Next"/>
+    <method name="Previous"/>
+    <!-- Ends the background viewer. -->
+    <method name="Quit"/>
+    <!-- Shows the settings window. activationToken as for Open. -->
+    <method name="ShowSettings">
+      <arg name="activationToken" type="s" direction="in"/>
+    </method>
+    <signal name="CurrentChanged">
+      <arg name="sessionId" type="s"/>
+      <arg name="url" type="s"/>
+      <arg name="index" type="i"/>
+    </signal>
+    <!-- The preview of this session closed (by the user, Close(), or another session's Open()). -->
+    <signal name="Closed">
+      <arg name="sessionId" type="s"/>
+    </signal>
+  </interface>
+</node>

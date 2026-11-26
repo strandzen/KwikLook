@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=KwikLook
+GenericName=File Preview
+Comment=Quick previews of files from Dolphin
+Exec=kwiklook %U
+Icon=document-preview
+Terminal=false
+NoDisplay=true
+Categories=Qt;KDE;Utility;

@@ -1,0 +1,8 @@
+File=kwiklooksettings.kcfg
+ClassName=KwikLookSettings
+Singleton=true
+Mutators=true
+GenerateProperties=true
+Notifiers=true
+DefaultValueGetters=true
+QmlRegistration=true

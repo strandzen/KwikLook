@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=io.github.strandzen.KwikLook
+Exec=@KDE_INSTALL_FULL_BINDIR@/kwiklook --service
