@@ -41,6 +41,7 @@ find_package(Qt6 ${QT_MIN_VERSION} REQUIRED COMPONENTS
 find_package(KF6 ${KF_MIN_VERSION} REQUIRED COMPONENTS
     Config         # reading the Breeze settings
     CoreAddons     # KAboutData, KDirWatch
+    Crash          # crash reports through DrKonqi
     I18n           # i18n() in C++ and QML
     WindowSystem   # Wayland activation tokens, compositor shadows
     KIO            # “Open with…”

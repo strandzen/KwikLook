@@ -8,6 +8,7 @@
 #include "version.h"
 
 #include <KAboutData>
+#include <KCrash>
 #include <KLocalizedQmlContext>
 #include <KLocalizedString>
 #include <KWindowSystem>
@@ -69,7 +70,13 @@ int main(int argc, char *argv[])
                      KAboutLicense::GPL_V3,
                      i18n("© 2026 strandzen"));
     about.setDesktopFileName(u"io.github.strandzen.KwikLook"_s);
+    about.setHomepage(u"https://github.com/strandzen/KwikLook"_s);
+    // Not KDE's bug tracker: DrKonqi then points to this address with the backtrace.
+    about.setBugAddress(QByteArrayLiteral("https://github.com/strandzen/KwikLook/issues"));
     KAboutData::setApplicationData(about);
+    // A crash shows KDE's crash dialog (DrKonqi, when installed) with a backtrace to
+    // report; without it the crash goes to systemd's core dumps as before.
+    KCrash::initialize();
     QApplication::setWindowIcon(QIcon::fromTheme(u"document-preview"_s));
 
     QCommandLineParser parser;

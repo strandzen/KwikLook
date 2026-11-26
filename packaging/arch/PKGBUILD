@@ -13,6 +13,7 @@ depends=(
   'gcc-libs'
   'glibc'
   'kconfig'
+  'kcrash'
   'kcoreaddons'
   'kfilemetadata'
   'ki18n'
@@ -28,6 +29,7 @@ depends=(
   'qt6-multimedia'
   'qt6-multimedia-ffmpeg'  # its playback backend
   'qt6-webengine'  # QtQuick.Pdf
+  'qqc2-desktop-style'  # the KDE look for its controls
   'syntax-highlighting'
   'libseccomp'  # kwiklook-sandbox
 )

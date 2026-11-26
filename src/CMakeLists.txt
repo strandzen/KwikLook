@@ -141,6 +141,7 @@ kconfig_add_kcfg_files(kwiklook_qml GENERATE_MOC gui/kwiklooksettings.kcfgc)
 add_executable(kwiklook main.cpp)
 target_link_libraries(kwiklook PRIVATE
     kwiklook_qml
+    KF6::Crash
     Qt6::QuickControls2
     kwiklook_qmlplugin
     Qt6::Widgets

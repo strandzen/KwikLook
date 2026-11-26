@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: CC0-1.0
+# Build and test on every push and pull request, in a current Arch Linux container.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    env:
+      XDG_RUNTIME_DIR: /tmp/runtime-root
+    steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            base-devel git cmake ninja extra-cmake-modules \
+            qt6-base qt6-declarative qt6-multimedia qt6-multimedia-ffmpeg qt6-webengine qt6-svg \
+            kconfig kcoreaddons kcrash kfilemetadata ki18n kio kirigami kirigami-addons kservice \
+            kwindowsystem purpose qqc2-desktop-style syntax-highlighting kcontacts kcalendarcore kimageformats \
+            libarchive libseccomp dbus ttf-dejavu
+          mkdir -p -m 0700 "$XDG_RUNTIME_DIR"
+
+      - uses: actions/checkout@v4
+
+      - name: Release build
+        run: cmake --preset release && cmake --build --preset release
+
+      - name: Developer build
+        run: cmake --preset dev && cmake --build --preset dev
+
+      # Tests that need what the container lacks (LibreOffice; Landlock for the
+      # sandbox, depending on the runner's kernel) skip themselves. The smoke test gets
+      # one retry: Qt 6.12's image loader crashes now and then (CLAUDE.md, Known Pitfalls).
+      - name: Tests
+        run: dbus-run-session -- ctest --test-dir build/dev --output-on-failure --repeat until-pass:2

@@ -1,0 +1,47 @@
+name: Bug report
+description: Something doesn't work, looks wrong or crashes.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead. A screenshot helps for anything visual.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Select a file in Dolphin
+        2. Press Space
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: file
+    attributes:
+      label: Kind of file
+      description: The file's type (for example a PDF, a .docx, an MKV video) and, if it matters, its size. Attach the file if you can share it.
+  - type: input
+    id: version
+    attributes:
+      label: KwikLook version
+      description: "Run `kwiklook --version` in a terminal."
+    validations:
+      required: true
+  - type: textarea
+    id: system
+    attributes:
+      label: System
+      description: "Run `kinfo` in a terminal and paste its output (Plasma, Frameworks and Qt versions, graphics). Also name your distribution."
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: backtrace
+    attributes:
+      label: Backtrace (for crashes)
+      description: "If KwikLook crashed: the report from KDE's crash dialog, or the output of `coredumpctl info kwiklook` (the newest one)."
+      render: text

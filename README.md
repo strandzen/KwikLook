@@ -40,7 +40,7 @@ https://github.com/user-attachments/assets/9a19e870-607a-4d3a-9edf-fbefe5b36bce
 
 ## Requirements
 
-- KDE Plasma 6 with Dolphin.
+- KDE Plasma 6 on Wayland, with Dolphin. X11 sessions aren't supported.
 - Qt 6.8 or newer, with Qt PDF (part of Qt WebEngine on Arch) and Qt Multimedia with its FFmpeg backend.
 - KDE Frameworks 6.19 or newer, including Kirigami, KIO, Purpose, KFileMetaData and KSyntaxHighlighting.
 - Kirigami Addons 1.0 or newer.
@@ -163,6 +163,8 @@ A preview reads the file, so a file made to attack a bug in a picture, PDF or ot
 **I want to turn off the Dolphin part for a moment.** Start Dolphin with `KWIKLOOK_DISABLE_DOLPHIN_HOOK=1 dolphin`.
 
 Bugs and ideas are welcome in the [issue tracker](https://github.com/strandzen/KwikLook/issues).
+
+**KwikLook crashed.** If KDE's crash dialog appears, its report has what's needed: open an issue at https://github.com/strandzen/KwikLook/issues and paste it. Without the dialog, `coredumpctl info kwiklook` in a terminal shows the last crash; paste its output. Say what kind of file was being previewed.
 
 ## Uninstall
 
