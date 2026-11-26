@@ -10,10 +10,9 @@ It keeps running in the background, so previews open at once. It shows pictures,
 This is version 0.7.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my own machine (Arch Linux, Plasma 6 on Wayland, Dolphin 26.08), so other distributions and setups may need some work.
 
 ## Demo
+https://github.com/user-attachments/assets/9a19e870-607a-4d3a-9edf-fbefe5b36bce
 
-[![KwikLook previewing files from Dolphin; click to play the demo video](assets/kwiklookdemo.jpg)](assets/kwiklookdemo.mp4)
 
-*Click the picture to play the demo video (44 seconds).*
 
 ## Features
 
