@@ -1,20 +1,26 @@
-# KwikLook
+<div align="center">
+    <img width="225" height="225" src="assets/logo.png">
+    <h1><b>KwikLook</b></h1>
+</div>
 
-KwikLook shows a quick preview of a file when you press Space in Dolphin, on KDE Plasma 6. Press Space or Esc again and it's gone; ← and → go through the folder.
+KwikLook shows a quick preview of a file when you press Space in Dolphin, on KDE Plasma 6. Press Space or Esc again and it's gone; ← and → or ↓ and ↑ to go through the folder.
 
 It keeps running in the background, so previews open at once. It shows pictures, text and code, Markdown and web pages, PDFs, office documents, videos and audio, fonts, tables, contacts and calendar events, and the details of any file, without starting a full application. The preview window fits in with Plasma: its corners, outline and shadow follow your Breeze window decoration settings, and its buttons, colours and fonts follow your application style and colour scheme.
 
 This is version 0.6.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my own machine (Arch Linux, Plasma 6 on Wayland, Dolphin 26.08), so other distributions and setups may need some work.
 
-## Screenshots
+## Demo
 
-![A photo previewed from Dolphin, with the information panel open](assets/screenshot-1.png)
+[![KwikLook previewing files from Dolphin; click to play the demo video](assets/kwiklookdemo.jpg)](assets/kwiklookdemo.mp4)
+
+*Click the picture to play the demo video (44 seconds).*
 
 ## Features
 
 - Press Space in Dolphin to preview the selected file; ← and → go through the folder in Dolphin's order and Dolphin's selection follows along, and the corner shows where you are for a moment (“2 / 5”). With several files selected, the preview goes through just those. Enter opens the file in its usual application.
+- The files next to the one you're looking at are prepared in the background, so going to the next picture is instant, even for large photos.
 - An index sheet shows all the files as thumbnails to pick one from (Ctrl+Enter).
-- Pictures give the preview window their shape, centred, and fill it edge to edge: as large as the picture, or up to most of the screen; going to the next picture reshapes it. Small pictures stay at their real size, so they don't get blurry; vector pictures (SVG) always fill the window and stay sharp. Animated GIFs and WebPs play.
+- Pictures give the preview window their shape, centred, and fill it edge to edge: as large as the picture, or up to most of the screen; going to the next picture reshapes it. Small pictures stay at their real size, so they don't get blurry; vector pictures (SVG) always fill the window and stay sharp. Animated GIFs and WebPs play. Camera RAW photos (DNG, CR2, NEF, ARW and more) show like any other picture.
 - The preview opens centred on the screen, centred on the Dolphin window or at the mouse pointer, as you choose.
 - Text and code files show with syntax colours and line numbers; long files show their beginning. Find with Ctrl+F, also in PDFs.
 - Markdown, HTML, JSON, SVG and .desktop files show formatted, and one button in the bar switches to their source. Nothing is ever loaded from the internet.
@@ -22,13 +28,14 @@ This is version 0.6.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my
 - PDFs show all their pages, fitted to the window, with a sidebar of small pages and their contents (bookmarks); the section you're reading is marked. Markdown and HTML files list their headings there too.
 - Archives (zip, 7z, tar, RAR, ISO and more) show what's inside as folders you can open, with sizes and dates, without unpacking anything. Password-protected ones are marked.
 - Office documents (Word, Excel, PowerPoint and OpenDocument files) show like PDFs, when LibreOffice is installed.
+- EPUB books show their cover, title and author, then the chapters as text you can scroll, search and zoom, with the book's table of contents in the sidebar. Very long books show their beginning.
 - Videos and audio play, with the usual controls, volume, repeat and full screen; audio shows its cover, title and artist.
 - Fonts show their alphabet and a sample in the font itself, at a size you choose, or your own text; “Install Font” installs one for you.
 - Zoom pictures, text and PDFs; pictures zoom towards the mouse pointer and can be dragged around.
 - Any other file shows a large thumbnail (as in Dolphin) or its type's icon, with its type, size and when it was changed.
 - AppImages get an “Install with AppImage Manager” button, when AppImage Manager is installed.
 - An (i) panel with the file's details: name, type, size, dates, picture size and camera details, owner and permissions, plus “Show in Dolphin” and “Copy Path”.
-- “Open with…” and Share buttons in the preview's bar. For pictures, “Open with…” also offers Spectacle's editor, to draw on them or add text.
+- “Open with…” and Share buttons in the preview's bar. For pictures, “Open with…” also offers Spectacle's editor, to draw on them or add text. Share also offers LocalSend, when it's installed.
 - Choose the bar's buttons and their order in the settings, by dragging them.
 - Preview files from the command line too: `kwiklook <files>`.
 
@@ -39,8 +46,9 @@ This is version 0.6.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my
 - KDE Frameworks 6.19 or newer, including Kirigami, KIO, Purpose, KFileMetaData and KSyntaxHighlighting.
 - Kirigami Addons 1.0 or newer.
 - libarchive, to list what's inside archives.
-- libseccomp, and a recent Linux kernel for the sandbox around office previews and archive listings (Landlock with its newer rules for local sockets). If the kernel is too old, office documents and archives just show their details and a note says why.
+- libseccomp, and a recent Linux kernel for the sandbox around office previews, archive listings and books (Landlock with its newer rules for local sockets). If the kernel is too old, office documents, archives and books just show their details and a note says why.
 - Optional: LibreOffice, for previews of office documents.
+- Optional: KDE's image plugins (KImageFormats, with LibRaw), for camera RAW photos and formats like AVIF, HEIC and JPEG XL.
 - Optional: KContacts and KCalendarCore, to show contacts (.vcf) and calendar files (.ics) as cards. Without them those files show as text. They are needed when building, for the cards to be included.
 
 ## Installation
