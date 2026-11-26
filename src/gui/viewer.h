@@ -7,6 +7,8 @@
 #include "officeconverter.h"
 #include "tablemodel.h"
 
+#include <QDBusContext>
+#include <QDBusMessage>
 #include <QFutureWatcher>
 #include <QList>
 #include <QObject>
@@ -25,7 +27,7 @@
  * Session IDs are chosen by the caller (one per Dolphin window, say) and come
  * back in the signals, so each caller can ignore what another one started.
  */
-class Viewer : public QObject
+class Viewer : public QObject, protected QDBusContext
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "io.github.strandzen.KwikLook.Viewer")
@@ -103,6 +105,9 @@ class Viewer : public QObject
     Q_PROPERTY(int moreCards READ moreCards NOTIFY fileInfoChanged)
     // CSV / TSV: the file as a table (reset with each file).
     Q_PROPERTY(TableModel *table READ table CONSTANT)
+    // The room around a picture shown at real size: the window's size minus the
+    // picture's (bar, margins, information panel). Set by Main.qml; for Placement().
+    Q_PROPERTY(QSize windowChrome MEMBER m_windowChrome NOTIFY windowChromeChanged)
 
 public:
     static constexpr auto ServiceName = KwikLookDBus::Service;
@@ -126,6 +131,10 @@ public:
     // `timeoutMs`, until no PDF page is rendering. Qt PDF renders on the engine's image
     // thread and crashes when the document is deleted mid-render. False on timeout.
     bool finishRendering(int timeoutMs = 3000);
+    // KwikLook's KWin script is loaded (src/gui/kwinscript.h): the window then waits,
+    // briefly, for the first file's details before it shows, so the script can give it
+    // the picture's shape as it appears.
+    void setPlacementActive(bool active);
 
     QUrl currentUrl() const;
     QString fileName() const;
@@ -187,6 +196,13 @@ public Q_SLOTS:
     Q_SCRIPTABLE void Quit();
     // Shows the settings window (`kwiklook --settings`, the “KwikLook Settings” launcher entry).
     Q_SCRIPTABLE void ShowSettings(const QString &activationToken);
+    // For KwikLook's KWin script (data/kwin/kwiklook-placement.js), about the window with
+    // this caption, as JSON: {preview, mode ("screen", "dolphin", "pointer"), picture
+    // ({width, height} in logical pixels, or null: not a picture), chrome, minimum}.
+    // `preview` is false for KwikLook's other windows (the settings window). Asked over
+    // D-Bus while the file's details are still being read, it answers once they are in
+    // (at most PlacementWaitMs later), so a picture's shape is known when the window opens.
+    Q_SCRIPTABLE QString Placement(const QString &caption);
 
 Q_SIGNALS:
     Q_SCRIPTABLE void CurrentChanged(const QString &sessionId, const QString &url, int index);
@@ -207,12 +223,16 @@ Q_SIGNALS:
     void fontInstallFinished(bool ok);
     void searchOpenChanged();
     void searchTextChanged();
+    void windowChromeChanged();
     // main.cpp creates the settings window on the first request and shows it.
     void settingsRequested(const QString &activationToken);
 
 private:
     void setCurrent(int index);
     void showWindow(const QString &activationToken);
+    void showPendingWindow();
+    QString placementAnswer(const QString &caption) const;
+    void answerPlacements(); // the Placement() calls waiting for details
     void markClosed();
     void readFileInfo(int generation);
     // The file at m_index becomes the one shown, with these details.
@@ -253,4 +273,9 @@ private:
     QUrl m_convertedPdf; // the current office document as PDF
     QString m_previewNote;
     bool m_previewBusy = false;
+    QSize m_windowChrome;
+    bool m_placementActive = false;
+    bool m_showPending = false; // waiting for the first file's details, see setPlacementActive()
+    QString m_pendingToken;
+    QList<QDBusMessage> m_placementCalls; // waiting for the current file's details
 };

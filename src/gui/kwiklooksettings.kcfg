@@ -42,6 +42,10 @@
       <label>Items right of the file name in the preview's bar</label>
       <default>ViewMode,Information,Share,OpenWith,Close</default>
     </entry>
+    <entry name="WindowPosition" type="String">
+      <label>Where the preview window opens: Screen, Dolphin, Pointer, or KWin (KwikLook's KWin script not loaded: no position, no picture shape)</label>
+      <default>Screen</default>
+    </entry>
     <entry name="OfficePreviews" type="Bool">
       <label>Preview office documents by converting them with LibreOffice (sandboxed)</label>
       <default>true</default>

@@ -235,6 +235,9 @@ Item {
         }
     }
 
+    // The controls' height, for floating notes in the corner to keep above them.
+    readonly property real bottomBarHeight: footer.visible ? footer.height : 0
+
     QQC2.ToolBar {
         id: footer
         anchors.left: parent.left

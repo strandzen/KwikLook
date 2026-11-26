@@ -19,7 +19,7 @@ Kirigami.ApplicationWindow {
     title: Viewer.fileName
     width: Kirigami.Units.gridUnit * 36
     height: Kirigami.Units.gridUnit * 24
-    minimumWidth: Kirigami.Units.gridUnit * 18
+    minimumWidth: Math.max(Kirigami.Units.gridUnit * 18, Math.ceil(titleBar.minimumWidth)) // the bar's buttons fit
     minimumHeight: Kirigami.Units.gridUnit * 10
 
     // Videos can go fullscreen: then only the video shows, no frame.
@@ -44,6 +44,14 @@ Kirigami.ApplicationWindow {
                 root.showNormal();
             }
         }
+    }
+
+    // For KwikLook's KWin script: the room around a picture shown at real size (the bar,
+    // the information panel; pictures go edge to edge), so the window can take its shape.
+    Binding {
+        target: Viewer
+        property: "windowChrome"
+        value: Qt.size(root.width - viewLoader.width, root.height - viewLoader.height)
     }
 
     // “Open with…”, Share and the panel's actions, for the bar and the panel.
@@ -101,12 +109,12 @@ Kirigami.ApplicationWindow {
         onActivated: viewLoader.item.findPrevious()
     }
     Shortcut {
-        sequence: "Left"
+        sequences: ["Left", "Up"]
         enabled: !root.typing && !Viewer.indexOpen // the index sheet moves itself
         onActivated: Viewer.Previous()
     }
     Shortcut {
-        sequence: "Right"
+        sequences: ["Right", "Down"]
         enabled: !root.typing && !Viewer.indexOpen
         onActivated: Viewer.Next()
     }
@@ -252,21 +260,34 @@ Kirigami.ApplicationWindow {
                         onLoaded: item.focusGrid()
                     }
 
-                    // The zoom level, shown briefly while zooming.
-                    FloatingLabel {
-                        id: zoomIndicator
-                        objectName: "zoomIndicator"
+                    // Where you are among the files (on opening and each switch) and the zoom
+                    // level (while zooming), briefly, in the corner; above a view's own
+                    // bottom bar (find bar, player controls).
+                    CornerLabel {
+                        id: cornerLabel
+                        objectName: "cornerLabel"
                         anchors.right: parent.right
                         anchors.bottom: parent.bottom
-                        anchors.margins: Kirigami.Units.largeSpacing * 2
+                        anchors.rightMargin: gap
+                        anchors.bottomMargin: gap + (viewLoader.item && viewLoader.item.bottomBarHeight !== undefined ? viewLoader.item.bottomBarHeight : 0)
                         z: 3
-                        text: viewLoader.zoomable ? i18nc("@info zoom level", "%1%", viewLoader.item.zoomPercent) : ""
+                        windowRadius: root.radius
+                        positionText: i18nc("@info position in the list of files, e.g. 2 / 5", "%1 / %2", Viewer.currentIndex + 1, Viewer.count)
+                        zoomText: viewLoader.zoomable ? i18nc("@info zoom level", "%1%", viewLoader.item.zoomPercent) : ""
 
                         Connections {
                             target: viewLoader.item
                             ignoreUnknownSignals: true
                             function onZoomed() {
-                                zoomIndicator.flash();
+                                cornerLabel.flashZoom();
+                            }
+                        }
+                        Connections {
+                            target: Viewer
+                            function onCurrentChanged() {
+                                if (Viewer.count > 1) {
+                                    cornerLabel.flashPosition();
+                                }
                             }
                         }
                     }

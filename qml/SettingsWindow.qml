@@ -16,6 +16,7 @@ Kirigami.ApplicationWindow {
     property bool matchBreeze
     property int radius
     property string openKey
+    property string windowPosition
     property bool closeOnFocusLoss
     property bool startAtLogin
     property bool officePreviews
@@ -27,6 +28,7 @@ Kirigami.ApplicationWindow {
     readonly property bool changed: matchBreeze !== KwikLookSettings.matchBreezeCorners
         || radius !== KwikLookSettings.cornerRadius
         || openKey !== KwikLookSettings.openKey
+        || windowPosition !== KwikLookSettings.windowPosition
         || closeOnFocusLoss !== KwikLookSettings.closeOnFocusLoss
         || startAtLogin !== autostart.enabled
         || officePreviews !== KwikLookSettings.officePreviews
@@ -39,6 +41,7 @@ Kirigami.ApplicationWindow {
         matchBreeze = KwikLookSettings.matchBreezeCorners;
         radius = KwikLookSettings.cornerRadius;
         openKey = KwikLookSettings.openKey;
+        windowPosition = KwikLookSettings.windowPosition;
         closeOnFocusLoss = KwikLookSettings.closeOnFocusLoss;
         startAtLogin = autostart.enabled;
         officePreviews = KwikLookSettings.officePreviews;
@@ -54,6 +57,7 @@ Kirigami.ApplicationWindow {
         KwikLookSettings.matchBreezeCorners = matchBreeze;
         KwikLookSettings.cornerRadius = radius;
         KwikLookSettings.openKey = openKey;
+        KwikLookSettings.windowPosition = windowPosition;
         KwikLookSettings.closeOnFocusLoss = closeOnFocusLoss;
         KwikLookSettings.officePreviews = officePreviews;
         KwikLookSettings.autoplayMedia = autoplayMedia;
@@ -159,6 +163,24 @@ Kirigami.ApplicationWindow {
                 ]
                 currentIndex: Math.max(0, indexOfValue(root.openKey))
                 onActivated: root.openKey = currentValue
+            }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormComboBoxDelegate {
+                objectName: "windowPosition"
+                text: i18nc("@label:listbox", "Open the preview")
+                description: root.windowPosition === "KWin"
+                    ? i18n("The window manager places the preview, and pictures fit into the window as it is.")
+                    : i18n("Pictures also give the window their shape, as large as they are or up to most of the screen.")
+                textRole: "text"
+                valueRole: "value"
+                model: [
+                    { text: i18nc("@item:inlistbox window position", "Centred on the screen"), value: "Screen" },
+                    { text: i18nc("@item:inlistbox window position", "Centred on Dolphin"), value: "Dolphin" },
+                    { text: i18nc("@item:inlistbox window position", "At the mouse pointer"), value: "Pointer" },
+                    { text: i18nc("@item:inlistbox window position", "Where the window manager puts it"), value: "KWin" }
+                ]
+                currentIndex: Math.max(0, indexOfValue(root.windowPosition))
+                onActivated: root.windowPosition = currentValue
             }
             FormCard.FormDelegateSeparator {}
             FormCard.FormSwitchDelegate {

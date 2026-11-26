@@ -12,9 +12,10 @@ This is version 0.5.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my
 
 ## Features
 
-- Press Space in Dolphin to preview the selected file; ← and → go through the folder in Dolphin's order and Dolphin's selection follows along, and the bar shows where you are (“2 / 5”). With several files selected, the preview goes through just those. Enter opens the file in its usual application.
+- Press Space in Dolphin to preview the selected file; ← and → go through the folder in Dolphin's order and Dolphin's selection follows along, and the corner shows where you are for a moment (“2 / 5”). With several files selected, the preview goes through just those. Enter opens the file in its usual application.
 - An index sheet shows all the files as thumbnails to pick one from (Ctrl+Enter).
-- Pictures fill the preview window; small ones stay at their real size. Animated GIFs and WebPs play.
+- Pictures give the preview window their shape, centred, and fill it edge to edge: as large as the picture, or up to most of the screen; going to the next picture reshapes it. Small pictures stay at their real size, so they don't get blurry; vector pictures (SVG) always fill the window and stay sharp. Animated GIFs and WebPs play.
+- The preview opens centred on the screen, centred on the Dolphin window or at the mouse pointer, as you choose.
 - Text and code files show with syntax colours and line numbers; long files show their beginning. Find with Ctrl+F, also in PDFs.
 - Markdown, HTML, JSON, SVG and .desktop files show formatted, and one button in the bar switches to their source. Nothing is ever loaded from the internet.
 - CSV and TSV files show as a table; contacts (.vcf) and calendar files (.ics) as cards (with KContacts and KCalendarCore installed).
@@ -25,6 +26,7 @@ This is version 0.5.0 (see [CHANGELOG.md](CHANGELOG.md)). I mostly test it on my
 - Fonts show their alphabet and a sample in the font itself, at a size you choose, or your own text; “Install Font” installs one for you.
 - Zoom pictures, text and PDFs; pictures zoom towards the mouse pointer and can be dragged around.
 - Any other file shows a large thumbnail (as in Dolphin) or its type's icon, with its type, size and when it was changed.
+- AppImages get an “Install with AppImage Manager” button, when AppImage Manager is installed.
 - An (i) panel with the file's details: name, type, size, dates, picture size and camera details, owner and permissions, plus “Show in Dolphin” and “Copy Path”.
 - “Open with…” and Share buttons in the preview's bar. For pictures, “Open with…” also offers Spectacle's editor, to draw on them or add text.
 - Choose the bar's buttons and their order in the settings, by dragging them.
@@ -83,7 +85,7 @@ After installing, close every Dolphin window (or log out and back in) so Dolphin
 ## Usage
 
 - In Dolphin, select a file and press Space. The preview opens; Dolphin's selection follows it as you go through the folder.
-- Drag the preview's bar to move the window, drag an edge or corner to resize it.
+- Drag the preview's bar to move the window, drag an edge or corner to resize it. A size you set yourself stays until the preview closes; pictures then fit into it.
 - (i) shows the file's details; “Open with…” opens the file in another application and closes the preview.
 - To edit a picture or a video, use “Open with…”: for pictures it offers Spectacle's editor.
 
@@ -94,7 +96,7 @@ After installing, close every Dolphin window (or log out and back in) so Dolphin
 | Space (in Dolphin) | Opens the preview of the selected file (the key can be changed in the settings) |
 | Space or Esc | Closes the preview (Esc first closes the search, the index sheet or full screen) |
 | Enter | Opens the file in its usual application and closes the preview |
-| ← and → | Previous and next file |
+| ← and →, ↑ and ↓ | Previous and next file |
 | Ctrl+Enter | Index sheet: all files as thumbnails |
 | Ctrl+F, F3 and Shift+F3 | Find in text and PDFs, next and previous match |
 | Ctrl+wheel, Ctrl++ and Ctrl+- | Zoom in and out (pictures also with a touchpad pinch) |
@@ -120,6 +122,7 @@ Open “KwikLook Settings” from the app launcher (or run `kwiklook --settings`
 - **Corners:** like your Breeze window decoration, or a radius of your choice.
 - **Bar:** which buttons the preview's bar shows and in what order; drag them in, along or out.
 - **Open key:** the key that opens the preview in Dolphin: Space, Shift+Space or Ctrl+Space.
+- **Open the preview:** centred on the screen (the default), centred on Dolphin, at the mouse pointer, or where the window manager puts it. For all but the last, KwikLook places its window and gives it the pictures' shape through a small KWin script that it loads while it runs and removes when it stops; nothing is installed into KWin and none of its settings change.
 - **Close when you switch to another window:** on by default.
 - **Start in the background at login:** off by default. KwikLook starts with Dolphin anyway; this makes the very first preview after login open faster.
 - **Start playing when a video or song opens:** on by default.
@@ -145,6 +148,10 @@ A preview reads the file, so a file made to attack a bug in a picture, PDF or ot
 **The preview's corners and shadow don't match my other windows.** The preview draws its own frame, made to look like the Breeze window decoration (it follows Breeze's settings). With another window decoration (Oxygen, Klassy, an Aurorae theme) it still looks like Breeze. Buttons, colours, fonts and icons always follow your Application Style and colour scheme.
 
 **Office documents show only their icon and a note.** “LibreOffice couldn't convert this document”: the file may be damaged or password-protected. “This system can't run LibreOffice shut away…”: your kernel is too old for the sandbox, so KwikLook doesn't run LibreOffice at all. No note: check that LibreOffice is installed and “Preview office documents” is on in the settings.
+
+**The preview jumps to another place or size a moment after it opens.** Another KWin script that remembers window positions (such as Remember Window Positions) puts it back where it was last time, in the last picture's shape. Add KwikLook (`io.github.strandzen.KwikLook`) to that script's blacklist (in Remember Window Positions the blacklist only counts when it restores “All except blacklisted apps”; with “All apps” it is ignored), or set “Open the preview” to “Where the window manager puts it”.
+
+**The preview doesn't open where the setting says, and pictures don't shape the window.** This needs KWin, Plasma's window manager, with scripts allowed. A tiling script (such as Material Tiling, which some distributions turn on) sets every window's size itself: turn it off in System Settings → Window Management → KWin Scripts, or exclude KwikLook there if the script offers that. Elsewhere the preview opens where the window manager puts it and pictures fit into the window as it is.
 
 **I want to turn off the Dolphin part for a moment.** Start Dolphin with `KWIKLOOK_DISABLE_DOLPHIN_HOOK=1 dolphin`.
 

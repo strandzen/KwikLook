@@ -19,6 +19,7 @@ set(KWIKLOOK_QML_FILES
     ${CMAKE_SOURCE_DIR}/qml/PanelHeading.qml
     ${CMAKE_SOURCE_DIR}/qml/DelayedBusyIndicator.qml
     ${CMAKE_SOURCE_DIR}/qml/FloatingLabel.qml
+    ${CMAKE_SOURCE_DIR}/qml/CornerLabel.qml
     ${CMAKE_SOURCE_DIR}/qml/ArchiveView.qml
     ${CMAKE_SOURCE_DIR}/qml/BarItems.qml
     ${CMAKE_SOURCE_DIR}/qml/BarEditor.qml
@@ -90,11 +91,18 @@ qt_add_qml_module(kwiklook_qml
         gui/tablemodel.cpp
         gui/sandbox.h
         gui/sandbox.cpp
+        gui/kwinscript.h
+        gui/kwinscript.cpp
     RESOURCE_PREFIX "/qt/qml" # Qt searches here by default
     OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/kwiklook"
 )
 # Where kwiklook-sandbox is installed (the build tree's copy is found next to the binary).
 target_compile_definitions(kwiklook_qml PRIVATE KWIKLOOK_LIBEXECDIR="${KDE_INSTALL_FULL_LIBEXECDIR}")
+# The KWin script: installed under the data folder, and copied next to the binaries so
+# the build tree finds its own (gui/kwinscript.cpp, tests/tst_placement.cpp).
+target_compile_definitions(kwiklook_qml PRIVATE KWIKLOOK_DATADIR="${KDE_INSTALL_FULL_DATADIR}")
+configure_file(${PROJECT_SOURCE_DIR}/data/kwin/kwiklook-placement.js ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kwiklook-placement.js COPYONLY)
+install(FILES ${PROJECT_SOURCE_DIR}/data/kwin/kwiklook-placement.js DESTINATION ${KDE_INSTALL_DATADIR}/kwiklook)
 target_include_directories(kwiklook_qml PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/gui # QML type registration includes headers by bare name

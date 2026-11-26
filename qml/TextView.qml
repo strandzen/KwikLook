@@ -409,6 +409,9 @@ ColumnLayout {
 
     }
 
+    // The find bar's height, for floating notes in the corner to keep above it.
+    readonly property real bottomBarHeight: findBar.visible ? findBar.height : 0
+
     FindBar {
         id: findBar
         Layout.fillWidth: true

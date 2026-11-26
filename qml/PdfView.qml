@@ -291,6 +291,7 @@ Item {
             id: thumbnailsComponent
 
             QQC2.ScrollView {
+                id: thumbnailScroll
                 QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
                 Component.onCompleted: thumbnails.positionViewAtIndex(view.currentPage, ListView.Contain)
 
@@ -315,7 +316,10 @@ Item {
                             id: paper
                             objectName: "pageThumbnail"
                             anchors.horizontalCenter: parent.horizontalCenter
-                            width: parent.width - Kirigami.Units.largeSpacing * 3
+                            // As if the scrollbar were always there: from the list's width, the
+                            // pages' height would make the scrollbar come and go, and the list
+                            // narrow and widen with it, re-rendering the pages each time.
+                            width: thumbnailScroll.width - thumbnailScroll.QQC2.ScrollBar.vertical.width - Kirigami.Units.largeSpacing * 3
                             height: thumb.pointSize.width > 0 ? width * thumb.pointSize.height / thumb.pointSize.width : width * 1.414
                             color: "white"
                             border.width: thumb.current ? 2 : 0
@@ -377,6 +381,17 @@ Item {
 
             readonly property real fittedWidth: Math.max(Kirigami.Units.gridUnit * 4, scroll.availableWidth - Kirigami.Units.gridUnit * 2)
             readonly property real pageWidth: fittedWidth * view.zoom
+            // The width pages are rendered at: follows pageWidth once it has settled. Each
+            // change re-renders every page and cancels renders still running, and Qt 6.12
+            // can crash on a cancel at the wrong moment (see CLAUDE.md, Known Pitfalls).
+            // Meanwhile the last rendering is scaled.
+            property real renderWidth: 0
+            onPageWidthChanged: renderTimer.restart()
+            Timer {
+                id: renderTimer
+                interval: 150
+                onTriggered: pages.renderWidth = pages.pageWidth
+            }
 
             model: pdf.status === PdfDocument.Ready ? pdf.pageCount : 0
             spacing: Kirigami.Units.largeSpacing
@@ -418,13 +433,18 @@ Item {
                     height: row.pointSize.width > 0 ? width * row.pointSize.height / row.pointSize.width : width * 1.414
                     color: "white" // paper, also while the page renders
 
-                    PdfPageImage {
+                    // Not before the width has settled: a first rendering at a passing
+                    // width would be cancelled.
+                    Loader {
                         anchors.fill: parent
-                        document: pdf
-                        currentFrame: row.index
-                        asynchronous: true
-                        sourceSize.width: page.width * Screen.devicePixelRatio
-                        sourceSize.height: page.height * Screen.devicePixelRatio
+                        active: pages.renderWidth > 0
+                        sourceComponent: PdfPageImage {
+                            document: pdf
+                            currentFrame: row.index
+                            asynchronous: true
+                            sourceSize.width: pages.renderWidth * Screen.devicePixelRatio
+                            sourceSize.height: pages.renderWidth * page.height / page.width * Screen.devicePixelRatio
+                        }
                     }
 
                     // Matches on this page (in page points), the current one stronger.
@@ -497,6 +517,9 @@ Item {
             }
         }
     }
+
+    // The find bar's height, for floating notes in the corner to keep above it.
+    readonly property real bottomBarHeight: findBar.visible ? findBar.height : 0
 
     FindBar {
         id: findBar

@@ -15,7 +15,16 @@ Item {
 
     // As large as fits, leaving room for the text; never bigger than KDE's largest thumbnails.
     readonly property int previewSize: Math.max(Kirigami.Units.iconSizes.huge,
-        Math.min(width - Kirigami.Units.gridUnit * 4, height - Kirigami.Units.gridUnit * 8, 512))
+        Math.min(width - Kirigami.Units.gridUnit * 4, height - Kirigami.Units.gridUnit * (isAppImage ? 11 : 8), 512))
+    readonly property bool isAppImage: Viewer.mimeType === "application/vnd.appimage"
+        || Viewer.mimeType === "application/x-iso9660-appimage"
+
+    FileMenus {
+        id: menus
+        url: Viewer.currentUrl
+        mimeType: Viewer.mimeType
+        onLaunched: Viewer.Close()
+    }
 
     ColumnLayout {
         anchors.centerIn: parent
@@ -45,6 +54,19 @@ Item {
             wrapMode: Text.Wrap
             color: Kirigami.Theme.disabledTextColor
             text: Viewer.details
+        }
+
+        // AppImages: hand the file to AppImage Manager's install window, when it's installed.
+        QQC2.Button {
+            objectName: "installAppImage"
+            readonly property string app: "io.github.strandzen.AppImageManager"
+            readonly property string appIcon: view.isAppImage ? menus.applicationIcon(app) : ""
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: Kirigami.Units.largeSpacing
+            visible: appIcon !== ""
+            icon.name: appIcon
+            text: i18nc("@action:button", "Install with AppImage Manager")
+            onClicked: menus.openWith(app)
         }
 
         DelayedBusyIndicator {

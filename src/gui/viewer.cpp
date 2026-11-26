@@ -13,12 +13,15 @@
 #include <KWindowSystem>
 
 #include <algorithm>
+#include <cmath>
 
 #include <QCoreApplication>
 #include <QDeadlineTimer>
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QMimeDatabase>
 #include <QProcess>
 #include <QStandardPaths>
@@ -40,6 +43,10 @@ namespace
 {
 Viewer *s_instance = nullptr;
 constexpr int FocusLossDelayMs = 150;
+// How long a preview may wait for its first file's details before it shows anyway.
+constexpr int ShowDelayMs = 150;
+// How long a Placement() call waits for the file's details at most.
+constexpr int PlacementWaitMs = 1000;
 }
 
 namespace
@@ -643,8 +650,15 @@ void Viewer::Open(const QStringList &urls, int index, const QString &sessionId, 
     m_sessionId = sessionId;
     m_open = true;
     m_index = -1;
+    const bool hidden = !m_window || !m_window->isVisible();
     setCurrent(qBound(0, index, int(m_urls.size()) - 1));
-    showWindow(activationToken);
+    if (m_placementActive && hidden) {
+        m_showPending = true;
+        m_pendingToken = activationToken;
+        QTimer::singleShot(ShowDelayMs, this, &Viewer::showPendingWindow);
+    } else {
+        showWindow(activationToken);
+    }
 }
 
 void Viewer::Close()
@@ -711,6 +725,7 @@ void Viewer::readFileInfo(int generation)
         auto *window = qobject_cast<QQuickWindow *>(m_window.data());
         if (!window || !window->isVisible()) {
             showCurrent(std::move(info));
+            showPendingWindow();
             return;
         }
         // QML takes its picture of the old view in the next frame; the switch follows
@@ -758,6 +773,9 @@ void Viewer::showCurrent(FileInfo info)
     Q_EMIT currentChanged();
     Q_EMIT fileInfoChanged();
     Q_EMIT switchingChanged();
+    if (m_info.known) {
+        answerPlacements();
+    }
 }
 
 void Viewer::showWindow(const QString &activationToken)
@@ -772,12 +790,71 @@ void Viewer::showWindow(const QString &activationToken)
     KWindowSystem::activateWindow(m_window);
 }
 
+void Viewer::showPendingWindow()
+{
+    if (m_showPending) {
+        m_showPending = false;
+        showWindow(std::exchange(m_pendingToken, QString()));
+    }
+}
+
+void Viewer::setPlacementActive(bool active)
+{
+    m_placementActive = active;
+}
+
+QString Viewer::Placement(const QString &caption)
+{
+    if (calledFromDBus() && m_open && !m_info.known) {
+        setDelayedReply(true);
+        m_placementCalls.append(message());
+        QTimer::singleShot(PlacementWaitMs, this, &Viewer::answerPlacements);
+        return {};
+    }
+    return placementAnswer(caption);
+}
+
+void Viewer::answerPlacements()
+{
+    for (const QDBusMessage &call : std::exchange(m_placementCalls, {})) {
+        QDBusConnection::sessionBus().send(call.createReply(placementAnswer(call.arguments().value(0).toString())));
+    }
+}
+
+QString Viewer::placementAnswer(const QString &caption) const
+{
+    // The window manager's caption is our title, maybe with “— KwikLook” after it.
+    const QString title = m_window ? m_window->title() : QString();
+    const bool preview = m_open && !title.isEmpty() && (caption == title || caption.startsWith(title + u' '));
+    QJsonObject answer{{u"preview"_s, preview}};
+    if (!preview) {
+        return QString::fromUtf8(QJsonDocument(answer).toJson(QJsonDocument::Compact));
+    }
+    QString mode = KwikLookSettings::self()->windowPosition().toLower();
+    if (mode == u"dolphin"_s && m_sessionId.isEmpty()) {
+        mode = u"screen"_s; // not opened from Dolphin (`kwiklook <files>`)
+    }
+    answer[u"mode"_s] = mode;
+    const auto size = [](qreal width, qreal height) {
+        return QJsonObject{{u"width"_s, std::ceil(width)}, {u"height"_s, std::ceil(height)}};
+    };
+    answer[u"picture"_s] = QJsonValue::Null;
+    if (m_info.known && m_view == u"ImageView"_s && m_info.imageSize.isValid() && m_windowChrome.isValid()) {
+        const qreal dpr = m_window->devicePixelRatio();
+        answer[u"picture"_s] = size(m_info.imageSize.width() / dpr, m_info.imageSize.height() / dpr);
+    }
+    answer[u"chrome"_s] = size(m_windowChrome.width(), m_windowChrome.height());
+    answer[u"minimum"_s] = size(m_window->minimumWidth(), m_window->minimumHeight());
+    return QString::fromUtf8(QJsonDocument(answer).toJson(QJsonDocument::Compact));
+}
+
 void Viewer::markClosed()
 {
     if (!m_open) {
         return;
     }
     m_open = false;
+    m_showPending = false;
     m_office->cancel();
     unloadFont();
     if (!m_fontSampleText.isEmpty()) {

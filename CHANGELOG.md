@@ -4,9 +4,23 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Added
+
+- AppImages show an “Install with AppImage Manager” button when [AppImage Manager](https://github.com/strandzen/AppImage-Manager) is installed. It opens AppImage Manager's install window for the file and closes the preview.
+
+- Pictures give the preview window their shape, centred: as large as the picture, or up to most of the screen. A size you set by dragging the window's edge stays until the preview closes.
+- Pictures fill the preview edge to edge, without a margin. Vector pictures (SVG) are enlarged to fill the window and stay sharp; other small pictures still show at their real size.
+- A new setting chooses where the preview opens: centred on the screen, centred on the Dolphin window, at the mouse pointer, or where the window manager puts it. If another window-position script moves the preview back, the README's Troubleshooting section says what to do.
+
 ### Changed
 
+- Where you are among the files (“7 / 30”) now shows in the preview's bottom-right corner for a moment when it opens and on each switch, instead of in the bar; it shares that corner box with the zoom level. The bar keeps the file name only (hover it to see the position).
 - KContacts and KCalendarCore are no longer required. Without them, contacts (.vcf) and calendar files (.ics) show as text instead of cards; install them to get the cards back.
+- ↑ and ↓ go to the previous and next file, like ← and →. In text and PDFs, scroll with Page Up / Page Down or the wheel.
+
+### Fixed
+
+- PDF pages are drawn once their size has settled, instead of at every step while you resize the window or zoom, and the small pages in the sidebar no longer redraw over and over at some window sizes. Both could make the preview crash now and then.
 
 ## [0.5.0] - 2026-11-24
 

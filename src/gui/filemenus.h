@@ -44,6 +44,10 @@ public:
     QMenu *openWithMenu();
     // Opens the file in the application it opens with by default (Enter).
     Q_INVOKABLE void openWithDefault();
+    // Opens the file in the application with this desktop file name, if it's installed.
+    Q_INVOKABLE void openWith(const QString &desktopEntry);
+    // That application's icon name; empty when it isn't installed.
+    Q_INVOKABLE static QString applicationIcon(const QString &desktopEntry);
     Q_INVOKABLE void showShare(QQuickItem *button);
     // Opens the file manager at the file's folder with the file selected.
     Q_INVOKABLE void showInFileManager(QQuickItem *from);

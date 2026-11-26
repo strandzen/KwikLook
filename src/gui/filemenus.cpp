@@ -117,6 +117,19 @@ void FileMenus::openWithDefault()
     job->start();
 }
 
+void FileMenus::openWith(const QString &desktopEntry)
+{
+    if (!m_url.isEmpty() && KService::serviceByDesktopName(desktopEntry)) {
+        launch(m_url, desktopEntry);
+    }
+}
+
+QString FileMenus::applicationIcon(const QString &desktopEntry)
+{
+    const KService::Ptr service = KService::serviceByDesktopName(desktopEntry);
+    return service ? service->icon() : QString();
+}
+
 void FileMenus::launch(const QUrl &url, const QString &desktopEntry)
 {
     // No application: KIO asks which one (the standard “Open With” dialog).

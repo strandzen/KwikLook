@@ -23,6 +23,12 @@
     <method name="ShowSettings">
       <arg name="activationToken" type="s" direction="in"/>
     </method>
+    <!-- For KwikLook's KWin script (data/kwin/kwiklook-placement.js): how to place the
+         window with this caption, as JSON (see src/gui/viewer.h). -->
+    <method name="Placement">
+      <arg name="caption" type="s" direction="in"/>
+      <arg name="answer" type="s" direction="out"/>
+    </method>
     <signal name="CurrentChanged">
       <arg name="sessionId" type="s"/>
       <arg name="url" type="s"/>

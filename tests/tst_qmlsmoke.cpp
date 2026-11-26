@@ -22,6 +22,8 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QImage>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QStandardPaths>
@@ -185,9 +187,34 @@ private Q_SLOTS:
         Viewer::instance()->Open({file.fileName()}, 0, QString(), QString());
         QTRY_COMPARE(Viewer::instance()->view(), QStringLiteral("FallbackView"));
         QTRY_VERIFY(main.root()->findChild<QQuickItem *>(QStringLiteral("fallbackView")));
-        // One file: no position in the bar.
+        // One file: no position in the corner.
         QVERIFY(!main.root()->findChild<QQuickItem *>(u"position"_s)->isVisible());
         QTest::qWait(200); // let the thumbnail request finish or fail
+        // Not an AppImage: no install button.
+        QVERIFY(!main.root()->findChild<QQuickItem *>(u"installAppImage"_s)->isVisible());
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+    }
+
+    void offersAppImageManagerForAppImages()
+    {
+        MainWindow main;
+        QTemporaryDir dir;
+        // An AppImage by content: ELF header with the AppImage mark (never run).
+        QFile file(dir.filePath(u"Tool-x86_64.AppImage"_s));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QByteArray header("\x7f" "ELF\x02\x01\x01\x00" "AI\x02", 11);
+        file.write(header + QByteArray(4000, '\0'));
+        file.close();
+        Viewer::instance()->Open({file.fileName()}, 0, QString(), QString());
+        QTRY_COMPARE(Viewer::instance()->mimeType(), u"application/vnd.appimage"_s);
+        QTRY_COMPARE(Viewer::instance()->view(), u"FallbackView"_s);
+        QQuickItem *button = nullptr;
+        QTRY_VERIFY((button = main.root()->findChild<QQuickItem *>(u"installAppImage"_s)));
+        // Shown exactly when AppImage Manager is installed (not clicked: it would start it).
+        const bool installed = !FileMenus::applicationIcon(u"io.github.strandzen.AppImageManager"_s).isEmpty();
+        QCOMPARE(button->isVisible(), installed);
+        QVERIFY(FileMenus::applicationIcon(u"io.github.strandzen.NoSuchApp"_s).isEmpty());
+        QTest::qWait(200);
         QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 
@@ -210,6 +237,143 @@ private Q_SLOTS:
         QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
 
+
+    // Position and zoom share one box in the corner: “7 / 30 | 90%” while both show;
+    // a part leaves after its second, the box fades after the last.
+    void cornerLabelSharesOneBox()
+    {
+        MainWindow main;
+        QQuickItem *corner = main.root()->findChild<QQuickItem *>(u"cornerLabel"_s);
+        QQuickItem *position = main.root()->findChild<QQuickItem *>(u"position"_s);
+        QQuickItem *zoom = main.root()->findChild<QQuickItem *>(u"zoomLevel"_s);
+        QVERIFY(corner && position && zoom);
+        // Layouts only update in a window that draws: show one file (no position flash).
+        QTemporaryFile file;
+        QVERIFY(file.open());
+        file.write("text");
+        file.flush();
+        Viewer *v = Viewer::instance();
+        v->setWindow(main.window());
+        auto cleanup = qScopeGuard([v] {
+            v->Close();
+            v->setWindow(nullptr);
+        });
+        v->Open({file.fileName()}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(main.window()));
+        QVERIFY(!corner->isVisible());
+        QMetaObject::invokeMethod(corner, "flashPosition");
+        QTest::qWait(600);
+        QMetaObject::invokeMethod(corner, "flashZoom");
+        QVERIFY(corner->isVisible());
+        QVERIFY(position->isVisible() && zoom->isVisible()); // side by side
+        const qreal both = corner->width();
+        QTRY_VERIFY_WITH_TIMEOUT(!position->isVisible(), 1500); // its second is up first
+        QVERIFY(zoom->isVisible()); // the zoom part stays (its second runs 0.6 s longer)
+        QCOMPARE(corner->opacity(), 1.0);
+        QTRY_VERIFY(corner->width() < both); // laid out again in the next frame
+        QTRY_VERIFY_WITH_TIMEOUT(!corner->isVisible(), 3000); // then the box fades
+        QVERIFY(!zoom->isVisible()); // and starts empty next time
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+    }
+
+    // Vector pictures fill the view (drawn again at that size); small pixel pictures stay
+    // at real size; both edge to edge on the side that limits them.
+    void vectorPicturesFillTheView()
+    {
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        QTemporaryDir dir;
+        const QString svg = dir.filePath(u"small.svg"_s);
+        QFile f(svg);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("<svg xmlns=\"http:/" "/www.w3.org/2000/svg\" width=\"100\" height=\"50\"><rect width=\"100\" height=\"50\" fill=\"teal\"/></svg>");
+        f.close();
+        const QString png = dir.filePath(u"small.png"_s);
+        QImage img(100, 50, QImage::Format_RGB32);
+        img.fill(Qt::darkCyan);
+        QVERIFY(img.save(png));
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        auto cleanup = qScopeGuard([v] {
+            v->Close();
+            v->setWindow(nullptr);
+        });
+        v->Open({svg, png}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QQuickItem *view = nullptr;
+        QTRY_VERIFY((view = window->findChild<QQuickItem *>(u"imageView"_s)));
+        QTRY_VERIFY(view->property("fit").toReal() > 1);
+        const qreal fit = view->property("fit").toReal();
+        QVERIFY(qFuzzyCompare(fit, std::min(view->width() / 100, view->height() / 50) * window->devicePixelRatio()));
+        v->Next();
+        QTRY_COMPARE(v->fileName(), u"small.png"_s);
+        QTRY_COMPARE(view->property("fit").toReal(), 1.0);
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+    }
+
+    // What KwikLook's KWin script is told, and the window waiting for the first file's
+    // details while the script is loaded (so it can take the picture's shape as it shows).
+    void placementAnswersAndWaitsForTheFirstFile()
+    {
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        QTemporaryDir dir;
+        const QString pic = dir.filePath(u"pic.png"_s);
+        QImage img(800, 600, QImage::Format_RGB32);
+        img.fill(Qt::darkGreen);
+        QVERIFY(img.save(pic));
+        const QString txt = dir.filePath(u"notes.txt"_s);
+        QFile f(txt);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("text");
+        f.close();
+        Viewer *v = Viewer::instance();
+        KwikLookSettings *settings = KwikLookSettings::self();
+        auto cleanup = qScopeGuard([v, settings] {
+            v->Close();
+            v->setPlacementActive(false);
+            v->setWindow(nullptr);
+            settings->setWindowPosition(settings->defaultWindowPositionValue());
+        });
+        const auto answer = [v](const QString &caption) {
+            return QJsonDocument::fromJson(v->Placement(caption).toUtf8()).object();
+        };
+
+        v->setWindow(window);
+        v->setPlacementActive(true);
+        v->Open({pic, txt}, 0, u"dolphin-1"_s, QString());
+        QVERIFY(!window->isVisible()); // waits for the details…
+        QTRY_VERIFY(window->isVisible());
+        QCOMPARE(v->view(), u"ImageView"_s); // …which are there when it shows
+
+        QJsonObject a = answer(window->title() + u" — KwikLook"_s);
+        QVERIFY(a.value(u"preview"_s).toBool());
+        QCOMPARE(a.value(u"mode"_s).toString(), u"screen"_s);
+        const qreal dpr = window->devicePixelRatio();
+        QCOMPARE(a.value(u"picture"_s).toObject().value(u"width"_s).toInt(), int(std::ceil(800 / dpr)));
+        QCOMPARE(a.value(u"picture"_s).toObject().value(u"height"_s).toInt(), int(std::ceil(600 / dpr)));
+        const QJsonObject chrome = a.value(u"chrome"_s).toObject();
+        QCOMPARE(chrome.value(u"width"_s).toInt(), 0); // edge to edge, information panel closed
+        QVERIFY(chrome.value(u"height"_s).toInt() > 0); // the bar
+        QCOMPARE(a.value(u"minimum"_s).toObject().value(u"width"_s).toInt(), window->minimumWidth());
+        QVERIFY(!answer(u"Settings — KwikLook"_s).value(u"preview"_s).toBool()); // the other window
+
+        settings->setWindowPosition(u"Dolphin"_s);
+        QCOMPARE(answer(window->title()).value(u"mode"_s).toString(), u"dolphin"_s);
+
+        v->Next();
+        QTRY_COMPARE(v->view(), u"TextView"_s);
+        QVERIFY(answer(window->title()).value(u"picture"_s).isNull());
+
+        v->Close();
+        QVERIFY(!answer(window->title()).value(u"preview"_s).toBool());
+        v->Open({txt}, 0, QString(), QString()); // `kwiklook <file>`: not from Dolphin
+        QTRY_VERIFY(window->isVisible());
+        QCOMPARE(answer(window->title()).value(u"mode"_s).toString(), u"screen"_s);
+        QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+    }
 
     void playsAnimatedPictures()
     {
@@ -263,15 +427,22 @@ private Q_SLOTS:
         QVERIFY(area);
         area->forceActiveFocus();
         QTRY_VERIFY(area->hasActiveFocus());
-        // The position follows the file name.
+        // Where you are shows in the corner on each switch, then fades.
         QQuickItem *position = window->findChild<QQuickItem *>(u"position"_s);
-        QVERIFY(position);
-        QVERIFY(position->isVisible());
+        QQuickItem *corner = window->findChild<QQuickItem *>(u"cornerLabel"_s);
+        QVERIFY(position && corner);
         QCOMPARE(position->property("text").toString(), u"1 / 2"_s);
+        QTRY_VERIFY_WITH_TIMEOUT(!corner->isVisible(), 3000);
         QTest::keyClick(window, Qt::Key_Right);
         QTRY_COMPARE(v->currentIndex(), 1);
         QCOMPARE(position->property("text").toString(), u"2 / 2"_s);
+        QTRY_VERIFY(corner->isVisible() && position->isVisible());
         QTest::keyClick(window, Qt::Key_Left);
+        QTRY_COMPARE(v->currentIndex(), 0);
+        // ↑ ↓ do the same, also inside the text.
+        QTest::keyClick(window, Qt::Key_Down);
+        QTRY_COMPARE(v->currentIndex(), 1);
+        QTest::keyClick(window, Qt::Key_Up);
         QTRY_COMPARE(v->currentIndex(), 0);
         QTest::keyClick(window, Qt::Key_Space);
         QTRY_VERIFY(!window->isVisible());
@@ -1164,7 +1335,7 @@ private Q_SLOTS:
             QWheelEvent event(pos, window->mapToGlobal(pos), QPoint(), QPoint(0, 120 * steps), Qt::NoButton, Qt::ControlModifier, Qt::NoScrollPhase, false, Qt::MouseEventNotSynthesized, &waylandPointer);
             QCoreApplication::sendEvent(window, &event);
         };
-        QObject *indicator = window->findChild<QObject *>(u"zoomIndicator"_s);
+        QObject *indicator = window->findChild<QObject *>(u"zoomLevel"_s);
         QVERIFY(indicator);
 
         Viewer *v = Viewer::instance();
@@ -1180,7 +1351,7 @@ private Q_SLOTS:
         QVERIFY(fit < 1);
         ctrlWheel(image, 1);
         QCOMPARE(image->property("zoom").toReal(), fit * 1.25);
-        QTRY_COMPARE(indicator->property("opacity").toReal(), 1.0);
+        QTRY_VERIFY(indicator->property("visible").toBool()); // in the corner box
         QTest::keyClick(window, Qt::Key_Plus, Qt::ControlModifier);
         QCOMPARE(image->property("zoom").toReal(), fit * 1.25 * 1.25);
         QTest::keyClick(window, Qt::Key_0, Qt::ControlModifier);

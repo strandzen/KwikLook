@@ -6,9 +6,10 @@ import QtQuick.Window
 import org.kde.kirigami as Kirigami
 import kwiklook
 
-// Pictures: as large as fits, never enlarged beyond their real size (1 image pixel
-// = 1 screen pixel), so small ones stay sharp. Name and details are in the bar and
-// the information panel. Animated ones (GIF, WebP, ...) play. A picture that can't
+// Pictures: as large as fits, edge to edge; never enlarged beyond their real size
+// (1 image pixel = 1 screen pixel), so small ones stay sharp. Vector pictures (SVG)
+// always fill the view: they are drawn again at the size shown. Name and details are
+// in the bar and the information panel. Animated ones (GIF, WebP, ...) play. A picture that can't
 // be decoded shows the fallback view.
 //
 // Zoom like Gwenview: Ctrl+wheel or pinch towards the pointer, double-click for real
@@ -28,14 +29,15 @@ Item {
     // current file is a picture: until they arrive, nothing is loaded).
     readonly property real naturalWidth: Viewer.imageSize.width / dpr
     readonly property real naturalHeight: Viewer.imageSize.height / dpr
+    readonly property bool vector: Viewer.mimeType === "image/svg+xml" || Viewer.mimeType === "image/svg+xml-compressed"
     readonly property real fit: naturalWidth > 0 && naturalHeight > 0
-        ? Math.min(1, (width - Kirigami.Units.largeSpacing * 2) / naturalWidth, (height - Kirigami.Units.largeSpacing * 2) / naturalHeight)
+        ? Math.min(vector ? Infinity : 1, width / naturalWidth, height / naturalHeight)
         : 0
     // 0: fitted (follows the window size); otherwise the chosen scale, 1 = real size.
     property real userZoom: 0
     readonly property real zoom: userZoom > 0 ? userZoom : fit
     readonly property real zoomPercent: Math.round(zoom * 100)
-    readonly property real maxZoom: 8
+    readonly property real maxZoom: Math.max(8, fit)
     // Where the picture's centre is, from the view's centre (when larger than the view).
     property real panX: 0
     property real panY: 0
@@ -59,7 +61,7 @@ Item {
             return;
         }
         const old = zoom;
-        let z = clamp(target, fit, maxZoom);
+        let z = clamp(target, Math.min(fit, 1), maxZoom); // a vector picture can go down to real size
         // Stop at real size on the way through, as Gwenview does.
         if ((old < 1 && z > 1) || (old > 1 && z < 1)) {
             z = 1;
@@ -123,7 +125,8 @@ Item {
             smooth: true
             mipmap: true // clean when shrunk a lot
             fillMode: Image.PreserveAspectFit
-            sourceSize: view.largerThanScreen && view.userZoom === 0 ? Qt.size(Screen.width * view.dpr, Screen.height * view.dpr) : undefined
+            sourceSize: view.vector ? Qt.size(Math.ceil(picture.width * view.dpr), Math.ceil(picture.height * view.dpr))
+                : view.largerThanScreen && view.userZoom === 0 ? Qt.size(Screen.width * view.dpr, Screen.height * view.dpr) : undefined
         }
 
         AnimatedImage {

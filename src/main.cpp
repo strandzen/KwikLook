@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
+#include "gui/kwinscript.h"
 #include "gui/offlinenetwork.h"
 #include "gui/thumbnailprovider.h"
 #include "kwiklooksettings.h"
@@ -157,12 +158,22 @@ int main(int argc, char *argv[])
         KWindowSystem::activateWindow(settingsWindow);
     });
 
+    // KwikLook's KWin script places the window and gives it the pictures' shape, unless
+    // the setting leaves that to KWin. Follows the setting when it's saved.
+    KWinScript placement(KWinScript::defaultPath());
+    const auto updatePlacement = [viewer, &placement] {
+        viewer->setPlacementActive(placement.setLoaded(KwikLookSettings::self()->windowPosition() != u"KWin"_s));
+    };
+    updatePlacement();
+    QObject::connect(KwikLookSettings::self(), &KwikLookSettings::configChanged, &placement, updatePlacement);
+
     if (parser.isSet(settingsOption)) {
         viewer->ShowSettings(token);
     } else if (!urls.isEmpty()) {
         viewer->Open(urls, 0, QString(), token);
     }
     const int result = app.exec();
+    placement.setLoaded(false);
     viewer->finishRendering(); // before the engine goes: see Known Pitfalls, Qt PDF
     return result;
 }

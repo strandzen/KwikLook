@@ -22,6 +22,13 @@ ecm_add_test(tst_viewer.cpp
     NAME_PREFIX "kwiklook-"
 )
 
+# The geometry of the KWin script (data/kwin/kwiklook-placement.js), in a QJSEngine.
+ecm_add_test(tst_placement.cpp
+    TEST_NAME tst_placement
+    LINK_LIBRARIES Qt6::Test Qt6::Qml
+    NAME_PREFIX "kwiklook-"
+)
+target_compile_definitions(tst_placement PRIVATE PLACEMENT_SCRIPT="${PROJECT_SOURCE_DIR}/data/kwin/kwiklook-placement.js")
 # Breeze settings and the shadow made from them (checked against measured Breeze shadows).
 ecm_add_test(tst_breezestyle.cpp
     TEST_NAME tst_breezestyle
