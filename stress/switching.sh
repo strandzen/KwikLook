@@ -8,6 +8,8 @@
 # Every 10 s it samples the viewer (memory, threads, open files, helper processes); at
 # the end it checks for crashes, sanitizer reports, left-over helpers and idle CPU.
 set -uo pipefail
+busiest=""
+cpuIdle=""
 root=$STRESS_ROOT build=$STRESS_BUILD report=$STRESS_REPORT
 end=$(( $(date +%s) + STRESS_MINUTES * 60 ))
 export KWIKLOOK_DISABLE_DOLPHIN_HOOK=1 QT_FORCE_STDERR_LOGGING=1
@@ -15,10 +17,12 @@ export ASAN_OPTIONS="detect_leaks=0:log_path=$report/asan:print_suppressions=0"
 export UBSAN_OPTIONS="print_stacktrace=1:log_path=$report/ubsan"
 dbus-update-activation-environment WAYLAND_DISPLAY KWIKLOOK_DISABLE_DOLPHIN_HOOK QT_FORCE_STDERR_LOGGING ASAN_OPTIONS UBSAN_OPTIONS
 
+# STRESS_KINDS: only these test file folders, e.g. "images pdf" (default: all of them).
+kinds=${STRESS_KINDS:-images pdf books archives office media fonts text cards many edge}
+paths=()
+for k in $kinds; do paths+=(-o -path "*/$k/*"); done
 mapfile -t files < <(find "$root/testfiles" -type f -not -path '*/demo/*' -not -name '*.sh' -not -name '*.md' -size -200M -not -name "*'*" -not -name '*"*' \
-    \( -path '*/images/*' -o -path '*/pdf/*' -o -path '*/books/*' -o -path '*/archives/*' -o -path '*/office/*' \
-       -o -path '*/media/*' -o -path '*/fonts/*' -o -path '*/text/*' -o -path '*/cards/*' -o -path '*/many/*' -o -path '*/edge/*' \) | shuf)
-files+=("$root/testfiles/text/example-full.md")
+    \( -false "${paths[@]}" \) | shuf)
 # The viewer's own helpers (the sandbox, the archive lister, LibreOffice), not your
 # session's: everything below the viewer's process.
 descendants() {
@@ -54,8 +58,16 @@ sample() {
 }
 
 echo "time,rss_kb,threads,fds,sandbox_helpers,libreoffice,actions" > "$report/samples.csv"
-"$build/bin/kwiklook" --service > "$report/viewer.log" 2>&1 &
+# STRESS_WRAPPER: a command to run the viewer under, e.g. "heaptrack -o $report/heap".
+$STRESS_WRAPPER "$build/bin/kwiklook" --service > "$report/viewer.log" 2>&1 &
 pid=$!
+if [ -n "${STRESS_WRAPPER:-}" ]; then # the viewer is a child of the wrapper: find it
+    for _ in $(seq 1 60); do
+        for c in $(descendants "$pid"); do [ "$(cat /proc/$c/comm 2>/dev/null)" = kwiklook ] && viewerPid=$c; done
+        [ -n "${viewerPid:-}" ] && break; sleep 0.5
+    done
+    pid=${viewerPid:-$pid}
+fi
 # Wait until this viewer owns the name: a call before that would make D-Bus start the
 # installed one (its service file) instead.
 owner() {
@@ -93,11 +105,21 @@ for p in $(descendants "$pid"); do leftover+="$(tr '\0' ' ' < /proc/$p/cmdline 2
 idle="-"
 if kill -0 "$pid" 2>/dev/null; then
     sample "$pid"
-    w0=$(cat /proc/$pid/task/*/status 2>/dev/null | awk '/^voluntary_ctxt_switches/{s+=$2} END{print s}')
-    sleep 10
-    w1=$(cat /proc/$pid/task/*/status 2>/dev/null | awk '/^voluntary_ctxt_switches/{s+=$2} END{print s}')
-    idle=$((w1 - w0))
-    "$build/bin/kwiklook" --quit; sleep 2; kill "$pid" 2>/dev/null
+    # Wake-ups per thread over 10 s, by thread name: the busiest ones go in the summary.
+    wakeups() { for t in /proc/$pid/task/*; do printf '%s %s %s\n' "${t##*/}" "$(cat $t/comm 2>/dev/null | tr ' ' _)" "$(awk '/^voluntary_ctxt_switches/{print $2}' $t/status 2>/dev/null)"; done; }
+    cpu() { awk '{print $14 + $15}' /proc/$pid/stat 2>/dev/null; }
+    c0=$(cpu); wakeups > "$report/.w0"; sleep 10; wakeups > "$report/.w1"; c1=$(cpu)
+    cpuIdle=$(( (c1 - c0) * 10 )) # CPU time in ms (clock ticks of 10 ms)
+    busiest=$(join <(sort "$report/.w0") <(sort "$report/.w1") | awk '{d=$5-$3; if (d > 0) print d, $2}' | sort -rn | head -5 | tr '\n' ';')
+    idle=$(join <(sort "$report/.w0") <(sort "$report/.w1") | awk '{s+=$5-$3} END{print s+0}')
+    rm -f "$report/.w0" "$report/.w1"
+    if [ -n "${STRESS_KILL:-}" ]; then
+        # Ended as it is: a heap profiler then sees what the closed viewer holds (a
+        # normal quit would free Qt's caches first).
+        kill -9 "$pid"; sleep 5
+    else
+        "$build/bin/kwiklook" --quit; sleep 2; kill "$pid" 2>/dev/null
+    fi
 else
     crashed=1
 fi
@@ -105,10 +127,12 @@ first=$(sed -n 2p "$report/samples.csv" | cut -d, -f2) last=$(tail -1 "$report/s
 maxrss=$(tail -n +2 "$report/samples.csv" | cut -d, -f2 | sort -n | tail -1)
 reports=$(ls "$report"/asan* "$report"/ubsan* 2>/dev/null | wc -l)
 {
-    echo "Ran $STRESS_MINUTES min, $actions actions over ${#files[@]} test files."
+    echo "Ran $STRESS_MINUTES min, $actions actions over ${#files[@]} test files ($kinds)."
     [ "$crashed" = 1 ] && echo "CRASHED: the viewer died (see viewer.log, and asan.* / ubsan.* here)." || echo "No crash."
     echo "Sanitizer reports: $reports file(s)."
     echo "Memory (RSS): first sample ${first:-?} KB, last ${last:-?} KB, highest ${maxrss:-?} KB."
-    echo "Idle after closing: $idle wake-ups in 10 s."
+    echo "Idle after closing: $idle wake-ups in 10 s, CPU ${cpuIdle:-?} ms${busiest:+ (busiest threads: $busiest)}."
+    echo "  (In the nested session any Qt window spins after a few show/hide cycles, KwikLook or not:"
+    echo "  judge idle cost on the real desktop. See stress/README.md.)"
     [ -n "$leftover" ] && echo "LEFT RUNNING after closing: $leftover" || echo "No helper processes left running."
 } > "$report/summary.txt"

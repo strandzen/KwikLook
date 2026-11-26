@@ -27,7 +27,7 @@ printf '[Plugins]\n' > "$scratch/config/kwinrc"
 printf '[General]\nWindowPosition=Screen\nCloseOnFocusLoss=false\n' > "$scratch/config/kwiklookrc"
 env -i PATH="$PATH" HOME="$scratch/home" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
     XDG_CONFIG_HOME="$scratch/config" XDG_CACHE_HOME="$scratch/cache" XDG_STATE_HOME="$scratch/state" XDG_DATA_HOME="$scratch/data" \
-    STRESS_ROOT="$root" STRESS_BUILD="$build" STRESS_REPORT="$report" STRESS_MINUTES="$minutes" \
+    STRESS_ROOT="$root" STRESS_BUILD="$build" STRESS_REPORT="$report" STRESS_MINUTES="$minutes" STRESS_KINDS="${STRESS_KINDS:-}" STRESS_WRAPPER="${STRESS_WRAPPER:-}" STRESS_KILL="${STRESS_KILL:-}" \
     dbus-run-session -- kwin_wayland --virtual --width 1600 --height 1000 --exit-with-session "$here/$script" > "$report/kwin.log" 2>&1 || true
 echo "Report: $report"
 cat "$report/summary.txt" 2>/dev/null || echo "(no summary: see $report/kwin.log)"

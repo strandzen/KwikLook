@@ -19,13 +19,22 @@ testfiles/generate.sh                              # once: the test files
 cmake --preset asan && cmake --build --preset asan  # AddressSanitizer + UBSan build
 stress/run-nested.sh switching.sh 30               # 30 minutes; default build/asan
 stress/run-nested.sh switching.sh 10 build/release # the same with a normal build
+STRESS_KINDS="images pdf" stress/run-nested.sh switching.sh 5 build/release  # some kinds only
 ```
 
 The report folder has `summary.txt`, `samples.csv` (memory and threads over time),
 `actions.log` (every call and how long the viewer took to answer) and the viewer's
 log; sanitizer findings land there as `asan.*` / `ubsan.*`.
 
-Reading the results: memory under AddressSanitizer is several times higher than
+Reading the results: in the nested session (KWin's virtual screen) any Qt window, even a
+bare one with no KwikLook code, starts spinning (Wayland and graphics threads, ~70 %
+CPU) after its 4th or 5th hide, checked 2026-11-26 with Qt 6.12.1. So the idle numbers
+there aren't meaningful after a few previews, and the spinning slows a run down (fewer
+actions); judge idle cost on the real desktop (`/proc/<pid>/task/*/status`,
+voluntary_ctxt_switches over 10 s). The nested session also renders in software:
+memory is higher than on a real desktop.
+
+Memory under AddressSanitizer is several times higher than
 normal (it holds freed memory back on purpose); judge memory growth with the release
 build. A steady climb over a long run is a leak; going up and down is the working set.
 
