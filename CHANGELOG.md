@@ -4,6 +4,10 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Fixed
+
+- The background viewer could quit by itself shortly after a preview closed (when a thumbnail was still being made), so the next preview opened slowly.
+
 ## [0.7.0] - 2026-11-26
 
 Books, and the next file ready before you get there.

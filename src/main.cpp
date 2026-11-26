@@ -124,6 +124,10 @@ int main(int argc, char *argv[])
         return 1;
     }
     app.setQuitOnLastWindowClosed(false);
+    // Nor when a KIO job (a thumbnail) ends while no window is shown: KJob holds a
+    // QEventLoopLocker, and the last one released quit the viewer without a word,
+    // found by stress/switching.sh (2026-11-26). Only Quit (`kwiklook --quit`) ends it.
+    QCoreApplication::setQuitLockEnabled(false);
 
     // Saved settings tell other processes (the Dolphin hook watches the open key).
     for (KConfigSkeletonItem *item : KwikLookSettings::self()->items()) {
