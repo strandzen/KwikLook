@@ -89,12 +89,31 @@ Kirigami.ApplicationWindow {
         }
     }
 
+    // The view stays this long after the window hides (see viewLoader.active).
+    property bool keepView: false
+    onVisibleChanged: {
+        if (visible) {
+            keepView = true;
+            dropView.stop();
+        } else {
+            dropView.restart();
+        }
+    }
+    Timer {
+        id: dropView
+        interval: 5000
+        onTriggered: root.keepView = false
+    }
+
     // For KwikLook's KWin script: the room around a picture shown at real size (the bar,
     // the information panel; pictures go edge to edge), so the window can take its shape.
     Binding {
         target: Viewer
         property: "windowChrome"
-        value: Qt.size(root.width - viewLoader.width, root.height - viewLoader.height)
+        // From the parts themselves, not "window minus view": a hidden window's layouts
+        // aren't laid out (the view isn't even loaded then), and the script asks while
+        // the window appears.
+        value: Qt.size(Viewer.infoOpen ? Kirigami.Units.gridUnit * 18 + infoSeparator.implicitWidth : 0, titleBar.implicitHeight)
     }
 
     // “Open with…”, Share and the panel's actions, for the bar and the panel.
@@ -233,6 +252,11 @@ Kirigami.ApplicationWindow {
 
                         anchors.fill: parent
                         source: Viewer.view ? Qt.resolvedUrl(Viewer.view + ".qml") : ""
+                        // A closed preview frees its view a few seconds later (a decoded picture
+                        // held 64 MB on a 4K screen, PDF pages, players). Not at once: pages
+                        // still rendering would be cancelled (Qt 6.12's image loader can crash
+                        // on that, CLAUDE.md) and a quick reopen keeps it.
+                        active: root.visible || root.keepView
                     }
 
                     // The previous file's view, still, over the next one until that is ready
@@ -338,6 +362,7 @@ Kirigami.ApplicationWindow {
 
                 // The information panel slides in from the right; the preview shrinks beside it.
                 Kirigami.Separator {
+                    id: infoSeparator
                     Layout.fillHeight: true
                     visible: infoPanel.Layout.preferredWidth > 0
                 }

@@ -3,6 +3,7 @@
 #include "gui/autostart.h"
 #include "gui/filemenus.h"
 #include "gui/offlinenetwork.h"
+#include "gui/sandbox.h"
 #include "gui/thumbnailprovider.h"
 #include "gui/viewer.h"
 #include "kwiklooksettings.h"
@@ -24,6 +25,7 @@
 #include <QImage>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QPointer>
 #include <QTemporaryDir>
 #include <QQuickTextDocument>
 #include <QTextDocument>
@@ -162,6 +164,10 @@ private Q_SLOTS:
     void initTestCase()
     {
         QStandardPaths::setTestModeEnabled(true); // remembered state goes to a test folder
+        // Without the window (a missing QML module, e.g. org.kde.desktop from
+        // qqc2-desktop-style) every test below would fail or crash: stop here and say why.
+        MainWindow main;
+        QVERIFY2(main.root(), qPrintable(main.warnings()));
     }
 
     void init()
@@ -187,6 +193,7 @@ private Q_SLOTS:
         QVERIFY(file.open());
         file.write(QByteArray(3000, '\x07')); // binary: no view of its own
         file.flush();
+        Viewer::instance()->setWindow(main.window()); // the view loads only while shown
         Viewer::instance()->Open({file.fileName()}, 0, QString(), QString());
         QTRY_COMPARE(Viewer::instance()->view(), QStringLiteral("FallbackView"));
         QTRY_VERIFY(main.root()->findChild<QQuickItem *>(QStringLiteral("fallbackView")));
@@ -196,6 +203,8 @@ private Q_SLOTS:
         // Not an AppImage: no install button.
         QVERIFY(!main.root()->findChild<QQuickItem *>(u"installAppImage"_s)->isVisible());
         QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+        Viewer::instance()->Close();
+        Viewer::instance()->setWindow(nullptr);
     }
 
     void offersAppImageManagerForAppImages()
@@ -208,6 +217,7 @@ private Q_SLOTS:
         QByteArray header("\x7f" "ELF\x02\x01\x01\x00" "AI\x02", 11);
         file.write(header + QByteArray(4000, '\0'));
         file.close();
+        Viewer::instance()->setWindow(main.window()); // the view loads only while shown
         Viewer::instance()->Open({file.fileName()}, 0, QString(), QString());
         QTRY_COMPARE(Viewer::instance()->mimeType(), u"application/vnd.appimage"_s);
         QTRY_COMPARE(Viewer::instance()->view(), u"FallbackView"_s);
@@ -219,6 +229,8 @@ private Q_SLOTS:
         QVERIFY(FileMenus::applicationIcon(u"io.github.strandzen.NoSuchApp"_s).isEmpty());
         QTest::qWait(200);
         QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+        Viewer::instance()->Close();
+        Viewer::instance()->setWindow(nullptr);
     }
 
     void loadsImageViewWithInfoPanel()
@@ -231,6 +243,7 @@ private Q_SLOTS:
         img.fill(Qt::green);
         QVERIFY(img.save(path));
         Viewer::instance()->setInfoOpen(true);
+        Viewer::instance()->setWindow(main.window()); // the view loads only while shown
         Viewer::instance()->Open({path}, 0, QString(), QString());
         QObject *root = main.root();
         QTRY_VERIFY(root->findChild<QQuickItem *>(QStringLiteral("imageView")));
@@ -238,6 +251,8 @@ private Q_SLOTS:
         QTest::qWait(300);
         Viewer::instance()->setInfoOpen(false);
         QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+        Viewer::instance()->Close();
+        Viewer::instance()->setWindow(nullptr);
     }
 
 
@@ -344,6 +359,7 @@ private Q_SLOTS:
             return QJsonDocument::fromJson(v->Placement(caption).toUtf8()).object();
         };
 
+        v->setInfoOpen(false); // remembered: another test may have left it open
         v->setWindow(window);
         v->setPlacementActive(true);
         v->Open({pic, txt}, 0, u"dolphin-1"_s, QString());
@@ -397,9 +413,11 @@ private Q_SLOTS:
         QVERIFY(animated->property("playing").toBool());
         QVERIFY(!animated->property("paused").toBool());
         QVERIFY(animated->width() > 0);
-        // The view stays loaded after closing: it must not keep animating unseen.
+        // Closed: paused at once (nothing runs unseen), and the view freed shortly after.
+        const QPointer<QQuickItem> gone(animated);
         v->Close();
-        QTRY_VERIFY(animated->property("paused").toBool());
+        QTRY_VERIFY(gone.isNull() || gone->property("paused").toBool());
+        QTRY_VERIFY_WITH_TIMEOUT(gone.isNull(), 10000);
         v->setWindow(nullptr);
         QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
     }
@@ -1207,6 +1225,9 @@ private Q_SLOTS:
 
     void listsAnArchive()
     {
+        if (!Sandbox::supported()) {
+            QSKIP("this kernel's Landlock can't lock the archive helper in (archives are read in the sandbox)");
+        }
         const QString bsdtar = QStandardPaths::findExecutable(u"bsdtar"_s);
         if (bsdtar.isEmpty()) {
             QSKIP("bsdtar is needed to make the test archive");
@@ -1274,6 +1295,9 @@ private Q_SLOTS:
     // table of contents in the sidebar and its pictures; no formatted / source toggle.
     void showsAnEpubBook()
     {
+        if (!Sandbox::supported()) {
+            QSKIP("this kernel's Landlock can't lock the archive helper in (books are read in the sandbox)");
+        }
         const QString bsdtar = QStandardPaths::findExecutable(u"bsdtar"_s);
         if (bsdtar.isEmpty()) {
             QSKIP("bsdtar is needed to make the test book");
