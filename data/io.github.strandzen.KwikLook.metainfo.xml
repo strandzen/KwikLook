@@ -18,6 +18,15 @@
   <launchable type="desktop-id">io.github.strandzen.KwikLook.desktop</launchable>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.8.1" date="2026-11-27">
+      <description>
+        <p>Less memory after looking at pictures, and KwikLook in the AUR.</p>
+        <ul>
+          <li>The background viewer gives back much more memory after you look at pictures.</li>
+          <li>Arch users can install KwikLook from the AUR.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.8.0" date="2026-11-27">
       <description>
         <p>Song covers and AppImage icons, a lighter background viewer, and crash reports.</p>

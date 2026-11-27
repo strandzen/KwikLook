@@ -4,6 +4,10 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-27
+
+Less memory after looking at pictures, and KwikLook in the AUR.
+
 ### Added
 
 - KwikLook is in the AUR (`kwiklook`): Arch users can install and update it with an AUR helper such as `yay -S kwiklook`.

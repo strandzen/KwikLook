@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
 cmake_minimum_required(VERSION 3.22)
-project(kwiklook VERSION 0.8.0 LANGUAGES CXX)
+project(kwiklook VERSION 0.8.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
