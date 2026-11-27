@@ -693,14 +693,27 @@ private Q_SLOTS:
         }
         v->setShowFormatted(wasFormatted);
         QVERIFY2(main.warnings().isEmpty(), qPrintable(main.warnings()));
-        // End on a file without pictures: on the next test's switch the text view gets
-        // the new folder a moment before the new text, and would look for icon.png there.
-        QFile plain(dir.filePath(u"plain.txt"_s));
-        QVERIFY(plain.open(QIODevice::WriteOnly));
-        plain.write("plain\n");
-        plain.close();
-        v->Open({plain.fileName()}, 0, QString(), QString());
-        QTRY_COMPARE(v->text(), u"plain\n"_s);
+        // Next, a Markdown file in another folder (a picture of its own): the old
+        // text's picture must not be looked for in the new folder during the switch,
+        // nor the new one's in the old folder.
+        QDir other(m_keptDir.filePath(u"other"_s));
+        QVERIFY(other.mkpath(u"."_s));
+        QVERIFY(icon.save(other.filePath(u"logo.png"_s)));
+        QFile next(other.filePath(u"NEXT.md"_s));
+        QVERIFY(next.open(QIODevice::WriteOnly));
+        next.write("# Next\n\n![logo](logo.png)\n\nNext text.\n");
+        next.close();
+        v->setShowFormatted(true);
+        v->Open({f.fileName(), next.fileName()}, 0, QString(), QString());
+        QTRY_VERIFY(v->text().contains(u"The end."_s));
+        v->Next();
+        QTRY_VERIFY(v->text().contains(u"Next text."_s));
+        QTest::qWait(300); // pictures load after the layout
+        v->Previous();
+        QTRY_VERIFY(v->text().contains(u"The end."_s));
+        QTest::qWait(300);
+        v->setShowFormatted(wasFormatted);
+        QVERIFY2(main.warnings().isEmpty(), qPrintable(main.warnings()));
         v->Close();
         v->setWindow(nullptr);
     }

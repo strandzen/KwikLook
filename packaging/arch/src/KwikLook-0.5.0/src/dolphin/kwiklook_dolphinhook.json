@@ -1,7 +1,0 @@
-{
-    "KPlugin": {
-        "Name": "KwikLook Dolphin integration",
-        "Description": "Space previews the selected file with KwikLook",
-        "License": "GPL-3.0-or-later"
-    }
-}

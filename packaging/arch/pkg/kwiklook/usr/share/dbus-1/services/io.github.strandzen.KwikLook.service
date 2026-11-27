@@ -1,3 +1,0 @@
-[D-BUS Service]
-Name=io.github.strandzen.KwikLook
-Exec=/usr/bin/kwiklook --service

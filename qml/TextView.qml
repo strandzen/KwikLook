@@ -106,6 +106,7 @@ ColumnLayout {
     // The headings: [{title, level, position}] (positions in the text shown).
     property var contents: []
     readonly property bool sidebarAvailable: contents.length > 0
+    onKindChanged: area.showText()
     onRenderedChanged: {
         Contents.drawWhole(area, rendered); // see Contents::drawWhole: tables in rich text
         Qt.callLater(updateContents); // same text, other format: other positions
@@ -243,12 +244,29 @@ ColumnLayout {
 
                 readOnly: true
                 selectByMouse: true
-                textFormat: view.kind === "markdown" ? TextEdit.MarkdownText : view.kind === "html" || view.kind === "book" ? TextEdit.RichText : TextEdit.PlainText
                 wrapMode: TextEdit.Wrap
                 font.family: baseFont.family
                 font.pointSize: baseFont.pointSize * Viewer.textZoom
-                // JSON indented; Markdown as Qt's reader can take it (see Markdown::forQt).
-                text: (view.kind === "json" || view.kind === "markdown") && Viewer.formattedText !== "" ? Viewer.formattedText : Viewer.text
+                // Text, format and folder are set by showText(), not bound: they have to
+                // change in order (see there).
+                function showText() {
+                    const format = view.kind === "markdown" ? TextEdit.MarkdownText
+                        : view.kind === "html" || view.kind === "book" ? TextEdit.RichText : TextEdit.PlainText;
+                    // JSON indented; Markdown as Qt's reader can take it (see Markdown::forQt).
+                    const shown = (view.kind === "json" || view.kind === "markdown") && Viewer.formattedText !== "" ? Viewer.formattedText : Viewer.text;
+                    // Pictures are found next to the file. A new folder or format lays out the
+                    // text shown again and loads its pictures (from the new folder, or source
+                    // read as Markdown): so out with the old text first, and the new text only
+                    // once both are right. Within one folder the address stays the same.
+                    const address = Viewer.currentUrl.toString();
+                    const folder = address.substring(0, address.lastIndexOf("/") + 1);
+                    if (baseUrl.toString() !== folder || textFormat !== format) {
+                        text = "";
+                        baseUrl = folder;
+                        textFormat = format;
+                    }
+                    text = shown;
+                }
                 onTextChanged: {
                     Qt.callLater(view.runSearch); // a new file, or rendered / source
                     Qt.callLater(view.updateContents);
@@ -264,6 +282,7 @@ ColumnLayout {
                 // book's 1.4 MB took 18 s to colour, for nothing).
                 property bool colouring: false
                 Component.onCompleted: {
+                    showText();
                     updateRules();
                     Contents.drawWhole(area, view.rendered);
                 }
@@ -275,10 +294,10 @@ ColumnLayout {
                 Connections {
                     target: Viewer
                     function onFileInfoChanged() {
+                        area.showText();
                         Qt.callLater(area.updateRules);
                     }
                 }
-                    baseUrl: Viewer.currentUrl // pictures next to the file
                 leftPadding: view.rendered ? sideMargin : gutterWidth + Kirigami.Units.largeSpacing
                 rightPadding: view.rendered ? sideMargin : Kirigami.Units.largeSpacing
                 topPadding: Kirigami.Units.largeSpacing

@@ -1,9 +1,0 @@
-# Build output
-build/
-
-# Local only: reference projects (read-only, see comp/README.md) and the to-do list
-comp/
-Todo.md
-
-# Example files
-testfiles/
