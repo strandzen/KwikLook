@@ -4,6 +4,10 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Fixed
+
+- The background viewer gives back more memory a few seconds after a preview closes: about 95 MB stays in use instead of 130 MB after looking at pictures, documents and a video.
+
 ## [0.8.1] - 2026-11-27
 
 Less memory after looking at pictures, and KwikLook in the AUR.

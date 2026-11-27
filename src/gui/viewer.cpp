@@ -13,6 +13,9 @@
 #include <KWindowSystem>
 
 #include <algorithm>
+#ifdef __GLIBC__
+#include <malloc.h>
+#endif
 #include <cmath>
 
 #include <QCoreApplication>
@@ -44,6 +47,9 @@ namespace
 {
 Viewer *s_instance = nullptr;
 constexpr int FocusLossDelayMs = 150;
+// How long after the window hides the background viewer gives memory back: a second
+// after Main.qml drops the view (dropView, 5 s), so the view is gone by then.
+constexpr int ReleaseMemoryDelayMs = 6000;
 // How long a preview may wait for its first file's details before it shows anyway.
 constexpr int ShowDelayMs = 150;
 // How long a Placement() call waits for the file's details at most.
@@ -191,13 +197,23 @@ bool Viewer::registerOnBus()
 void Viewer::setWindow(QWindow *window)
 {
     m_window = window;
+    if (!m_releaseMemory) {
+        m_releaseMemory = new QTimer(this);
+        m_releaseMemory->setSingleShot(true);
+        m_releaseMemory->setInterval(ReleaseMemoryDelayMs);
+        connect(m_releaseMemory, &QTimer::timeout, this, &Viewer::releaseMemory);
+    }
+    m_releaseMemory->stop(); // a hide of the previous window doesn't count
     if (window) {
         // Closed by the window manager (Alt+F4) or hidden from QML: same as Close().
-        connect(window, &QWindow::visibleChanged, this, [this](bool visible) {
+        connect(window, &QWindow::visibleChanged, this, [this, window](bool visible) {
             if (!visible) {
                 // Closed while a video was fullscreen: open as a normal window next time.
                 m_window->setWindowStates(Qt::WindowNoState);
                 markClosed();
+            }
+            if (window == m_window) { // not a window set before (tests set several)
+                visible ? m_releaseMemory->stop() : m_releaseMemory->start();
             }
         });
         // Close when another application takes the focus. KwikLook's own windows (menus,
@@ -254,6 +270,23 @@ void Viewer::closeIfFocusLeft()
     if (!QGuiApplication::focusWindow() && m_open && KwikLookSettings::self()->closeOnFocusLoss()) {
         Close();
     }
+}
+
+void Viewer::releaseMemory()
+{
+    // Measured 2026-11-27 (nested session, 8 file types, then 30 s idle): 133 MB kept
+    // without this, 96 MB with it. The QML engine lets go of the dropped view's objects
+    // and compiled components; glibc gives freed memory back, also from the pools of
+    // threads (picture decoding, video, rendering) that the process-wide threshold in
+    // main.cpp doesn't cover.
+    if (QQmlEngine *engine = m_window ? qmlEngine(m_window) : nullptr) {
+        engine->collectGarbage();
+        engine->trimComponentCache();
+    }
+#ifdef __GLIBC__
+    malloc_trim(0);
+#endif
+    qCDebug(lcViewer) << "Memory released";
 }
 
 QUrl Viewer::currentUrl() const

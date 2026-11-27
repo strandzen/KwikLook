@@ -30,6 +30,8 @@
  * Session IDs are chosen by the caller (one per Dolphin window, say) and come
  * back in the signals, so each caller can ignore what another one started.
  */
+class QTimer;
+
 class Viewer : public QObject, protected QDBusContext
 {
     Q_OBJECT
@@ -254,6 +256,8 @@ private:
     // The file at m_index becomes the one shown, with these details.
     void showCurrent(FileInfo info);
     void closeIfFocusLeft();
+    // Hidden window, view dropped: frees what the last preview left behind.
+    void releaseMemory();
     void startOfficePreview();
     void startBookPreview(); // EPUB: the fallback view meanwhile, then the book as text
     // Font files: adds the current font to the app's fonts (the previous one goes).
@@ -267,6 +271,7 @@ private:
     QString m_sessionId;
     bool m_open = false;
     QPointer<QWindow> m_window;
+    QTimer *m_releaseMemory = nullptr; // runs while the window is hidden, see releaseMemory()
     FileInfo m_info;
     QString m_view; // kept while the next file's details load, so the view doesn't flicker
     bool m_infoOpen = false;
