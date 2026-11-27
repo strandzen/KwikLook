@@ -18,6 +18,15 @@
   <launchable type="desktop-id">io.github.strandzen.KwikLook.desktop</launchable>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.8.2" date="2026-11-28">
+      <description>
+        <p>Less memory while KwikLook waits in the background.</p>
+        <ul>
+          <li>After 15 minutes without a preview, KwikLook starts afresh in the background and uses about a third of the memory. This can be turned off in the settings.</li>
+          <li>The background viewer gives back more memory a few seconds after a preview closes.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.8.1" date="2026-11-27">
       <description>
         <p>Less memory after looking at pictures, and KwikLook in the AUR.</p>
