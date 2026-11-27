@@ -138,6 +138,7 @@ Open “KwikLook Settings” from the app launcher (or run `kwiklook --settings`
 - **Open the preview:** centred on the screen (the default), centred on Dolphin, at the mouse pointer, or where the window manager puts it. For all but the last, KwikLook places its window and gives it the pictures' shape through a small KWin script that it loads while it runs and removes when it stops; nothing is installed into KWin and none of its settings change.
 - **Close when you switch to another window:** on by default.
 - **Start in the background at login:** off by default. KwikLook starts with Dolphin anyway; this makes the very first preview after login open faster.
+- **Free memory when KwikLook isn't used for a while:** on by default. After 15 minutes without a preview, KwikLook starts afresh in the background and uses about a third of the memory; the next preview then opens a moment later (about a tenth of a second).
 - **Start playing when a video or song opens:** on by default.
 - **Start without sound:** off by default.
 - **Preview office documents:** on by default, when LibreOffice is installed.

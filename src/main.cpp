@@ -19,6 +19,7 @@
 #include <QDBusConnectionInterface>
 #include <QDBusMessage>
 #include <QDir>
+#include <QFile>
 #include <QIcon>
 #include <QPointer>
 #include <QQmlApplicationEngine>
@@ -27,7 +28,10 @@
 #include <QUrl>
 #include <QtQml/qqmlextensionplugin.h>
 
+#include <cerrno>
 #include <cstdio>
+#include <cstring>
+#include <unistd.h>
 #ifdef __GLIBC__
 #include <malloc.h>
 #endif
@@ -52,6 +56,20 @@ QDBusMessage viewerCall(const QString &method)
                                           QLatin1String(Viewer::ObjectPath),
                                           QLatin1String(Viewer::InterfaceName),
                                           method);
+}
+
+// Replaces this process with a fresh background viewer (Viewer::restartRequested). The
+// same process: one started by D-Bus or systemd stays theirs. By path, so an update
+// installed meanwhile takes over. The name is given up first, or the new viewer could ask
+// for it before the bus has noticed the old connection is gone.
+void restartViewer()
+{
+    QDBusConnection::sessionBus().unregisterService(QLatin1String(Viewer::ServiceName));
+    const QByteArray program = QFile::encodeName(QCoreApplication::applicationFilePath());
+    const QByteArray service = QByteArrayLiteral("--service");
+    char *const args[] = {const_cast<char *>(program.constData()), const_cast<char *>(service.constData()), nullptr};
+    execv(program.constData(), args);
+    std::fprintf(stderr, "kwiklook: could not restart (%s): %s\n", program.constData(), std::strerror(errno));
 }
 } // namespace
 
@@ -192,8 +210,17 @@ int main(int argc, char *argv[])
     } else if (!urls.isEmpty()) {
         viewer->Open(urls, 0, QString(), token);
     }
+    bool restart = false;
+    QObject::connect(viewer, &Viewer::restartRequested, &app, [&restart] {
+        restart = true;
+        QCoreApplication::quit();
+    });
+
     const int result = app.exec();
     placement.setLoaded(false);
     viewer->finishRendering(); // before the engine goes: see Known Pitfalls, Qt PDF
+    if (restart) {
+        restartViewer(); // returns only if it failed; the next preview starts one (D-Bus)
+    }
     return result;
 }

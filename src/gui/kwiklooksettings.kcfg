@@ -46,6 +46,10 @@
       <label>Where the preview window opens: Screen, Dolphin, Pointer, or KWin (KwikLook's KWin script not loaded: no position, no picture shape)</label>
       <default>Screen</default>
     </entry>
+    <entry name="FreeMemoryWhenIdle" type="Bool">
+      <label>Start the background viewer afresh after 15 minutes without a preview, which frees memory (Viewer::restartRequested)</label>
+      <default>true</default>
+    </entry>
     <entry name="OfficePreviews" type="Bool">
       <label>Preview office documents by converting them with LibreOffice (sandboxed)</label>
       <default>true</default>

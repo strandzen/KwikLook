@@ -19,6 +19,7 @@ Kirigami.ApplicationWindow {
     property string windowPosition
     property bool closeOnFocusLoss
     property bool startAtLogin
+    property bool freeMemoryWhenIdle
     property bool officePreviews
     property bool autoplayMedia
     property bool startMuted
@@ -31,6 +32,7 @@ Kirigami.ApplicationWindow {
         || windowPosition !== KwikLookSettings.windowPosition
         || closeOnFocusLoss !== KwikLookSettings.closeOnFocusLoss
         || startAtLogin !== autostart.enabled
+        || freeMemoryWhenIdle !== KwikLookSettings.freeMemoryWhenIdle
         || officePreviews !== KwikLookSettings.officePreviews
         || autoplayMedia !== KwikLookSettings.autoplayMedia
         || startMuted !== KwikLookSettings.startMuted
@@ -44,6 +46,7 @@ Kirigami.ApplicationWindow {
         windowPosition = KwikLookSettings.windowPosition;
         closeOnFocusLoss = KwikLookSettings.closeOnFocusLoss;
         startAtLogin = autostart.enabled;
+        freeMemoryWhenIdle = KwikLookSettings.freeMemoryWhenIdle;
         officePreviews = KwikLookSettings.officePreviews;
         autoplayMedia = KwikLookSettings.autoplayMedia;
         startMuted = KwikLookSettings.startMuted;
@@ -59,6 +62,7 @@ Kirigami.ApplicationWindow {
         KwikLookSettings.openKey = openKey;
         KwikLookSettings.windowPosition = windowPosition;
         KwikLookSettings.closeOnFocusLoss = closeOnFocusLoss;
+        KwikLookSettings.freeMemoryWhenIdle = freeMemoryWhenIdle;
         KwikLookSettings.officePreviews = officePreviews;
         KwikLookSettings.autoplayMedia = autoplayMedia;
         KwikLookSettings.startMuted = startMuted;
@@ -194,6 +198,13 @@ Kirigami.ApplicationWindow {
                 description: i18n("The first preview after login opens at once. Without this, KwikLook starts when Dolphin opens.")
                 checked: root.startAtLogin
                 onToggled: root.startAtLogin = checked
+            }
+            FormCard.FormDelegateSeparator {}
+            FormCard.FormSwitchDelegate {
+                text: i18nc("@option:check", "Free memory when KwikLook isn't used for a while")
+                description: i18n("After 15 minutes without a preview, KwikLook starts afresh in the background. The next preview then takes a moment longer.")
+                checked: root.freeMemoryWhenIdle
+                onToggled: root.freeMemoryWhenIdle = checked
             }
         }
 

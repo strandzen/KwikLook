@@ -139,6 +139,8 @@ public:
     bool registerOnBus();
     // The preview window; shown on Open(), hidden on Close().
     void setWindow(QWindow *window);
+    // How long the window stays hidden before restartRequested(); tests make it short.
+    void setIdleRestartDelay(int ms);
     // Before the QML engine goes (quitting): hides the window and waits, at most
     // `timeoutMs`, until no PDF page is rendering. Qt PDF renders on the engine's image
     // thread and crashes when the document is deleted mid-render. False on timeout.
@@ -240,6 +242,9 @@ Q_SIGNALS:
     void picturesAheadChanged();
     // main.cpp creates the settings window on the first request and shows it.
     void settingsRequested(const QString &activationToken);
+    // No KwikLook window shown for a long while: main.cpp starts the viewer afresh,
+    // which gives back what earlier previews left behind (libraries, driver state).
+    void restartRequested();
 
 private:
     void setCurrent(int index);
@@ -272,6 +277,7 @@ private:
     bool m_open = false;
     QPointer<QWindow> m_window;
     QTimer *m_releaseMemory = nullptr; // runs while the window is hidden, see releaseMemory()
+    QTimer *m_idleRestart = nullptr; // runs while the window is hidden, see restartRequested()
     FileInfo m_info;
     QString m_view; // kept while the next file's details load, so the view doesn't flicker
     bool m_infoOpen = false;

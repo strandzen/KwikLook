@@ -15,12 +15,13 @@ if(TARGET kwiklook-cards)
     add_dependencies(tst_qmlsmoke kwiklook-cards) # the cards view
 endif()
 
-# Viewer state and signals (no window, no bus).
+# Viewer state and signals (no bus; plain offscreen windows for the hide timers).
 ecm_add_test(tst_viewer.cpp
     TEST_NAME tst_viewer
     LINK_LIBRARIES Qt6::Test kwiklook_qml
     NAME_PREFIX "kwiklook-"
 )
+set_tests_properties(kwiklook-tst_viewer PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 # The geometry of the KWin script (data/kwin/kwiklook-placement.js), in a QJSEngine.
 ecm_add_test(tst_placement.cpp

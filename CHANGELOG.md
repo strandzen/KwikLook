@@ -7,6 +7,7 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 ### Fixed
 
 - The background viewer gives back more memory a few seconds after a preview closes: about 95 MB stays in use instead of 130 MB after looking at pictures, documents and a video.
+- After 15 minutes without a preview the background viewer starts afresh, which takes it back to about 35 MB. The first preview after such a break opens a moment later (about a tenth of a second). Settings → Behaviour → “Free memory when KwikLook isn't used for a while” turns this off.
 
 ## [0.8.1] - 2026-11-27
 

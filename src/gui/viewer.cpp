@@ -50,6 +50,10 @@ constexpr int FocusLossDelayMs = 150;
 // How long after the window hides the background viewer gives memory back: a second
 // after Main.qml drops the view (dropView, 5 s), so the view is gone by then.
 constexpr int ReleaseMemoryDelayMs = 6000;
+// How long the window stays hidden before the viewer starts afresh (restartRequested()):
+// 96 MB after a mixed session, 34 MB fresh (2026-11-27). The first preview after it takes
+// ~125 ms instead of ~25 ms; previews in between are unaffected.
+constexpr int IdleRestartDelayMs = 15 * 60 * 1000;
 // How long a preview may wait for its first file's details before it shows anyway.
 constexpr int ShowDelayMs = 150;
 // How long a Placement() call waits for the file's details at most.
@@ -113,6 +117,25 @@ Viewer::Viewer(QObject *parent)
     , m_book(new BookReader(this))
     , m_table(new TableModel(this))
 {
+    m_releaseMemory = new QTimer(this);
+    m_idleRestart = new QTimer(this);
+    m_releaseMemory->setSingleShot(true);
+    m_releaseMemory->setInterval(ReleaseMemoryDelayMs);
+    connect(m_releaseMemory, &QTimer::timeout, this, &Viewer::releaseMemory);
+    m_idleRestart->setSingleShot(true);
+    m_idleRestart->setInterval(IdleRestartDelayMs);
+    connect(m_idleRestart, &QTimer::timeout, this, [this] {
+        if (!KwikLookSettings::self()->freeMemoryWhenIdle()) {
+            return; // turned off meanwhile
+        }
+        const auto windows = QGuiApplication::topLevelWindows();
+        if (std::any_of(windows.begin(), windows.end(), [](const QWindow *w) { return w->isVisible(); })) {
+            m_idleRestart->start(); // the settings window is open: not now
+            return;
+        }
+        qCInfo(lcViewer) << "Hidden for" << m_idleRestart->interval() / 1000 << "s: restarting to give memory back";
+        Q_EMIT restartRequested();
+    });
     connect(m_office, &OfficeConverter::converted, this, [this](const QString &path, const QUrl &pdf) {
         if (path != currentUrl().toLocalFile()) {
             return;
@@ -197,13 +220,9 @@ bool Viewer::registerOnBus()
 void Viewer::setWindow(QWindow *window)
 {
     m_window = window;
-    if (!m_releaseMemory) {
-        m_releaseMemory = new QTimer(this);
-        m_releaseMemory->setSingleShot(true);
-        m_releaseMemory->setInterval(ReleaseMemoryDelayMs);
-        connect(m_releaseMemory, &QTimer::timeout, this, &Viewer::releaseMemory);
-    }
-    m_releaseMemory->stop(); // a hide of the previous window doesn't count
+    // A hide of the previous window doesn't count.
+    m_releaseMemory->stop();
+    m_idleRestart->stop();
     if (window) {
         // Closed by the window manager (Alt+F4) or hidden from QML: same as Close().
         connect(window, &QWindow::visibleChanged, this, [this, window](bool visible) {
@@ -214,6 +233,11 @@ void Viewer::setWindow(QWindow *window)
             }
             if (window == m_window) { // not a window set before (tests set several)
                 visible ? m_releaseMemory->stop() : m_releaseMemory->start();
+                if (visible || !KwikLookSettings::self()->freeMemoryWhenIdle()) {
+                    m_idleRestart->stop();
+                } else {
+                    m_idleRestart->start();
+                }
             }
         });
         // Close when another application takes the focus. KwikLook's own windows (menus,
@@ -270,6 +294,11 @@ void Viewer::closeIfFocusLeft()
     if (!QGuiApplication::focusWindow() && m_open && KwikLookSettings::self()->closeOnFocusLoss()) {
         Close();
     }
+}
+
+void Viewer::setIdleRestartDelay(int ms)
+{
+    m_idleRestart->setInterval(ms);
 }
 
 void Viewer::releaseMemory()

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
-// The viewer's state and signals, without a window or a bus.
+// The viewer's state and signals, without a bus (plain windows for the hide timers).
 #include "gui/viewer.h"
+#include "kwiklooksettings.h"
 
 #include <QFile>
 #include <QImage>
@@ -9,6 +10,7 @@
 #include <QTemporaryDir>
 #include <QStandardPaths>
 #include <QTest>
+#include <QWindow>
 
 using namespace Qt::StringLiterals;
 
@@ -181,7 +183,73 @@ private Q_SLOTS:
         QTRY_VERIFY(!v.details().isEmpty());
         QCOMPARE(v.view(), u"FallbackView"_s);
     }
+
+    void restartsAfterBeingHiddenLong()
+    {
+        Viewer v(nullptr);
+        v.setIdleRestartDelay(100);
+        QWindow window;
+        v.setWindow(&window);
+        QSignalSpy restart(&v, &Viewer::restartRequested);
+        window.show();
+        window.hide();
+        QTRY_COMPARE(restart.size(), 1);
+        QTest::qWait(300);
+        QCOMPARE(restart.size(), 1); // once
+        v.setWindow(nullptr);
+    }
+
+    void noRestartWhileShownAgain()
+    {
+        Viewer v(nullptr);
+        v.setIdleRestartDelay(200);
+        QWindow window;
+        v.setWindow(&window);
+        QSignalSpy restart(&v, &Viewer::restartRequested);
+        window.show();
+        window.hide();
+        QTest::qWait(100);
+        window.show(); // a preview before the time is up
+        QTest::qWait(400);
+        QCOMPARE(restart.size(), 0);
+        window.hide();
+        v.setWindow(nullptr);
+    }
+
+    void noRestartWhileSettingsAreOpen()
+    {
+        Viewer v(nullptr);
+        v.setIdleRestartDelay(100);
+        QWindow window;
+        QWindow settings; // stands in for the settings window
+        v.setWindow(&window);
+        QSignalSpy restart(&v, &Viewer::restartRequested);
+        settings.show();
+        window.show();
+        window.hide();
+        QTest::qWait(400);
+        QCOMPARE(restart.size(), 0);
+        settings.hide();
+        QTRY_COMPARE(restart.size(), 1); // checked again later
+        v.setWindow(nullptr);
+    }
+
+    void noRestartWhenTurnedOff()
+    {
+        KwikLookSettings::self()->setFreeMemoryWhenIdle(false); // in memory only, not saved
+        Viewer v(nullptr);
+        v.setIdleRestartDelay(100);
+        QWindow window;
+        v.setWindow(&window);
+        QSignalSpy restart(&v, &Viewer::restartRequested);
+        window.show();
+        window.hide();
+        QTest::qWait(400);
+        QCOMPARE(restart.size(), 0);
+        v.setWindow(nullptr);
+        KwikLookSettings::self()->setFreeMemoryWhenIdle(true);
+    }
 };
 
-QTEST_GUILESS_MAIN(TstViewer)
+QTEST_MAIN(TstViewer)
 #include "tst_viewer.moc"
