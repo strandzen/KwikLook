@@ -18,6 +18,16 @@
   <launchable type="desktop-id">io.github.strandzen.KwikLook.desktop</launchable>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.8.0" date="2026-11-27">
+      <description>
+        <p>Song covers and AppImage icons, a lighter background viewer, and crash reports.</p>
+        <ul>
+          <li>Song covers and AppImage icons show, using the same thumbnails as Dolphin.</li>
+          <li>The background viewer gives back the memory of the last preview a few seconds after it closes, and no longer quits by itself.</li>
+          <li>If KwikLook crashes, KDE's crash dialog offers a report for the project's issue page.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.0" date="2026-11-26">
       <description>
         <p>Books, and the next file ready before you get there.</p>

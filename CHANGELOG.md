@@ -4,6 +4,10 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-27
+
+Song covers and AppImage icons, a lighter background viewer, and crash reports.
+
 ### Added
 
 - If KwikLook crashes, KDE's crash dialog (when installed) offers a report with the details needed to fix it, pointing to the project's issue page. The README says how to report a crash, and GitHub's issue form asks for what's needed.
@@ -11,7 +15,7 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 ### Fixed
 
 - The background viewer gives back the memory of the last preview a few seconds after it closes (a large photo kept about 60 MB in use until the next preview).
-- Song covers and AppImage icons show again: the preview now uses the same thumbnail makers as Dolphin (its “Previews” settings), not only the ones for pictures.
+- Song covers and AppImage icons now show: the preview uses the same thumbnail makers as Dolphin (its “Previews” settings), not only the ones for pictures.
 - The background viewer could quit by itself shortly after a preview closed (when a thumbnail was still being made), so the next preview opened slowly.
 
 ## [0.7.0] - 2026-11-26
