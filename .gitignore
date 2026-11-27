@@ -9,3 +9,8 @@ Todo.md
 testfiles/
 # Stress test and fuzzing results (stress/README.md)
 stress/reports/
+
+# makepkg's output (packaging/arch: only PKGBUILD and .SRCINFO are kept)
+packaging/arch/*
+!packaging/arch/PKGBUILD
+!packaging/arch/.SRCINFO

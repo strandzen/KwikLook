@@ -41,7 +41,7 @@ optdepends=(
 )
 makedepends=('cmake' 'extra-cmake-modules' 'kcontacts' 'kcalendarcore')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-# After pushing a new tag: updpkgsums (or gh release download vX --archive=tar.gz while the repository is private)
+# After pushing a new tag: updpkgsums, then makepkg --printsrcinfo > .SRCINFO
 sha256sums=('e52ae61092ec4499d73d858b10bc4384d4fbe410061e62e53e33a5a82c4a3ea1')
 
 build() {

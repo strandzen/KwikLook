@@ -129,7 +129,7 @@ QT_QPA_PLATFORM=offscreen QML_IMPORT_PATH=build/dev/src timeout 5 qml6 qml/<File
 read it), the version in this file and the README, move CHANGELOG's `[Unreleased]` entries under
 the new version with the date, add a `<release>` entry to the metainfo
 (`appstreamcli validate --pedantic data/io.github.strandzen.KwikLook.metainfo.xml`), then tag and publish.
-Packaging: `packaging/arch/PKGBUILD` (builds the GitHub tag tarball; not on the AUR yet). On release bump `pkgver`, reset `pkgrel=1`, and after pushing the tag set the checksum: `updpkgsums` there, or while the repository is private `gh release download v<x> --archive=tar.gz` and `sha256sum`; test with `makepkg -f` in a scratch copy.
+Packaging: `packaging/arch/PKGBUILD` and its `.SRCINFO` (builds the GitHub tag tarball; for the AUR package `kwiklook`). On release: bump `pkgver`, reset `pkgrel=1`; after pushing the tag `updpkgsums`; test with `makepkg -f` in a scratch copy, never in `packaging/arch/` (its output once ended up in git; `.gitignore` keeps only the two files now); `makepkg --printsrcinfo > .SRCINFO`; commit both. The AUR: a clone of `ssh://aur@aur.archlinux.org/kwiklook.git` outside this repository gets the same two files, a commit and a push: the user's AUR account and SSH key, so the user pushes (or says so each time). A PKGBUILD-only fix (a dependency) bumps `pkgrel` instead.
 
 ---
 
