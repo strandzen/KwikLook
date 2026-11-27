@@ -42,7 +42,7 @@ https://github.com/user-attachments/assets/9a19e870-607a-4d3a-9edf-fbefe5b36bce
 
 - KDE Plasma 6 on Wayland, with Dolphin. X11 sessions aren't supported.
 - Qt 6.8 or newer, with Qt PDF (part of Qt WebEngine on Arch) and Qt Multimedia with its FFmpeg backend.
-- KDE Frameworks 6.19 or newer, including Kirigami, KIO, Purpose, KFileMetaData and KSyntaxHighlighting.
+- KDE Frameworks 6.19 or newer, including Kirigami, KIO, Purpose, KFileMetaData, KSyntaxHighlighting and KCrash, and KDE's style for Qt Quick (qqc2-desktop-style, part of every Plasma desktop).
 - Kirigami Addons 1.0 or newer.
 - libarchive, to list what's inside archives.
 - libseccomp, and a recent Linux kernel for the sandbox around office previews, archive listings and books (Landlock with its newer rules for local sockets). If the kernel is too old, office documents, archives and books just show their details and a note says why.
@@ -85,11 +85,11 @@ Arch:
 
 ```sh
 sudo pacman -S --needed cmake extra-cmake-modules qt6-base qt6-declarative qt6-webengine qt6-multimedia qt6-multimedia-ffmpeg \
-    kconfig kcoreaddons ki18n kwindowsystem kio kservice purpose kfilemetadata \
+    kconfig kcoreaddons kcrash ki18n kwindowsystem kio kservice purpose kfilemetadata qqc2-desktop-style \
     kirigami kirigami-addons syntax-highlighting kcontacts kcalendarcore libarchive libseccomp
 ```
 
-Other distributions: the development packages of CMake, Extra CMake Modules, Qt 6 (Base, Declarative, PDF, Multimedia) and the KDE Frameworks 6 listed above (Config, CoreAddons, I18n, WindowSystem, KIO, Service, Purpose, FileMetaData, Kirigami, SyntaxHighlighting; Contacts and CalendarCore for the cards), plus Kirigami Addons, libarchive and libseccomp. Package names differ between distributions.
+Other distributions: the development packages of CMake, Extra CMake Modules, Qt 6 (Base, Declarative, PDF, Multimedia) and the KDE Frameworks 6 listed above (Config, CoreAddons, Crash, I18n, WindowSystem, KIO, Service, Purpose, FileMetaData, Kirigami, SyntaxHighlighting; Contacts and CalendarCore for the cards), plus Kirigami Addons, libarchive and libseccomp. Package names differ between distributions.
 
 </details>
 
@@ -147,8 +147,8 @@ Open “KwikLook Settings” from the app launcher (or run `kwiklook --settings`
 A preview reads the file, so a file made to attack a bug in a picture, PDF or other file reader could do harm when you preview it. What KwikLook does about that:
 
 - **Not sandboxed:** pictures, PDFs, text and file details are read inside KwikLook itself, with the same rights as you; thumbnails come from KDE's thumbnail service, also unsandboxed. Dolphin already reads the same files the same way when it shows thumbnails or indexes files for search, whether you preview them or not. The protection here is keeping your system up to date.
-- **Sandboxed:** external programs KwikLook runs on a file are locked in a sandbox: no network, no connection to other programs, read access only to that one file (plus the system's programs and fonts), and they can only write to a scratch folder in KwikLook's cache. In `/tmp` they may only create and remove entries, because LibreOffice puts its own connection there. This applies to office documents, which LibreOffice turns into PDFs, to archives, which a small helper lists, and anything similar added later. The PDF it makes is then shown like any PDF, unsandboxed.
-- **No sandbox, no conversion:** on systems whose kernel can't lock these programs in this way, office documents aren't converted and archives aren't listed (the preview says so).
+- **Sandboxed:** external programs KwikLook runs on a file are locked in a sandbox: no network, no connection to other programs, read access only to that one file (plus the system's programs and fonts), and they can only write to a scratch folder in KwikLook's cache. In `/tmp` they may only create and remove entries, because LibreOffice puts its own connection there. This applies to office documents, which LibreOffice turns into PDFs, to archives, which a small helper lists, to books, whose files the same helper unpacks into memory, and anything similar added later. The PDF it makes is then shown like any PDF, unsandboxed.
+- **No sandbox, no conversion:** on systems whose kernel can't lock these programs in this way, office documents aren't converted, archives aren't listed and books aren't shown (the preview says so).
 
 ## Troubleshooting
 

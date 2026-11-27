@@ -23,6 +23,7 @@ $XGETTEXT \
 
 $XGETTEXT \
     qml/Main.qml \
+    qml/FallbackView.qml \
     qml/TitleBar.qml \
     qml/InfoPanel.qml \
     qml/TextView.qml \

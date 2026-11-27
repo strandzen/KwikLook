@@ -31,8 +31,8 @@ bare one with no KwikLook code, starts spinning (Wayland and graphics threads, ~
 CPU) after its 4th or 5th hide, checked 2026-11-26 with Qt 6.12.1. So the idle numbers
 there aren't meaningful after a few previews, and the spinning slows a run down (fewer
 actions); judge idle cost on the real desktop (`/proc/<pid>/task/*/status`,
-voluntary_ctxt_switches over 10 s). The nested session also renders in software:
-memory is higher than on a real desktop.
+voluntary_ctxt_switches over 10 s). The nested session draws with the real graphics card
+(checked 2026-11-27), so its memory numbers are like the desktop's.
 
 Memory under AddressSanitizer is several times higher than
 normal (it holds freed memory back on purpose); judge memory growth with the release
