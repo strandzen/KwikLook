@@ -54,11 +54,17 @@ https://github.com/user-attachments/assets/9a19e870-607a-4d3a-9edf-fbefe5b36bce
 
 ### Arch Linux
 
-There's no AUR package yet. The repository has a PKGBUILD that builds the release:
+KwikLook is in the AUR as [kwiklook](https://aur.archlinux.org/packages/kwiklook). With an AUR helper:
 
 ```sh
-git clone https://github.com/strandzen/KwikLook.git
-cd KwikLook/packaging/arch
+yay -S kwiklook
+```
+
+(or `paru -S kwiklook`). Without one:
+
+```sh
+git clone https://aur.archlinux.org/kwiklook.git
+cd kwiklook
 makepkg -si
 ```
 

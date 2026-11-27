@@ -4,6 +4,10 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Added
+
+- KwikLook is in the AUR (`kwiklook`): Arch users can install and update it with an AUR helper such as `yay -S kwiklook`.
+
 ## [0.8.0] - 2026-11-27
 
 Song covers and AppImage icons, a lighter background viewer, and crash reports.
