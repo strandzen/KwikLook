@@ -11,6 +11,7 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 ### Fixed
 
 - The background viewer gives back the memory of the last preview a few seconds after it closes (a large photo kept about 60 MB in use until the next preview).
+- Song covers and AppImage icons show again: the preview now uses the same thumbnail makers as Dolphin (its “Previews” settings), not only the ones for pictures.
 - The background viewer could quit by itself shortly after a preview closed (when a thumbnail was still being made), so the next preview opened slowly.
 
 ## [0.7.0] - 2026-11-26

@@ -2,10 +2,25 @@
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
 #include "thumbnailprovider.h"
 
+#include <KConfig>
+#include <KConfigGroup>
 #include <KFileItem>
 #include <KIO/PreviewJob>
 
 #include <QCoreApplication>
+#include <QStandardPaths>
+
+namespace
+{
+// The thumbnailers Dolphin uses (its “Previews” settings), so a file looks as it does
+// there. Without a list KIO reads kdeglobals [PreviewSettings] Plugins, usually unset,
+// and then makes thumbnails for pictures and folders only: no audio covers.
+QStringList thumbnailPlugins()
+{
+    const KConfig dolphin(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/dolphinrc"), KConfig::SimpleConfig);
+    return dolphin.group(QStringLiteral("PreviewSettings")).readEntry("Plugins", KIO::PreviewJob::defaultPlugins());
+}
+} // namespace
 
 /*
  * Threads: Qt asks for a ThumbnailResponse on its image loader thread, which also
@@ -22,7 +37,8 @@ class ThumbnailRelay : public QObject
 public:
     void start(const QUrl &url, const QString &mimeType, const QSize &size)
     {
-        auto *job = KIO::filePreview(KFileItemList{KFileItem(url, mimeType)}, size);
+        const QStringList plugins = thumbnailPlugins();
+        auto *job = KIO::filePreview(KFileItemList{KFileItem(url, mimeType)}, size, &plugins);
         job->setScaleType(KIO::PreviewJob::ScaledAndCached);
         connect(job, &KIO::PreviewJob::gotPreview, this, [this](const KFileItem &, const QPixmap &preview) {
             Q_EMIT done(preview.toImage());

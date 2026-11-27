@@ -32,6 +32,7 @@
 #include <QTextBlock>
 #include <QTemporaryFile>
 #include <QStandardPaths>
+#include <KPluginMetaData>
 #include <QTest>
 
 #include <KConfig>
@@ -1760,6 +1761,42 @@ private Q_SLOTS:
         v->Close();
         v->setWindow(nullptr);
         QVERIFY2(main.errors.isEmpty(), qPrintable(main.warnings()));
+    }
+
+    void showsAnAudioCover()
+    {
+        // The cover comes from KDE's audio thumbnailer (kio-extras), picked from the
+        // thumbnailers Dolphin uses; KIO's own default list has none for audio.
+        const QString ffmpeg = QStandardPaths::findExecutable(u"ffmpeg"_s);
+        if (ffmpeg.isEmpty() || !KPluginMetaData::findPluginById(u"kf6/thumbcreator"_s, u"audiothumbnail"_s).isValid()) {
+            QSKIP("needs ffmpeg and KDE's audio thumbnailer");
+        }
+        QImage picture(64, 64, QImage::Format_RGB32);
+        picture.fill(Qt::red);
+        const QString png = m_keptDir.filePath(u"cover.png"_s);
+        QVERIFY(picture.save(png));
+        const QString flac = m_keptDir.filePath(u"with-cover.flac"_s);
+        QProcess make;
+        make.start(ffmpeg, {u"-v"_s, u"error"_s, u"-y"_s, u"-f"_s, u"lavfi"_s, u"-i"_s, u"anullsrc=r=8000:cl=mono"_s, u"-i"_s, png, u"-t"_s, u"1"_s,
+                            u"-map"_s, u"0:a"_s, u"-map"_s, u"1:v"_s, u"-c:v"_s, u"copy"_s, u"-disposition:v"_s, u"attached_pic"_s,
+                            u"-metadata:s:v"_s, u"comment=Cover (front)"_s, flac});
+        make.closeWriteChannel();
+        QVERIFY(make.waitForFinished(20000));
+        QCOMPARE(make.exitCode(), 0);
+
+        MainWindow main;
+        QQuickWindow *window = main.window();
+        QVERIFY(window);
+        KwikLookSettings::self()->setAutoplayMedia(false);
+        Viewer *v = Viewer::instance();
+        v->setWindow(window);
+        v->Open({flac}, 0, QString(), QString());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QQuickItem *cover = nullptr;
+        QTRY_VERIFY((cover = window->findChild<QQuickItem *>(u"cover"_s)));
+        QTRY_VERIFY_WITH_TIMEOUT(cover->property("hasThumbnail").toBool(), 15000);
+        v->Close();
+        v->setWindow(nullptr);
     }
 
     void playsAudio()
