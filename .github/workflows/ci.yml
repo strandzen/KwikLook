@@ -20,10 +20,10 @@ jobs:
             qt6-base qt6-declarative qt6-multimedia qt6-multimedia-ffmpeg qt6-webengine qt6-svg \
             kconfig kcoreaddons kcrash kfilemetadata ki18n kio kirigami kirigami-addons kservice \
             kwindowsystem purpose qqc2-desktop-style syntax-highlighting kcontacts kcalendarcore kimageformats \
-            libarchive libseccomp dbus ttf-dejavu
+            libarchive libseccomp dbus ttf-dejavu appstream
           mkdir -p -m 0700 "$XDG_RUNTIME_DIR"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Release build
         run: cmake --preset release && cmake --build --preset release
