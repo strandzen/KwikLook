@@ -28,6 +28,9 @@
 #include <QtQml/qqmlextensionplugin.h>
 
 #include <cstdio>
+#ifdef __GLIBC__
+#include <malloc.h>
+#endif
 
 Q_IMPORT_QML_PLUGIN(kwiklookPlugin)
 
@@ -54,6 +57,12 @@ QDBusMessage viewerCall(const QString &method)
 
 int main(int argc, char *argv[])
 {
+#ifdef __GLIBC__
+    // A fixed threshold: large blocks (decoded pictures) always get their own mapping
+    // and go back to the system when freed. glibc otherwise raises it after each one
+    // (up to 32 MB), and later pictures stayed in its pools: ~45 MB kept after closing.
+    mallopt(M_MMAP_THRESHOLD, 256 * 1024);
+#endif
     // QApplication (not QGuiApplication): the desktop QtQuick Controls style needs it.
     QApplication app(argc, argv);
     KLocalizedString::setApplicationDomain("kwiklook");

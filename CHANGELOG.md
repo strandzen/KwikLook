@@ -8,6 +8,10 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 - KwikLook is in the AUR (`kwiklook`): Arch users can install and update it with an AUR helper such as `yay -S kwiklook`.
 
+### Fixed
+
+- The background viewer gives back much more memory after you look at pictures: about 70 MB instead of 110 MB after a mixed session.
+
 ## [0.8.0] - 2026-11-27
 
 Song covers and AppImage icons, a lighter background viewer, and crash reports.
