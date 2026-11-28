@@ -69,12 +69,13 @@ private:
     void readOpenKey();
     explicit Bridge(QObject *parent);
 
-    bool canHandleKeyIn(QWidget *view) const;
+    bool canHandleKeyIn(QWidget *view);
     bool trigger(QWidget *view);
     void open(int index, const QString &activationToken);
     void callViewer(const QString &method, const QVariantList &args);
     void endSession();
     void syncSelection(const QString &url);
+    void startFallback();
     void trackFallbackSelection(QWidget *view);
     QWidget *activeFileView() const;
     void shutdown();
@@ -92,6 +93,7 @@ private:
     QElapsedTimer m_lastTypeAheadKey;
     QHash<QWidget *, KFileItemList> m_fallbackSelection;
     QSet<QWidget *> m_trackedViews;
+    bool m_fallbackStarted = false;
     bool m_down = false;
     KSharedConfig::Ptr m_config; // kwiklookrc
     KConfigWatcher::Ptr m_configWatcher; // the settings window changed the open key

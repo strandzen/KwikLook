@@ -9,8 +9,10 @@
 // sends the viewer's signals). Runs on a private session bus (run-with-bus.sh).
 
 #include "dbusnames.h"
+#include "hookguard.h"
 #include "mockdolphin.h"
 
+#include <KConfig>
 #include <KConfigGroup>
 #include <KOverlayIconPlugin>
 #include <KSharedConfig>
@@ -98,6 +100,16 @@ private:
         QMetaObject::invokeMethod(m_bridge, "State", Qt::DirectConnection, Q_RETURN_ARG(QString, state));
         return QJsonDocument::fromJson(state.toUtf8()).object();
     }
+    // The hook's guard record as on disk (a fresh KConfig: the hook's shared one
+    // lives in this process too).
+    QString guardEntry(const char *key)
+    {
+        return KConfig(HookGuard::defaultFile(), KConfig::SimpleConfig).group(u"DolphinHook"_s).readEntry(key, QString());
+    }
+    static QString testCase()
+    {
+        return qEnvironmentVariable("KWIKLOOK_TEST_HOOK_CASE");
+    }
     QString session()
     {
         return bridgeState().value(u"session"_s).toString();
@@ -133,8 +145,18 @@ private:
 private Q_SLOTS:
     void initTestCase()
     {
+        // The hook writes its guard record to the state folder: never the user's.
+        QVERIFY2(qEnvironmentVariableIsSet("XDG_STATE_HOME"), "run through run-with-bus.sh (ctest)");
         // Must look like Dolphin before the hook is loaded.
         QCoreApplication::setApplicationName(u"dolphin"_s);
+        if (testCase() == u"crashed"_s) {
+            // Left by a Dolphin that died inside the hook's first check.
+            KConfig state(HookGuard::defaultFile(), KConfig::SimpleConfig);
+            KConfigGroup group = state.group(u"DolphinHook"_s);
+            group.writeEntry("Versions", HookGuard::versionsKey(QCoreApplication::applicationVersion()));
+            group.writeEntry("Checking", u"read"_s);
+            QVERIFY(state.sync());
+        }
         auto bus = FakeViewer::bus();
         QVERIFY(bus.isConnected());
         QVERIFY(bus.registerObject(QLatin1String(KwikLookDBus::ViewerPath), &m_viewer, QDBusConnection::ExportScriptableSlots));
@@ -168,6 +190,7 @@ private Q_SLOTS:
         const QJsonObject s = bridgeState();
         QVERIFY(s.value(u"modelAccess"_s).toBool());
         QVERIFY(s.value(u"selectionAccess"_s).toBool());
+        QCOMPARE(s.value(u"check"_s).toString(), u"pending"_s); // until the first Space
     }
 
     void spaceOpensSelectedFileInDolphinOrder()
@@ -198,6 +221,15 @@ private Q_SLOTS:
         m_viewer.emitSignal(u"CurrentChanged"_s, {u"someone-else"_s, url(u"w4.png"_s).toString(), 3});
         QTest::qWait(200);
         QCOMPARE(sel->currentItem(), 3);
+    }
+
+    void selfCheckPassesAndIsRemembered()
+    {
+        // After the first Space and the first selection change above.
+        QCOMPARE(bridgeState().value(u"check"_s).toString(), u"ok"_s);
+        QCOMPARE(guardEntry("Passed"), u"read,select"_s);
+        QVERIFY(guardEntry("Checking").isEmpty());
+        QVERIFY(guardEntry("Broken").isEmpty());
     }
 
     void closingGivesFocusBack()
@@ -358,6 +390,55 @@ private Q_SLOTS:
         closeFromViewer();
     }
 
+    // Separate runs (ctest: kwiklook-tst_dolphinhook-garbage / -crashed).
+    void garbageTurnsOnTheFallback()
+    {
+        if (testCase() != u"garbage"_s) {
+            QSKIP("runs as kwiklook-tst_dolphinhook-garbage");
+        }
+        m_view->selectOnly(1);
+        m_view->container()->keysReceived.clear();
+        const qsizetype before = m_viewer.calls.size();
+        pressSpace(m_view); // the self-check fails: this Space stays Dolphin's
+        QTest::qWait(200);
+        QCOMPARE(m_viewer.calls.size(), before);
+        QVERIFY(m_view->container()->keysReceived.contains(Qt::Key_Space));
+        const QJsonObject s = bridgeState();
+        QCOMPARE(s.value(u"check"_s).toString(), u"failed"_s);
+        QVERIFY(s.value(u"problem"_s).toString().contains(u"unexpected answer"_s));
+        QVERIFY(!s.value(u"modelAccess"_s).toBool());
+        // From now on as without the internals: the selected file alone.
+        m_view->selectOnly(3);
+        pressSpace(m_view);
+        const FakeViewer::Call call = nextCall();
+        QCOMPARE(call.method, u"Open"_s);
+        QCOMPARE(call.urls, QStringList{url(u"x3.png"_s).toString()});
+        closeFromViewer();
+        // Only this Dolphin process: nothing is remembered as broken.
+        QVERIFY(guardEntry("Broken").isEmpty());
+        QVERIFY(guardEntry("Checking").isEmpty());
+    }
+
+    void crashMarkerTurnsOnTheFallback()
+    {
+        if (testCase() != u"crashed"_s) {
+            QSKIP("runs as kwiklook-tst_dolphinhook-crashed");
+        }
+        const QJsonObject s = bridgeState();
+        QCOMPARE(s.value(u"check"_s).toString(), u"failed"_s);
+        QVERIFY(s.value(u"problem"_s).toString().contains(u"“read”"_s));
+        QVERIFY(!s.value(u"modelAccess"_s).toBool());
+        QVERIFY(!guardEntry("Broken").isEmpty());
+        QVERIFY(guardEntry("Checking").isEmpty());
+        // Space previews the selected file alone, without touching the internals.
+        focusView(m_view);
+        m_view->selectOnly(3);
+        pressSpace(m_view);
+        const FakeViewer::Call call = nextCall();
+        QCOMPARE(call.method, u"Open"_s);
+        QCOMPARE(call.urls, QStringList{url(u"x3.png"_s).toString()});
+        closeFromViewer();
+    }
 };
 
 QTEST_MAIN(TstDolphinHook)

@@ -85,12 +85,36 @@ add_library(mockdolphinprivate SHARED dolphin/mockdolphin.cpp)
 target_link_libraries(mockdolphinprivate PUBLIC Qt6::Widgets KF6::KIOCore)
 # Exported like libdolphinprivate: the hook looks the functions up by name.
 set_target_properties(mockdolphinprivate PROPERTIES CXX_VISIBILITY_PRESET default VISIBILITY_INLINES_HIDDEN OFF)
-add_executable(tst_dolphinhook dolphin/tst_dolphinhook.cpp)
-target_include_directories(tst_dolphinhook PRIVATE ${CMAKE_SOURCE_DIR}/src/core dolphin)
+add_executable(tst_dolphinhook dolphin/tst_dolphinhook.cpp ${CMAKE_SOURCE_DIR}/src/dolphin/hookguard.cpp)
+target_include_directories(tst_dolphinhook PRIVATE ${CMAKE_SOURCE_DIR}/src/core ${CMAKE_SOURCE_DIR}/src/dolphin ${CMAKE_BINARY_DIR}/src dolphin)
 target_link_libraries(tst_dolphinhook PRIVATE mockdolphinprivate Qt6::Test Qt6::DBus KF6::KIOCore KF6::ConfigCore)
 target_compile_definitions(tst_dolphinhook PRIVATE KWIKLOOK_HOOK_PLUGIN="$<TARGET_FILE:kwiklook_dolphinhook>")
 add_dependencies(tst_dolphinhook kwiklook_dolphinhook)
 add_test(NAME kwiklook-tst_dolphinhook COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run-with-bus.sh $<TARGET_FILE:tst_dolphinhook>)
+# The same with Dolphin's internals answering nonsense, and after a Dolphin that
+# crashed inside the hook's first check (HookGuard): each in a fresh process.
+add_test(NAME kwiklook-tst_dolphinhook-garbage COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run-with-bus.sh $<TARGET_FILE:tst_dolphinhook> garbageTurnsOnTheFallback)
+set_tests_properties(kwiklook-tst_dolphinhook-garbage PROPERTIES ENVIRONMENT KWIKLOOK_TEST_HOOK_CASE=garbage)
+add_test(NAME kwiklook-tst_dolphinhook-crashed COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run-with-bus.sh $<TARGET_FILE:tst_dolphinhook> crashMarkerTurnsOnTheFallback)
+set_tests_properties(kwiklook-tst_dolphinhook-crashed PROPERTIES ENVIRONMENT KWIKLOOK_TEST_HOOK_CASE=crashed)
+
+# HookGuard on its own.
+ecm_add_test(tst_hookguard.cpp ${CMAKE_SOURCE_DIR}/src/dolphin/hookguard.cpp
+    TEST_NAME tst_hookguard
+    LINK_LIBRARIES Qt6::Test KF6::ConfigCore
+    NAME_PREFIX "kwiklook-"
+)
+target_include_directories(tst_hookguard PRIVATE ${CMAKE_SOURCE_DIR}/src/dolphin ${CMAKE_BINARY_DIR}/src)
+
+# The functions the hook calls, in the installed Dolphin (CI: KWIKLOOK_REQUIRE_DOLPHIN=1)
+# and in the stand-in above.
+ecm_add_test(tst_dolphinsymbols.cpp
+    LINK_LIBRARIES Qt6::Test ${CMAKE_DL_LIBS}
+    NAME_PREFIX "kwiklook-"
+)
+target_include_directories(tst_dolphinsymbols PRIVATE ${CMAKE_SOURCE_DIR}/src/dolphin)
+target_compile_definitions(tst_dolphinsymbols PRIVATE KWIKLOOK_MOCK_DOLPHIN="$<TARGET_FILE:mockdolphinprivate>")
+add_dependencies(tst_dolphinsymbols mockdolphinprivate)
 
 # kwiklook-sandbox: a probe program run inside it tries each thing it must not do.
 add_executable(sandboxprobe sandboxprobe.cpp)

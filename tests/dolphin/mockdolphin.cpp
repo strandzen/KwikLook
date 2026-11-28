@@ -26,6 +26,11 @@ KFileItem KFileItemModel::fileItem(int index) const
 
 int KFileItemModel::index(const QUrl &url) const
 {
+    // Like a Dolphin whose function now answers something else (tst_dolphinhook's
+    // garbage run): the hook's self-check must notice.
+    if (qEnvironmentVariable("KWIKLOOK_TEST_HOOK_CASE") == QLatin1String("garbage")) {
+        return -7;
+    }
     for (int i = 0; i < m_items.size(); ++i) {
         if (m_items.at(i).url() == url) {
             return i;

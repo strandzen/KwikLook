@@ -10,6 +10,7 @@
 
 #include <optional>
 
+class HookGuard;
 class QObject;
 class QWidget;
 
@@ -34,10 +35,16 @@ class DolphinAccess
 public:
     static const DolphinAccess &instance();
 
-    // All symbols needed for display order and selection sync were found.
+    // All symbols needed for display order and selection sync were found, and
+    // they have neither failed the self-check nor crashed Dolphin before.
     bool hasModelAccess() const;
     bool hasSelectionAccess() const;
     QStringList missingSymbols() const;
+    // The self-check: "pending" until the first Space in a folder with files,
+    // then "ok" or "failed" (with the reason in problem()). "failed" also when
+    // Dolphin crashed in our calls before under this Dolphin and KwikLook.
+    QString checkState() const;
+    QString problem() const;
 
     // The DolphinView containing `widget`, or nullptr.
     static QWidget *viewFor(QWidget *widget);
@@ -79,10 +86,18 @@ public:
 private:
     DolphinAccess();
     void resolve();
+    // The internals may be used for `view` (runs the self-check the first time).
+    bool ready(QWidget *view) const;
+    void runCheck(QWidget *view) const;
+    QString selfCheck(const QObject *model, const QObject *selection, const QObject *controller, bool *complete) const;
     int targetIndex(const QObject *model, const QObject *selection, const std::optional<QUrl> &preferred) const;
     Snapshot collect(const QObject *model, const QObject *selection, int target) const;
 
     struct Api;
     Api *m_api;
     QStringList m_missing;
+    HookGuard *m_guard = nullptr;
+    enum class Check { Pending, Ok, Failed };
+    mutable Check m_check = Check::Pending;
+    mutable QString m_problem;
 };

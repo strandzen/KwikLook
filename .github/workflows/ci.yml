@@ -5,6 +5,10 @@ name: CI
 on:
   push:
   pull_request:
+  # Weekly as well, so a new Dolphin release that breaks the hook shows up
+  # without a push (tst_dolphinsymbols against the newest Arch package).
+  schedule:
+    - cron: "17 5 * * 1"
 
 jobs:
   build-and-test:
@@ -20,7 +24,8 @@ jobs:
             qt6-base qt6-declarative qt6-multimedia qt6-multimedia-ffmpeg qt6-webengine qt6-svg \
             kconfig kcoreaddons kcrash kfilemetadata ki18n kio kirigami kirigami-addons kservice \
             kwindowsystem purpose qqc2-desktop-style syntax-highlighting kcontacts kcalendarcore kimageformats \
-            libarchive libseccomp dbus ttf-dejavu appstream
+            libarchive libseccomp dbus ttf-dejavu appstream \
+            dolphin
           mkdir -p -m 0700 "$XDG_RUNTIME_DIR"
 
       - uses: actions/checkout@v5
@@ -34,5 +39,9 @@ jobs:
       # Tests that need what the container lacks (LibreOffice; Landlock for the
       # sandbox, depending on the runner's kernel) skip themselves. The smoke test gets
       # one retry: Qt 6.12's image loader crashes now and then (CLAUDE.md, Known Pitfalls).
+      # Dolphin is installed only for tst_dolphinsymbols: the functions the hook calls
+      # must exist in the current Dolphin release (required here, skipped elsewhere).
       - name: Tests
+        env:
+          KWIKLOOK_REQUIRE_DOLPHIN: 1
         run: dbus-run-session -- ctest --test-dir build/dev --output-on-failure --repeat until-pass:2

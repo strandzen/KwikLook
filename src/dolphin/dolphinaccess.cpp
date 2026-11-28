@@ -3,10 +3,13 @@
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
 // Based on KDEGlance's Dolphin hook (https://github.com/AlexGraveler/KDEGlance).
 #include "dolphinaccess.h"
+#include "dolphinsymbols.h"
+#include "hookguard.h"
 
 #include <KFileItem>
 
 #include <QAbstractScrollArea>
+#include <QCoreApplication>
 #include <QGraphicsObject>
 #include <QGraphicsScene>
 #include <QGraphicsView>
@@ -19,6 +22,8 @@
 #include <dlfcn.h>
 
 Q_LOGGING_CATEGORY(lcAccess, "kwiklook.dolphin.access", QtInfoMsg)
+
+using namespace Qt::StringLiterals;
 
 // Member functions are called through plain function pointers whose first
 // parameter is `this`. With the Itanium C++ ABI (x86-64, AArch64, ...) this is
@@ -60,14 +65,13 @@ constexpr int SelectModeSelect = 0;
 // KItemListView::ViewItemPosition::Nearest
 constexpr int ViewItemPositionNearest = 3;
 
-template<typename T>
-T lookup(const char *symbol, QStringList *missing)
+void *lookup(const char *symbol, QStringList *missing)
 {
     void *p = ::dlsym(RTLD_DEFAULT, symbol);
     if (!p) {
         missing->append(QString::fromLatin1(symbol));
     }
-    return reinterpret_cast<T>(p);
+    return p;
 }
 
 QObject *childInheriting(const QObject *parent, const char *className)
@@ -95,29 +99,42 @@ DolphinAccess::DolphinAccess()
     : m_api(new Api)
 {
     resolve();
+    if (!hasModelAccess()) {
+        return; // the fallback calls nothing that could crash
+    }
+    m_guard = new HookGuard(HookGuard::defaultFile(), HookGuard::versionsKey(QCoreApplication::applicationVersion()));
+    if (const QString broken = m_guard->broken(); !broken.isEmpty()) {
+        m_check = Check::Failed;
+        m_problem = broken;
+        qCWarning(lcAccess) << "not using Dolphin's internals:" << broken;
+    }
 }
 
 void DolphinAccess::resolve()
 {
-    Api &a = *m_api;
-    a.modelCount = lookup<Api::CountFn>("_ZNK14KFileItemModel5countEv", &m_missing);
-    a.modelFileItem = lookup<Api::FileItemFn>("_ZNK14KFileItemModel8fileItemEi", &m_missing);
-    a.modelIndexOfUrl = lookup<Api::IndexOfUrlFn>("_ZNK14KFileItemModel5indexERK4QUrl", &m_missing);
-    a.selCurrentItem = lookup<Api::IntConstFn>("_ZNK25KItemListSelectionManager11currentItemEv", &m_missing);
-    a.selIsSelected = lookup<Api::IsSelectedFn>("_ZNK25KItemListSelectionManager10isSelectedEi", &m_missing);
-    a.selHasSelection = lookup<Api::BoolConstFn>("_ZNK25KItemListSelectionManager12hasSelectionEv", &m_missing);
-    a.selSetCurrentItem = lookup<Api::SetIntFn>("_ZN25KItemListSelectionManager14setCurrentItemEi", &m_missing);
-    a.selClearSelection = lookup<Api::VoidFn>("_ZN25KItemListSelectionManager14clearSelectionEv", &m_missing);
-    a.selSetSelected = lookup<Api::SetSelectedFn>("_ZN25KItemListSelectionManager11setSelectedEiiNS_13SelectionModeE", &m_missing);
-    a.selBeginAnchored = lookup<Api::SetIntFn>("_ZN25KItemListSelectionManager22beginAnchoredSelectionEi", &m_missing);
-    a.selEndAnchored = lookup<Api::VoidFn>("_ZN25KItemListSelectionManager20endAnchoredSelectionEv", &m_missing);
-
+    namespace S = DolphinSymbols;
     // Optional ones: features degrade gracefully without them.
     QStringList optionalMissing;
-    a.viewScrollToItemPos = lookup<Api::ScrollPosFn>("_ZN13KItemListView12scrollToItemEiNS_16ViewItemPositionE", &optionalMissing);
-    a.viewScrollToItem = lookup<Api::SetIntFn>("_ZN13KItemListView12scrollToItemEi", &optionalMissing);
-    a.ctrlTypeAhead = lookup<Api::BoolConstFn>("_ZNK19KItemListController23isSearchAsYouTypeActiveEv", &optionalMissing);
-    a.ctrlSelectionMode = lookup<Api::BoolConstFn>("_ZNK19KItemListController13selectionModeEv", &optionalMissing);
+    const auto find = [&](const S::Symbol &symbol) {
+        return lookup(symbol.name, symbol.need == S::Need::Required ? &m_missing : &optionalMissing);
+    };
+    Api &a = *m_api;
+    a.modelCount = reinterpret_cast<Api::CountFn>(find(S::ModelCount));
+    a.modelFileItem = reinterpret_cast<Api::FileItemFn>(find(S::ModelFileItem));
+    a.modelIndexOfUrl = reinterpret_cast<Api::IndexOfUrlFn>(find(S::ModelIndexOfUrl));
+    a.selCurrentItem = reinterpret_cast<Api::IntConstFn>(find(S::SelCurrentItem));
+    a.selIsSelected = reinterpret_cast<Api::IsSelectedFn>(find(S::SelIsSelected));
+    a.selHasSelection = reinterpret_cast<Api::BoolConstFn>(find(S::SelHasSelection));
+    a.selSetCurrentItem = reinterpret_cast<Api::SetIntFn>(find(S::SelSetCurrentItem));
+    a.selClearSelection = reinterpret_cast<Api::VoidFn>(find(S::SelClearSelection));
+    a.selSetSelected = reinterpret_cast<Api::SetSelectedFn>(find(S::SelSetSelected));
+    a.selBeginAnchored = reinterpret_cast<Api::SetIntFn>(find(S::SelBeginAnchored));
+    a.selEndAnchored = reinterpret_cast<Api::VoidFn>(find(S::SelEndAnchored));
+    a.viewScrollToItemPos = reinterpret_cast<Api::ScrollPosFn>(find(S::ViewScrollToItemPos));
+    // Only one of the two forms exists in a given Dolphin: don't report the other.
+    a.viewScrollToItem = a.viewScrollToItemPos ? nullptr : reinterpret_cast<Api::SetIntFn>(find(S::ViewScrollToItem));
+    a.ctrlTypeAhead = reinterpret_cast<Api::BoolConstFn>(find(S::CtrlTypeAhead));
+    a.ctrlSelectionMode = reinterpret_cast<Api::BoolConstFn>(find(S::CtrlSelectionMode));
 
     if (!m_missing.isEmpty()) {
         qCWarning(lcAccess) << "Dolphin internals not found, using fallbacks:" << m_missing;
@@ -129,7 +146,7 @@ void DolphinAccess::resolve()
 
 bool DolphinAccess::hasModelAccess() const
 {
-    return m_api->modelCount && m_api->modelFileItem && m_api->selCurrentItem && m_api->selIsSelected && m_api->selHasSelection;
+    return m_check != Check::Failed && m_api->modelCount && m_api->modelFileItem && m_api->selCurrentItem && m_api->selIsSelected && m_api->selHasSelection;
 }
 
 bool DolphinAccess::hasSelectionAccess() const
@@ -141,6 +158,97 @@ bool DolphinAccess::hasSelectionAccess() const
 QStringList DolphinAccess::missingSymbols() const
 {
     return m_missing;
+}
+
+QString DolphinAccess::checkState() const
+{
+    switch (m_check) {
+    case Check::Pending:
+        return u"pending"_s;
+    case Check::Ok:
+        return u"ok"_s;
+    case Check::Failed:
+        break;
+    }
+    return u"failed"_s;
+}
+
+QString DolphinAccess::problem() const
+{
+    return m_problem;
+}
+
+bool DolphinAccess::ready(QWidget *view) const
+{
+    if (!hasModelAccess()) {
+        return false;
+    }
+    if (m_check == Check::Pending) {
+        runCheck(view);
+    }
+    return m_check != Check::Failed;
+}
+
+void DolphinAccess::runCheck(QWidget *view) const
+{
+    const QObject *model = modelOf(view);
+    const QObject *selection = selectionManagerOf(view);
+    if (!model || !selection) {
+        return;
+    }
+    QString problem;
+    const bool complete = m_guard->run(u"read"_s, [&] {
+        bool done = false;
+        problem = selfCheck(model, selection, controllerOf(view), &done);
+        return done && problem.isEmpty();
+    });
+    if (!problem.isEmpty()) {
+        // This process only: an odd answer may be a passing state, a crash is not.
+        m_check = Check::Failed;
+        m_problem = u"Dolphin's internals gave an unexpected answer: %1"_s.arg(problem);
+        qCWarning(lcAccess) << "not using Dolphin's internals:" << m_problem;
+    } else if (complete) {
+        m_check = Check::Ok;
+    }
+}
+
+// What the internals can be checked against without Dolphin's help: a changed
+// return type gives garbage (or crashes, which HookGuard catches). Every function
+// read on Space is called once here, under the guard. `complete` is false while
+// the folder is empty (tried again on the next Space).
+QString DolphinAccess::selfCheck(const QObject *model, const QObject *selection, const QObject *controller, bool *complete) const
+{
+    const Api &a = *m_api;
+    *complete = false;
+    const int count = a.modelCount(model);
+    if (count < 0) {
+        return u"%1 items"_s.arg(count);
+    }
+    const int current = a.selCurrentItem(selection);
+    if (current < -1 || current > count) {
+        return u"current item %1 of %2"_s.arg(current).arg(count);
+    }
+    a.selHasSelection(selection);
+    if (controller && a.ctrlTypeAhead) {
+        a.ctrlTypeAhead(controller);
+    }
+    if (controller && a.ctrlSelectionMode) {
+        a.ctrlSelectionMode(controller);
+    }
+    if (count == 0) {
+        return {};
+    }
+    const int i = current >= 0 && current < count ? current : 0;
+    a.selIsSelected(selection, i);
+    const KFileItem item = a.modelFileItem(model, i);
+    if (item.isNull()) {
+        return u"no item at %1 of %2"_s.arg(i).arg(count);
+    }
+    if (const int found = a.modelIndexOfUrl(model, item.url()); found != i) {
+        return u"item %1 looked up again at %2"_s.arg(i).arg(found);
+    }
+    *complete = true;
+    return {};
 }
 
 QWidget *DolphinAccess::viewFor(QWidget *widget)
@@ -307,7 +415,7 @@ DolphinAccess::Snapshot DolphinAccess::collect(const QObject *model, const QObje
 
 std::optional<DolphinAccess::Snapshot> DolphinAccess::snapshot(QWidget *view, const std::optional<QUrl> &preferred) const
 {
-    if (!hasModelAccess() || !view) {
+    if (!view || !ready(view)) {
         return std::nullopt;
     }
     const QObject *model = modelOf(view);
@@ -328,7 +436,7 @@ std::optional<DolphinAccess::Snapshot> DolphinAccess::snapshot(QWidget *view, co
 
 bool DolphinAccess::hasFileTarget(QWidget *view) const
 {
-    if (!hasModelAccess() || !view) {
+    if (!view || !ready(view)) {
         return false;
     }
     const QObject *model = modelOf(view);
@@ -339,7 +447,7 @@ bool DolphinAccess::hasFileTarget(QWidget *view) const
 bool DolphinAccess::isTypeAheadActive(QWidget *view, bool *known) const
 {
     const QObject *controller = controllerOf(view);
-    if (!m_api->ctrlTypeAhead || !controller) {
+    if (m_check == Check::Failed || (hasModelAccess() && !ready(view)) || !m_api->ctrlTypeAhead || !controller) {
         *known = false;
         return false;
     }
@@ -350,7 +458,7 @@ bool DolphinAccess::isTypeAheadActive(QWidget *view, bool *known) const
 bool DolphinAccess::isSelectionModeActive(QWidget *view) const
 {
     const QObject *controller = controllerOf(view);
-    if (!m_api->ctrlSelectionMode || !controller) {
+    if (m_check == Check::Failed || (hasModelAccess() && !ready(view)) || !m_api->ctrlSelectionMode || !controller) {
         return false;
     }
     return m_api->ctrlSelectionMode(controller);
@@ -358,7 +466,7 @@ bool DolphinAccess::isSelectionModeActive(QWidget *view) const
 
 bool DolphinAccess::selectUrl(QWidget *view, const QUrl &modelUrl) const
 {
-    if (!hasSelectionAccess() || !view) {
+    if (!hasSelectionAccess() || !view || !ready(view)) {
         return false;
     }
     QObject *model = modelOf(view);
@@ -371,19 +479,23 @@ bool DolphinAccess::selectUrl(QWidget *view, const QUrl &modelUrl) const
     if (index < 0 || index >= a.modelCount(model)) {
         return false;
     }
-    a.selEndAnchored(selection);
-    a.selClearSelection(selection);
-    a.selSetCurrentItem(selection, index);
-    a.selSetSelected(selection, index, 1, SelectModeSelect);
-    // Shift+click/arrow in Dolphin later extends from here.
-    a.selBeginAnchored(selection, index);
+    // The first time under these versions with a marker on disk (HookGuard).
+    m_guard->run(u"select"_s, [&] {
+        a.selEndAnchored(selection);
+        a.selClearSelection(selection);
+        a.selSetCurrentItem(selection, index);
+        a.selSetSelected(selection, index, 1, SelectModeSelect);
+        // Shift+click/arrow in Dolphin later extends from here.
+        a.selBeginAnchored(selection, index);
 
-    if (QObject *listView = itemListViewOf(view)) {
-        if (a.viewScrollToItemPos) {
-            a.viewScrollToItemPos(listView, index, ViewItemPositionNearest);
-        } else if (a.viewScrollToItem) {
-            a.viewScrollToItem(listView, index);
+        if (QObject *listView = itemListViewOf(view)) {
+            if (a.viewScrollToItemPos) {
+                a.viewScrollToItemPos(listView, index, ViewItemPositionNearest);
+            } else if (a.viewScrollToItem) {
+                a.viewScrollToItem(listView, index);
+            }
         }
-    }
+        return true;
+    });
     return true;
 }

@@ -23,6 +23,7 @@
 #include <QJsonObject>
 #include <QKeyEvent>
 #include <QLoggingCategory>
+#include <QScopeGuard>
 #include <QWidget>
 #include <QWindow>
 
@@ -87,13 +88,7 @@ Bridge::Bridge(QObject *parent)
 
     const DolphinAccess &access = DolphinAccess::instance();
     if (!access.hasModelAccess()) {
-        // Without model access, remember each view's last selection through
-        // DolphinView's public selectionChanged(KFileItemList) signal.
-        connect(qApp, &QApplication::focusChanged, this, [this](QWidget *, QWidget *now) {
-            if (QWidget *view = DolphinAccess::viewFor(now)) {
-                trackFallbackSelection(view);
-            }
-        });
+        startFallback();
     }
 
     // Start the viewer now (D-Bus activation), without waiting, so the first
@@ -104,6 +99,21 @@ Bridge::Bridge(QObject *parent)
 
     qCInfo(lcBridge) << "KwikLook's Dolphin integration active in Dolphin" << QCoreApplication::applicationVersion()
                      << "; model access:" << access.hasModelAccess() << "selection sync:" << access.hasSelectionAccess();
+}
+
+void Bridge::startFallback()
+{
+    if (m_fallbackStarted) {
+        return;
+    }
+    m_fallbackStarted = true;
+    // Without model access, remember each view's last selection through
+    // DolphinView's public selectionChanged(KFileItemList) signal.
+    connect(qApp, &QApplication::focusChanged, this, [this](QWidget *, QWidget *now) {
+        if (QWidget *view = DolphinAccess::viewFor(now)) {
+            trackFallbackSelection(view);
+        }
+    });
 }
 
 Bridge::~Bridge()
@@ -125,9 +135,17 @@ void Bridge::shutdown()
     }
 }
 
-bool Bridge::canHandleKeyIn(QWidget *view) const
+bool Bridge::canHandleKeyIn(QWidget *view)
 {
     const DolphinAccess &access = DolphinAccess::instance();
+    const bool hadModelAccess = access.hasModelAccess();
+    const auto useFallbackIfChanged = qScopeGuard([&] {
+        if (hadModelAccess && !access.hasModelAccess()) {
+            // The self-check (first use) just failed: from now on as without the internals.
+            startFallback();
+            trackFallbackSelection(view);
+        }
+    });
     bool known = false;
     bool typeAhead = access.isTypeAheadActive(view, &known);
     if (!known) {
@@ -140,7 +158,10 @@ bool Bridge::canHandleKeyIn(QWidget *view) const
         return false; // Space toggles items in Dolphin's selection mode
     }
     if (access.hasModelAccess()) {
-        return access.hasFileTarget(view);
+        const bool target = access.hasFileTarget(view);
+        if (access.hasModelAccess()) {
+            return target;
+        }
     }
     // Fallback: a remembered selection with a file in it.
     const KFileItemList selection = m_fallbackSelection.value(view);
@@ -399,6 +420,8 @@ QString Bridge::State()
         {u"modelAccess"_s, access.hasModelAccess()},
         {u"selectionAccess"_s, access.hasSelectionAccess()},
         {u"missingSymbols"_s, QJsonArray::fromStringList(access.missingSymbols())},
+        {u"check"_s, access.checkState()},
+        {u"problem"_s, access.problem()},
         {u"session"_s, m_sessionId},
         {u"sessionViewAlive"_s, !m_sessionView.isNull()},
         {u"dolphinVersion"_s, QCoreApplication::applicationVersion()},

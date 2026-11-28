@@ -108,7 +108,8 @@ sudo cmake --install build/dev
 cmake --preset release && cmake --build --preset release
 
 # CI: .github/workflows/ci.yml builds (release + dev) and runs ctest in an Arch container
-# on every push; crash reports: KCrash in main.cpp, bug form in .github/ISSUE_TEMPLATE/
+# on every push and weekly (Mondays: tst_dolphinsymbols against the newest Dolphin, Dolphin
+# installed there and KWIKLOOK_REQUIRE_DOLPHIN=1); crash reports: KCrash in main.cpp, bug form in .github/ISSUE_TEMPLATE/
 
 # Stress tests (stress/README.md): sanitizer build + fast switching in a nested session,
 # and libFuzzer targets for the parsers (clang)
@@ -145,7 +146,7 @@ Packaging: `packaging/arch/PKGBUILD` and its `.SRCINFO` (builds the GitHub tag t
 | `src/archive/` | `kwiklook-archive`: lists an archive, or hands over a book's files (`--files`), with libarchive, run in `kwiklook-sandbox` (no Qt) |
 | `qml/` | All QML files (top level, wired in with `qt_add_qml_module`) |
 | `stress/` | Stress tests: `switching.sh` (run by `run-nested.sh` in a nested session), `fuzz/` (libFuzzer targets, `run.sh`); reports in `stress/reports/` (not in git) |
-| `tests/` | Unit tests (`tst_*.cpp`), QML smoke tests; `tests/dolphin/` the hook against KDEGlance's mock Dolphin; `run-with-bus.sh` runs a test on a private bus |
+| `tests/` | Unit tests (`tst_*.cpp`), QML smoke tests; `tests/dolphin/` the hook against KDEGlance's mock Dolphin; `run-with-bus.sh` runs a test on a private bus with scratch XDG folders (state too; extra arguments = test functions: the hook test's `-garbage` / `-crashed` runs) |
 | `data/` | Desktop file, metainfo, icons, notifyrc, D-Bus service files; `kwin/` the KWin script |
 | `po/` | `Messages.sh` and the `.pot`; reviewed translations in `po/<lang>/` |
 | `packaging/arch/` | PKGBUILD |
@@ -237,12 +238,12 @@ loads every `kf6/overlayicon` plugin; ours adds no icons and only creates a `Bri
 Dolphin process. `DolphinAccess` reads the view's files in display order and the selection, and
 selects a file (with two or more files selected, only those go to the viewer and the
 bridge leaves Dolphin's selection alone: `Snapshot::selectionOnly`), through libdolphinprivate functions looked up by mangled name (`dlsym`), checked
-on load. Without them, Space previews the selected file alone. Space is taken only when the focus
+on load. Their names live in one table, `src/dolphin/dolphinsymbols.h` (required / optional / older form); `tst_dolphinsymbols` checks it against the installed Dolphin and the mock. A mangled name doesn't include the return type: a re-typed function still resolves, so two more guards: a self-check on the first Space in a folder with files, per Dolphin process (`DolphinAccess::selfCheck()`: count, current item in range, the file found again by its address; calls every read function once; a failure = fallback for that process only, the Bridge then tracks the public selection), and `HookGuard` (`src/dolphin/hookguard.*`): the first “read” and “select” step under a Dolphin + KwikLook version pair runs with a marker in `kwiklookstaterc` [DolphinHook] (absolute path under `XDG_STATE_HOME`; inside Dolphin `openStateConfig()` would be Dolphin's file); a marker left at the next start = Dolphin died in our call: fallback for those versions (`Broken`); passed steps write nothing. Without them, Space previews the selected file alone. Space is taken only when the focus
 is in a file view with a file selected and Dolphin is not in type-ahead or selection mode. The
 bridge starts the viewer when Dolphin starts (`StartServiceByName`), asks for a Wayland activation
 token, then calls `Open` with a session ID `<bus name>/<n>`; `CurrentChanged` moves Dolphin's
 selection, `Closed` gives the focus back. The open key comes from `kwiklookrc` and is re-read when the settings window saves (`KConfigWatcher`). Diagnostics on Dolphin's bus name at `/KwikLookBridge`:
-`State()` (JSON, includes `openKey`), `TriggerFocusedView()` (what Space does). `KWIKLOOK_DISABLE_DOLPHIN_HOOK=1 dolphin`
+`State()` (JSON, includes `openKey`, `check` pending / ok / failed and `problem`), `TriggerFocusedView()` (what Space does). `KWIKLOOK_DISABLE_DOLPHIN_HOOK=1 dolphin`
 turns it off.
 
 ---
@@ -497,4 +498,6 @@ General Qt / KF6 / Kirigami ones first; add project-specific rows below them.
 | **glibc keeps freed picture buffers** | Checked 2026-11-27 (glibc 2.44): after a large block allocated with its own mapping is freed, glibc raises its mapping threshold (up to 32 MB), so later decoded pictures came from its arenas and stayed there: 100 MB kept after a pictures-only run, 55 MB with a fixed threshold. `malloc_trim(0)` and `arena_max` barely helped. main.cpp sets `mallopt(M_MMAP_THRESHOLD, 256 KB)` (fixed = no adjusting); CPU time unchanged. Freed memory in 64 MB-aligned anonymous blocks of smaps = glibc arenas. Measured again 2026-11-27 on a mixed session (pictures, PDF, text, office, video, audio, archive): ~20 MB sat in the arenas of threads (render thread, decoders, FFmpeg); `malloc_trim(0)` once the view is gone, with the QML engine's garbage collection and `trimComponentCache()`, took the idle viewer from 133 to 96 MB (`Viewer::releaseMemory()`) |
 | **Environment variables don't reach apps in the nested session** | `kwin_wayland` has a file capability (secure mode), so glibc drops `GLIBC_TUNABLES`, `MALLOC_*`, `LD_*` for it and everything it starts. Set them inside the session's script, and check `/proc/<pid>/environ`. The nested session renders on the real GPU (radeonsi here), so its memory numbers are like the desktop's |
 | **The nested session locks with the real one** | Seen 2026-11-27: started with `env -i`, the nested `kwin_wayland --virtual` attaches to the user's logind session; when the real screen locked (user away), the nested one showed its own lock screen, over every window: screenshots show it (wallpaper and clock), previews still answer over D-Bus. `loginctl show-session <id> -p LockedHint` says whether the real session is locked; don't trust screenshots then |
+| **`dlclose()` of Dolphin's library** | Checked 2026-11-28 (Dolphin 26.08.3): a test that `dlopen`s `libdolphinprivate.so.6`, looks up symbols and `dlclose`s it again crashed in the next QObject event (its static objects unloaded under a running Qt app). Keep it loaded |
+| **Trying the hook in the real Dolphin without a session** | Works offscreen (checked 2026-11-28, Dolphin 26.08.3): `env -i HOME=… XDG_*=… QT_QPA_PLATFORM=offscreen QT_PLUGIN_PATH=build/dev/plugins dbus-run-session --config-file=<bus.conf> -- <script>`, the script starting `dolphin --new-window --select <file>` and calling `/KwikLookBridge` `State` / `TriggerFocusedView` on `org.kde.dolphin-<pid>`; a Python stand-in viewer can answer `Open` and send `CurrentChanged`. The bus config: a `<listen>unix:dir=…</listen>` short enough (the scratchpad path is too long for a socket: “Socket name too long”) and no `<servicedir>`, so nothing installed is activated. The build plugin wins over an installed one of the same name |
 | **D-Bus calls start the installed viewer** | In a test session whose bus can see `/usr/share/dbus-1/services`, a call to `io.github.strandzen.KwikLook` before the build's viewer has the name activates the installed one (the build's then exits: “Another KwikLook viewer is starting”). Wait with `NameHasOwner`, which activates nothing. heaptrack also opens its GUI when done (and waits): use `--record-only` |

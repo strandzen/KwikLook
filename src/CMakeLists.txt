@@ -155,8 +155,9 @@ add_library(kwiklook_dolphinhook MODULE
     dolphin/hookplugin.cpp
     dolphin/bridge.cpp
     dolphin/dolphinaccess.cpp
+    dolphin/hookguard.cpp
 )
-target_include_directories(kwiklook_dolphinhook PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core)
+target_include_directories(kwiklook_dolphinhook PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core ${CMAKE_CURRENT_BINARY_DIR}) # version.h
 target_link_libraries(kwiklook_dolphinhook PRIVATE
     Qt6::Widgets
     Qt6::DBus

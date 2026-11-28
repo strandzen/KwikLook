@@ -7,6 +7,7 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 ### Fixed
 
 - Space in Dolphin no longer stops working when a preview couldn't be opened (for example when the viewer failed to start); the next Space tries again.
+- If a Dolphin update changes what KwikLook relies on, Space now falls back to previewing the selected file on its own instead of risking a Dolphin crash. If Dolphin does crash in KwikLook's code, KwikLook stops using those parts of Dolphin until Dolphin or KwikLook is updated.
 
 ## [0.8.2] - 2026-11-28
 
