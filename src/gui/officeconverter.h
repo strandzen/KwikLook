@@ -3,12 +3,10 @@
 #pragma once
 
 #include <QObject>
-#include <QPointer>
 #include <QString>
-#include <QTimer>
 #include <QUrl>
 
-class QProcess;
+class SandboxRun;
 
 /*
  * Office documents (DOCX, ODT, XLSX, ...) as PDFs for the PDF view: LibreOffice
@@ -50,7 +48,6 @@ public:
 
     // Where results go, and how much is kept (tests change both).
     void setCacheDir(const QString &dir);
-    QString cacheDir() const;
     void setCacheLimit(qint64 bytes);
     // The scratch folder of the running conversion (empty when none).
     QString workDir() const;
@@ -68,8 +65,7 @@ private:
 
     QString m_cacheDir;
     qint64 m_cacheLimit = CacheLimit;
-    QPointer<QProcess> m_process;
-    QString m_path; // what m_process converts
+    SandboxRun *m_run = nullptr;
+    QString m_path; // what m_run converts
     QString m_workDir; // its scratch folder (profile, temp, output)
-    QTimer m_timeout;
 };

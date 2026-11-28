@@ -4,6 +4,7 @@
 
 #include "dbusnames.h"
 #include "fileinfo.h"
+#include "fontpreview.h"
 #include "bookreader.h"
 #include "officeconverter.h"
 #include "tablemodel.h"
@@ -20,6 +21,9 @@
 #include <QtQml/qqmlregistration.h>
 #include <QUrl>
 #include <QWindow>
+
+class KDirWatch;
+class QTimer;
 
 /*
  * The background viewer: the list of files being previewed, the current one,
@@ -48,6 +52,9 @@ class Viewer : public QObject, protected QDBusContext
     // `switching` meanwhile (a busy indicator after a moment), aboutToSwitch() one frame
     // before (QML keeps a still picture of the old view to fade from).
     Q_PROPERTY(bool switching READ switching NOTIFY switchingChanged)
+    // The shown file was moved, renamed or deleted while it was shown (local files;
+    // watched only while the preview is open).
+    Q_PROPERTY(bool currentGone READ currentGone NOTIFY currentGoneChanged)
     // About the current file, filled in shortly after it becomes current (read off the
     // main thread); empty until then.
     Q_PROPERTY(QString view READ view NOTIFY fileInfoChanged) // QML file that shows it
@@ -83,16 +90,8 @@ class Viewer : public QObject, protected QDBusContext
     Q_PROPERTY(qreal mediaVolume READ mediaVolume WRITE setMediaVolume NOTIFY mediaVolumeChanged)
     // Play videos and audio again and again: kept from file to file until the preview closes.
     Q_PROPERTY(bool mediaRepeat MEMBER m_mediaRepeat NOTIFY mediaRepeatChanged)
-    // Font files: the loaded font's family and style name (for QML's font.family and
-    // font.styleName); empty for other files.
-    Q_PROPERTY(QString fontFamily READ fontFamily NOTIFY fileInfoChanged)
-    Q_PROPERTY(QString fontStyle READ fontStyle NOTIFY fileInfoChanged)
-    // The same family and style is already among the system's or the user's fonts.
-    Q_PROPERTY(bool fontInstalled READ fontInstalled NOTIFY fileInfoChanged)
-    // The font preview's own text, typed by the user: kept until the preview closes.
-    Q_PROPERTY(QString fontSampleText MEMBER m_fontSampleText NOTIFY fontSampleTextChanged)
-    // Its size in pixels (− / +, Ctrl+wheel): also kept until the preview closes.
-    Q_PROPERTY(int fontSampleSize MEMBER m_fontSampleSize NOTIFY fontSampleSizeChanged)
+    // Font files: the loaded font, its sample text and size (FontView.qml).
+    Q_PROPERTY(FontPreview *fontPreview READ fontPreview CONSTANT)
     // Find in text and PDFs (Ctrl+F): the bar is open, and what it looks for; kept from
     // file to file until the preview closes.
     Q_PROPERTY(bool searchOpen MEMBER m_searchOpen NOTIFY searchOpenChanged)
@@ -125,7 +124,6 @@ public:
     static constexpr auto ServiceName = KwikLookDBus::Service;
     static constexpr auto ObjectPath = KwikLookDBus::ViewerPath;
     static constexpr auto InterfaceName = KwikLookDBus::ViewerInterface;
-    static constexpr int DefaultFontSampleSize = 36;
 
     // No default argument on purpose: a default-constructible QML_SINGLETON is
     // built by the engine itself and create() is never called (see CLAUDE.md).
@@ -155,6 +153,7 @@ public:
     int currentIndex() const;
     int count() const;
     bool switching() const;
+    bool currentGone() const;
     bool isOpen() const;
     QString view() const;
     QString mimeType() const;
@@ -184,12 +183,7 @@ public:
     void setSidebarTab(const QString &tab);
     qreal mediaVolume() const;
     void setMediaVolume(qreal volume);
-    QString fontFamily() const;
-    QString fontStyle() const;
-    bool fontInstalled() const;
-    // Copies the current font file into the user's fonts (~/.local/share/fonts) in the
-    // background; fontInstallFinished() tells how it went.
-    Q_INVOKABLE void installFont();
+    FontPreview *fontPreview() const;
     QString formattedKind() const;
     QString formattedText() const;
     QVariantList bookContents() const;
@@ -225,6 +219,7 @@ Q_SIGNALS:
     void currentChanged();
     void fileInfoChanged();
     void switchingChanged();
+    void currentGoneChanged();
     void aboutToSwitch();
     void infoOpenChanged();
     void pagesOpenChanged();
@@ -233,9 +228,6 @@ Q_SIGNALS:
     void textZoomChanged();
     void mediaVolumeChanged();
     void mediaRepeatChanged();
-    void fontSampleTextChanged();
-    void fontSampleSizeChanged();
-    void fontInstallFinished(bool ok);
     void searchOpenChanged();
     void searchTextChanged();
     void windowChromeChanged();
@@ -267,7 +259,8 @@ private:
     void startBookPreview(); // EPUB: the fallback view meanwhile, then the book as text
     // Font files: adds the current font to the app's fonts (the previous one goes).
     void loadFont();
-    void unloadFont();
+    void watchCurrent();
+    void setCurrentGone(bool gone);
 
     QList<QUrl> m_urls;
     int m_index = -1; // the current file (Next / Previous go from here)
@@ -278,6 +271,11 @@ private:
     QPointer<QWindow> m_window;
     QTimer *m_releaseMemory = nullptr; // runs while the window is hidden, see releaseMemory()
     QTimer *m_idleRestart = nullptr; // runs while the window is hidden, see restartRequested()
+    KDirWatch *m_watch = nullptr; // the shown file, see currentGone
+    QString m_watchedPath;
+    bool m_watchedIsDir = false;
+    QTimer *m_goneCheck = nullptr; // a save often deletes and re-creates: look again a moment later
+    bool m_currentGone = false;
     FileInfo m_info;
     QString m_view; // kept while the next file's details load, so the view doesn't flicker
     bool m_infoOpen = false;
@@ -287,12 +285,6 @@ private:
     qreal m_textZoom = 1;
     qreal m_mediaVolume = 1;
     bool m_mediaRepeat = false;
-    int m_fontId = -1; // QFontDatabase application font of the current file
-    QString m_fontFamily;
-    QString m_fontStyle;
-    bool m_fontInstalled = false;
-    QString m_fontSampleText;
-    int m_fontSampleSize = DefaultFontSampleSize;
     bool m_searchOpen = false;
     QString m_searchText;
     int m_generation = 0; // drops details read for a file that's no longer current
@@ -300,6 +292,7 @@ private:
     BookReader *m_book = nullptr;
     QVariantList m_bookContents;
     TableModel *m_table = nullptr;
+    FontPreview *m_fontPreview = nullptr;
     QUrl m_convertedPdf; // the current office document as PDF
     QString m_previewNote;
     bool m_previewBusy = false;

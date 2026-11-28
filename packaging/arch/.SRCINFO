@@ -1,7 +1,7 @@
 pkgbase = kwiklook
 	pkgdesc = Quick previews of files from Dolphin
 	pkgver = 0.8.2
-	pkgrel = 1
+	pkgrel = 2
 	url = https://github.com/strandzen/KwikLook
 	arch = x86_64
 	license = GPL-3.0-or-later
@@ -28,6 +28,7 @@ pkgbase = kwiklook
 	depends = qt6-declarative
 	depends = qt6-multimedia
 	depends = qt6-multimedia-ffmpeg
+	depends = qt6-svg
 	depends = qt6-webengine
 	depends = qqc2-desktop-style
 	depends = syntax-highlighting

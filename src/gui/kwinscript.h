@@ -27,7 +27,6 @@ public:
     // Loads or unloads; a copy left loaded by a viewer that crashed is replaced.
     // Returns whether the script is loaded afterwards.
     bool setLoaded(bool loaded);
-    bool isLoaded() const;
 
 private:
     QString m_path;

@@ -38,14 +38,18 @@ jobs:
         run: cmake --preset dev && cmake --build --preset dev
 
       # Tests that need what the container lacks (LibreOffice; Landlock for the
-      # sandbox, depending on the runner's kernel) skip themselves. The smoke test gets
-      # one retry: Qt 6.12's image loader crashes now and then (CLAUDE.md, Known Pitfalls).
-      # Dolphin is installed only for tst_dolphinsymbols: the functions the hook calls
-      # must exist in the current Dolphin release (required here, skipped elsewhere).
+      # sandbox, depending on the runner's kernel) skip themselves. Dolphin is installed
+      # only for tst_dolphinsymbols: the functions the hook calls must exist in the
+      # current Dolphin release (required here, skipped elsewhere).
       - name: Tests
         env:
           KWIKLOOK_REQUIRE_DOLPHIN: 1
-        run: dbus-run-session -- ctest --test-dir build/dev --output-on-failure --repeat until-pass:2
+        run: dbus-run-session -- ctest --test-dir build/dev --output-on-failure --exclude-regex qmlsmoke
+
+      # Only the smoke test gets one retry: Qt 6.12's image loader crashes now and then
+      # (CLAUDE.md, Known Pitfalls). Every other test must pass the first time.
+      - name: Smoke test
+        run: dbus-run-session -- ctest --test-dir build/dev --output-on-failure --tests-regex qmlsmoke --repeat until-pass:2
 
       # Weekly (and by hand) only, so a push never depends on KDE's server: what the hook
       # relies on in Dolphin's development branch, months before it reaches a release.

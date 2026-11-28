@@ -7,6 +7,7 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 ### Added
 
 - “Preview” in the right-click menu of files, in Dolphin (just below “Open With”) and on the desktop.
+- When the file you're previewing is moved, renamed or deleted, the preview says so (“This file was moved or deleted.”) instead of quietly showing a file that's no longer there.
 
 ### Changed
 

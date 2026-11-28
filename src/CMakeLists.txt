@@ -97,6 +97,8 @@ qt_add_qml_module(kwiklook_qml
         gui/kwinscript.cpp
         gui/bookreader.h
         gui/bookreader.cpp
+        gui/fontpreview.h
+        gui/fontpreview.cpp
     RESOURCE_PREFIX "/qt/qml" # Qt searches here by default
     OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/kwiklook"
 )

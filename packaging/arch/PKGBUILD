@@ -3,7 +3,7 @@
 
 pkgname=kwiklook
 pkgver=0.8.2
-pkgrel=1
+pkgrel=2
 pkgdesc='Quick previews of files from Dolphin'
 arch=('x86_64')
 url='https://github.com/strandzen/KwikLook'
@@ -28,6 +28,7 @@ depends=(
   'qt6-declarative'
   'qt6-multimedia'
   'qt6-multimedia-ffmpeg'  # its playback backend
+  'qt6-svg'  # SVG pictures
   'qt6-webengine'  # QtQuick.Pdf
   'qqc2-desktop-style'  # the KDE look for its controls
   'syntax-highlighting'

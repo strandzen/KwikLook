@@ -5,9 +5,8 @@
 #include "kwiklooksettings.h"
 
 #include <KConfigGroup>
-#include <KFileUtils>
+#include <KDirWatch>
 #include <KFormat>
-#include <KIO/FileCopyJob>
 #include <KSharedConfig>
 #include <KLocalizedString>
 #include <KWindowSystem>
@@ -22,13 +21,10 @@
 #include <QDeadlineTimer>
 #include <QElapsedTimer>
 #include <QFileInfo>
-#include <QFontDatabase>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMimeDatabase>
-#include <QProcess>
 #include <QStandardPaths>
-#include <QRawFont>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QDBusConnection>
@@ -58,10 +54,23 @@ constexpr int IdleRestartDelayMs = 15 * 60 * 1000;
 constexpr int ShowDelayMs = 150;
 // How long a Placement() call waits for the file's details at most.
 constexpr int PlacementWaitMs = 1000;
+// After the shown file is deleted: look again this much later before saying it's
+// gone (editors often save by deleting and re-creating, or renaming a copy over it).
+constexpr int GoneCheckDelayMs = 300;
 }
 
 namespace
 {
+// Sets a property's `field` to `value`, and tells QML (`changed`) if that changed it.
+template<typename T>
+void resetTo(Viewer *viewer, T &field, const T &value, void (Viewer::*changed)())
+{
+    if (field != value) {
+        field = value;
+        (viewer->*changed)();
+    }
+}
+
 KConfigGroup stateGroup()
 {
     // Window state, not a setting: ~/.local/state/kwiklookstaterc.
@@ -116,9 +125,26 @@ Viewer::Viewer(QObject *parent)
     , m_office(new OfficeConverter(this))
     , m_book(new BookReader(this))
     , m_table(new TableModel(this))
+    , m_fontPreview(new FontPreview(this))
 {
     m_releaseMemory = new QTimer(this);
     m_idleRestart = new QTimer(this);
+    m_watch = new KDirWatch(this);
+    m_goneCheck = new QTimer(this);
+    m_goneCheck->setSingleShot(true);
+    m_goneCheck->setInterval(GoneCheckDelayMs);
+    connect(m_goneCheck, &QTimer::timeout, this, [this] {
+        if (!m_watchedPath.isEmpty()) {
+            setCurrentGone(!QFileInfo::exists(m_watchedPath));
+        }
+    });
+    const auto changed = [this](const QString &path) {
+        if (path == m_watchedPath) {
+            m_goneCheck->start();
+        }
+    };
+    connect(m_watch, &KDirWatch::deleted, this, changed);
+    connect(m_watch, &KDirWatch::created, this, changed);
     m_releaseMemory->setSingleShot(true);
     m_releaseMemory->setInterval(ReleaseMemoryDelayMs);
     connect(m_releaseMemory, &QTimer::timeout, this, &Viewer::releaseMemory);
@@ -316,6 +342,38 @@ void Viewer::releaseMemory()
     malloc_trim(0);
 #endif
     qCDebug(lcViewer) << "Memory released";
+}
+
+bool Viewer::currentGone() const
+{
+    return m_currentGone;
+}
+
+void Viewer::setCurrentGone(bool gone)
+{
+    if (gone != m_currentGone) {
+        m_currentGone = gone;
+        Q_EMIT currentGoneChanged();
+    }
+}
+
+void Viewer::watchCurrent()
+{
+    // Only a local file that was there when it was read, while the preview is open.
+    const QString path = m_open && m_info.known && m_info.exists && m_shownUrl.isLocalFile() ? m_shownUrl.toLocalFile() : QString();
+    if (path != m_watchedPath) {
+        if (!m_watchedPath.isEmpty()) {
+            m_watchedIsDir ? m_watch->removeDir(m_watchedPath) : m_watch->removeFile(m_watchedPath);
+        }
+        m_watchedPath = path;
+        m_watchedIsDir = m_info.isDir;
+        if (!path.isEmpty()) {
+            m_watchedIsDir ? m_watch->addDir(path) : m_watch->addFile(path);
+        }
+    }
+    m_goneCheck->stop();
+    // Gone already between reading it and now: say so at once.
+    setCurrentGone(!path.isEmpty() && !QFileInfo::exists(path));
 }
 
 QUrl Viewer::currentUrl() const
@@ -520,86 +578,19 @@ void Viewer::setMediaVolume(qreal volume)
 
 void Viewer::loadFont()
 {
-    unloadFont();
     if (m_view != u"FontView"_s) {
+        m_fontPreview->unload();
         return;
     }
-    // FreeType parses the font here, on the main thread: a few milliseconds.
-    const QRawFont raw(m_info.fontData, 12);
-    // Installed already? Asked before the preview adds its own copy.
-    m_fontInstalled = raw.isValid() && QFontDatabase::families().contains(raw.familyName())
-        && QFontDatabase::styles(raw.familyName()).contains(raw.styleName(), Qt::CaseInsensitive);
-    m_fontId = QFontDatabase::addApplicationFontFromData(m_info.fontData);
-    m_info.fontData.clear(); // Qt keeps its own copy
-    if (m_fontId < 0 || !raw.isValid()) {
-        qCWarning(lcViewer) << "could not load the font" << currentUrl();
-        unloadFont();
+    if (!m_fontPreview->load(m_info.fontData, currentUrl())) {
         m_view = u"FallbackView"_s;
-        return;
     }
-    m_fontFamily = raw.familyName();
-    m_fontStyle = raw.styleName();
+    m_info.fontData.clear(); // Qt keeps its own copy
 }
 
-void Viewer::unloadFont()
+FontPreview *Viewer::fontPreview() const
 {
-    if (m_fontId >= 0) {
-        QFontDatabase::removeApplicationFont(m_fontId);
-        m_fontId = -1;
-    }
-    m_fontFamily.clear();
-    m_fontStyle.clear();
-    m_fontInstalled = false;
-}
-
-bool Viewer::fontInstalled() const
-{
-    return m_fontInstalled;
-}
-
-void Viewer::installFont()
-{
-    const QUrl source = currentUrl();
-    if (m_fontFamily.isEmpty() || m_fontInstalled || !source.isLocalFile()) {
-        return;
-    }
-    // Where KDE's font installer puts fonts for one user; fontconfig reads it.
-    const QString dir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + u"/fonts"_s;
-    if (!QDir().mkpath(dir)) {
-        Q_EMIT fontInstallFinished(false);
-        return;
-    }
-    QString name = source.fileName();
-    if (QFileInfo::exists(dir + u'/' + name)) {
-        name = KFileUtils::suggestName(QUrl::fromLocalFile(dir), name); // never overwrite
-    }
-    auto *job = KIO::file_copy(source, QUrl::fromLocalFile(dir + u'/' + name), -1, KIO::HideProgressInfo);
-    connect(job, &KJob::result, this, [this, job, source, dir] {
-        const bool ok = !job->error();
-        if (!ok) {
-            qCWarning(lcViewer) << "could not install the font:" << job->errorString();
-        } else {
-            // Other applications see it once fontconfig has read the folder again.
-            if (!QStandardPaths::isTestModeEnabled()) { // tests: not the user's font cache
-                QProcess::startDetached(u"fc-cache"_s, {dir});
-            }
-            if (currentUrl() == source) {
-                m_fontInstalled = true;
-                Q_EMIT fileInfoChanged();
-            }
-        }
-        Q_EMIT fontInstallFinished(ok);
-    });
-}
-
-QString Viewer::fontFamily() const
-{
-    return m_fontFamily;
-}
-
-QString Viewer::fontStyle() const
-{
-    return m_fontStyle;
+    return m_fontPreview;
 }
 
 QString Viewer::formattedKind() const
@@ -962,6 +953,7 @@ void Viewer::showCurrent(FileInfo info)
     Q_EMIT currentChanged();
     Q_EMIT fileInfoChanged();
     Q_EMIT switchingChanged();
+    watchCurrent();
     if (m_info.known) {
         answerPlacements();
         if (m_open) {
@@ -1047,39 +1039,18 @@ void Viewer::markClosed()
     }
     m_open = false;
     m_showPending = false;
+    watchCurrent(); // stops watching
     m_ahead.clear(); // read again next time: the files may change meanwhile
     Q_EMIT picturesAheadChanged();
     m_office->cancel();
     m_book->cancel();
-    unloadFont();
-    if (!m_fontSampleText.isEmpty()) {
-        m_fontSampleText.clear();
-        Q_EMIT fontSampleTextChanged();
-    }
-    if (m_fontSampleSize != DefaultFontSampleSize) {
-        m_fontSampleSize = DefaultFontSampleSize;
-        Q_EMIT fontSampleSizeChanged();
-    }
-    if (m_searchOpen) {
-        m_searchOpen = false;
-        Q_EMIT searchOpenChanged();
-    }
-    if (m_indexOpen) {
-        m_indexOpen = false;
-        Q_EMIT indexOpenChanged();
-    }
-    if (!m_searchText.isEmpty()) {
-        m_searchText.clear();
-        Q_EMIT searchTextChanged();
-    }
-    if (m_textZoom != 1) {
-        m_textZoom = 1;
-        Q_EMIT textZoomChanged();
-    }
-    if (m_mediaRepeat) {
-        m_mediaRepeat = false;
-        Q_EMIT mediaRepeatChanged();
-    }
+    // What lasts only until the preview closes, back to how a new preview starts.
+    m_fontPreview->reset();
+    resetTo(this, m_searchOpen, false, &Viewer::searchOpenChanged);
+    resetTo(this, m_indexOpen, false, &Viewer::indexOpenChanged);
+    resetTo(this, m_searchText, QString(), &Viewer::searchTextChanged);
+    resetTo(this, m_textZoom, qreal(1), &Viewer::textZoomChanged);
+    resetTo(this, m_mediaRepeat, false, &Viewer::mediaRepeatChanged);
     stateGroup().sync();
     Q_EMIT Closed(m_sessionId);
 }

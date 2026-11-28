@@ -86,8 +86,3 @@ bool KWinScript::setLoaded(bool loaded)
     m_loaded = true;
     return true;
 }
-
-bool KWinScript::isLoaded() const
-{
-    return m_loaded;
-}

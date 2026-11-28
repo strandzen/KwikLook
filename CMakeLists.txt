@@ -33,6 +33,7 @@ find_package(Qt6 ${QT_MIN_VERSION} REQUIRED COMPONENTS
     Qml
     DBus
     Concurrent
+    Network     # the QML engine's network access (OfflineNetworkFactory)
     Pdf         # the contents (bookmarks) of PDFs
     Network     # the QML engine's network access, turned off (gui/offlinenetwork)
     Multimedia  # QML only (video and audio); checked here so a missing one shows at build time

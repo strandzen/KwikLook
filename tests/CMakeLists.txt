@@ -3,17 +3,20 @@
 find_package(Qt6 ${QT_MIN_VERSION} REQUIRED COMPONENTS Test)
 include(ECMAddTests)
 
-# Loads every top-level QML window offscreen and checks it builds without errors.
-ecm_add_test(tst_qmlsmoke.cpp
-    TEST_NAME tst_qmlsmoke
-    LINK_LIBRARIES Qt6::Test Qt6::Widgets kwiklook_qml kwiklook_qmlplugin KF6::I18n
-    NAME_PREFIX "kwiklook-"
-)
-set_tests_properties(kwiklook-tst_qmlsmoke PROPERTIES
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_CONTROLS_STYLE=org.kde.desktop")
-if(TARGET kwiklook-cards)
-    add_dependencies(tst_qmlsmoke kwiklook-cards) # the cards view
-endif()
+# The preview window's QML, offscreen, one test per topic (qmlsmoke.h has what they
+# share). CI retries these once: Qt 6.12's image loader crashes now and then.
+foreach(topic window pictures text pdf media fonts)
+    ecm_add_test(tst_qmlsmoke_${topic}.cpp
+        TEST_NAME tst_qmlsmoke_${topic}
+        LINK_LIBRARIES Qt6::Test Qt6::Widgets kwiklook_qml kwiklook_qmlplugin KF6::I18n
+        NAME_PREFIX "kwiklook-"
+    )
+    set_tests_properties(kwiklook-tst_qmlsmoke_${topic} PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_CONTROLS_STYLE=org.kde.desktop")
+    if(TARGET kwiklook-cards)
+        add_dependencies(tst_qmlsmoke_${topic} kwiklook-cards) # the cards view
+    endif()
+endforeach()
 
 # Viewer state and signals (no bus; plain offscreen windows for the hide timers).
 ecm_add_test(tst_viewer.cpp
@@ -141,3 +144,11 @@ ecm_add_test(tst_officeconverter.cpp
     NAME_PREFIX "kwiklook-"
 )
 add_dependencies(tst_officeconverter kwiklook-sandbox)
+
+# SandboxRun: a program in kwiklook-sandbox with a time limit (office, books, archives).
+ecm_add_test(tst_sandboxrun.cpp
+    TEST_NAME tst_sandboxrun
+    LINK_LIBRARIES Qt6::Test kwiklook_qml
+    NAME_PREFIX "kwiklook-"
+)
+add_dependencies(tst_sandboxrun kwiklook-sandbox)

@@ -7,10 +7,7 @@
 
 #include <QFutureWatcher>
 #include <QLoggingCategory>
-#include <QProcess>
 #include <QtConcurrentRun>
-
-#include <csignal>
 
 using namespace Qt::StringLiterals;
 
@@ -18,95 +15,70 @@ Q_LOGGING_CATEGORY(lcBook, "kwiklook.book", QtInfoMsg)
 
 BookReader::BookReader(QObject *parent)
     : QObject(parent)
+    , m_run(new SandboxRun(TimeoutMs, this))
 {
-    m_timeout.setSingleShot(true);
-    m_timeout.setInterval(TimeoutMs);
-    connect(&m_timeout, &QTimer::timeout, this, [this] {
+    connect(m_run, &SandboxRun::finished, this, [this](SandboxRun::End end, int, const QByteArray &output) {
         const QString path = m_path;
-        stop();
-        Q_EMIT failed(path, Failure::Unreadable);
+        switch (end) {
+        case SandboxRun::End::NoSandbox:
+            Q_EMIT failed(path, Failure::NoSandbox);
+            break;
+        case SandboxRun::End::TimedOut:
+        case SandboxRun::End::Failed:
+            Q_EMIT failed(path, Failure::Unreadable);
+            break;
+        case SandboxRun::End::Exited:
+            build(path, output, m_generation); // the helper says how far it got in its output
+            break;
+        }
     });
 }
 
 BookReader::~BookReader()
 {
-    stop();
+    cancel();
 }
 
 void BookReader::read(const QString &path)
 {
-    stop();
+    cancel();
     m_path = path;
-    const int generation = ++m_generation;
-    const QString sandbox = Sandbox::binary();
     const QString helper = ArchiveModel::helper();
-    if (sandbox.isEmpty() || helper.isEmpty() || !Sandbox::supported()) {
+    if (Sandbox::binary().isEmpty() || helper.isEmpty() || !Sandbox::supported()) {
         QMetaObject::invokeMethod(this, [this, path] { Q_EMIT failed(path, Failure::NoSandbox); }, Qt::QueuedConnection);
         return;
     }
-    auto *process = new QProcess(this);
-    m_process = process;
-    connect(process, &QProcess::finished, this, [this, process, path, generation](int exitCode) {
-        if (process != m_process) {
-            return;
+    m_run->start(QStringList{u"--read"_s, path, u"--read"_s, helper, u"--"_s, helper, u"--files"_s, path, QString::number(FileLimit), QString::number(TotalLimit)}
+                 + Epub::wantedSuffixes());
+}
+
+void BookReader::build(const QString &path, const QByteArray &output, int generation)
+{
+    // Parsing and cleaning the chapters can take a moment for a long book.
+    auto *watcher = new QFutureWatcher<Epub::Book>(this);
+    connect(watcher, &QFutureWatcher<Epub::Book>::finished, this, [this, watcher, path, generation] {
+        watcher->deleteLater();
+        if (generation != m_generation) {
+            return; // another book meanwhile
         }
-        m_timeout.stop();
-        m_process = nullptr;
-        const QByteArray output = process->readAllStandardOutput();
-        process->deleteLater();
-        if (exitCode == Sandbox::ExitNoSandbox) {
-            Q_EMIT failed(path, Failure::NoSandbox);
-            return;
-        }
-        // Parsing and cleaning the chapters can take a moment for a long book.
-        auto *watcher = new QFutureWatcher<Epub::Book>(this);
-        connect(watcher, &QFutureWatcher<Epub::Book>::finished, this, [this, watcher, path, generation] {
-            watcher->deleteLater();
-            if (generation != m_generation) {
-                return; // another book meanwhile
-            }
-            const Epub::Book book = watcher->result();
-            if (book.ok) {
-                Q_EMIT finished(path, book);
-            } else {
-                Q_EMIT failed(path, Failure::Unreadable);
-            }
-        });
-        watcher->setFuture(QtConcurrent::run([output] {
-            const Epub::Files files = Epub::parseHelperOutput(output);
-            if (!files.message.isEmpty()) {
-                qCInfo(lcBook) << files.status << files.message;
-            }
-            return Epub::build(files);
-        }));
-    });
-    connect(process, &QProcess::errorOccurred, this, [this, process, path](QProcess::ProcessError error) {
-        if (process == m_process && error == QProcess::FailedToStart) {
-            stop();
+        const Epub::Book book = watcher->result();
+        if (book.ok) {
+            Q_EMIT finished(path, book);
+        } else {
             Q_EMIT failed(path, Failure::Unreadable);
         }
     });
-    process->start(sandbox,
-                   QStringList{u"--read"_s, path, u"--read"_s, helper, u"--"_s, helper, u"--files"_s, path, QString::number(FileLimit), QString::number(TotalLimit)}
-                       + Epub::wantedSuffixes());
-    m_timeout.start();
+    watcher->setFuture(QtConcurrent::run([output] {
+        const Epub::Files files = Epub::parseHelperOutput(output);
+        if (!files.message.isEmpty()) {
+            qCInfo(lcBook) << files.status << files.message;
+        }
+        return Epub::build(files);
+    }));
 }
 
 void BookReader::cancel()
 {
-    stop();
-    ++m_generation;
-}
-
-void BookReader::stop()
-{
-    m_timeout.stop();
-    if (QProcess *process = m_process) {
-        m_process = nullptr;
-        if (process->state() != QProcess::NotRunning && process->processId() > 0) {
-            ::kill(-pid_t(process->processId()), SIGKILL); // the sandbox's own process group
-            process->waitForFinished(1000);
-        }
-        process->deleteLater();
-    }
+    m_run->cancel();
+    ++m_generation; // drops a book still being built
 }

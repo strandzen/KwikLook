@@ -5,10 +5,7 @@
 #include "archivelisting.h"
 
 #include <QAbstractItemModel>
-#include <QPointer>
-#include <QProcess>
 #include <QQmlEngine>
-#include <QTimer>
 #include <QUrl>
 #include <QtQml/qqmlregistration.h>
 
@@ -23,6 +20,8 @@
  *   ArchiveModel { id: archive; source: Viewer.currentUrl }
  *   TreeView { model: archive }   archive.status, archive.summary
  */
+class SandboxRun;
+
 class ArchiveModel : public QAbstractItemModel
 {
     Q_OBJECT
@@ -88,8 +87,7 @@ private:
         mutable QString iconName; // looked up when first shown
     };
 
-    void stop();
-    void finished(int exitCode);
+    void finished(int exitCode, const QByteArray &output);
     Node *nodeFor(const QModelIndex &index) const;
     static void sortAndNumber(Node *node);
 
@@ -99,6 +97,5 @@ private:
     bool m_encrypted = false;
     qint64 m_more = 0;
     Node m_root;
-    QPointer<QProcess> m_process;
-    QTimer m_timeout;
+    SandboxRun *m_run = nullptr;
 };

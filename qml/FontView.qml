@@ -19,36 +19,39 @@ QQC2.ScrollView {
         Layout.fillWidth: true
         Layout.preferredWidth: 0 // wrapped text: don't widen the layout
         wrapMode: Text.Wrap
-        font.family: Viewer.fontFamily
-        font.styleName: Viewer.fontStyle
+        font.family: Viewer.fontPreview.family
+        font.styleName: Viewer.fontPreview.style
     }
+
+    // The font file shown (Viewer's FontPreview).
+    readonly property FontPreview preview: Viewer.fontPreview
 
     // The user zoomed (for the zoom indicator, as in the other views).
     signal zoomed()
 
-    readonly property real zoomPercent: Math.round(Viewer.fontSampleSize / 36 * 100)
+    readonly property real zoomPercent: Math.round(view.preview.sampleSize / 36 * 100)
 
     function zoomBy(factor) {
-        setSize(Viewer.fontSampleSize * factor);
+        setSize(view.preview.sampleSize * factor);
     }
     function resetZoom() {
         setSize(36);
     }
     function setSize(size) {
-        Viewer.fontSampleSize = Math.round(Math.max(8, Math.min(288, size)));
+        view.preview.sampleSize = Math.round(Math.max(8, Math.min(288, size)));
         zoomed();
     }
     // − / +: through the usual type sizes.
     readonly property var steps: [8, 10, 12, 14, 18, 24, 28, 36, 48, 60, 72, 96, 120, 144, 192, 240, 288]
     function stepSize(up) {
-        const size = Viewer.fontSampleSize;
+        const size = view.preview.sampleSize;
         const next = up ? steps.find(step => step > size) : steps.slice().reverse().find(step => step < size);
         if (next !== undefined) {
             setSize(next);
         }
     }
 
-    readonly property string sampleText: Viewer.fontSampleText !== "" ? Viewer.fontSampleText
+    readonly property string sampleText: view.preview.sampleText !== "" ? view.preview.sampleText
         : i18nc("@info sample text showing every letter of the alphabet; translate to a pangram of your language", "The quick brown fox jumps over the lazy dog")
 
     Kirigami.Theme.colorSet: Kirigami.Theme.View
@@ -81,7 +84,7 @@ QQC2.ScrollView {
             Sample {
                 objectName: "fontName"
                 font.pointSize: Kirigami.Theme.defaultFont.pointSize * 2.5
-                text: Viewer.fontStyle !== "" ? Viewer.fontFamily + " " + Viewer.fontStyle : Viewer.fontFamily
+                text: view.preview.style !== "" ? view.preview.family + " " + view.preview.style : view.preview.family
             }
             QQC2.Label {
                 Layout.fillWidth: true
@@ -94,16 +97,16 @@ QQC2.ScrollView {
             QQC2.Button {
                 id: installButton
                 objectName: "installFont"
-                visible: !Viewer.fontInstalled
+                visible: !view.preview.installed
                 icon.name: "font-enable"
                 text: i18nc("@action:button", "Install Font")
                 onClicked: {
                     enabled = false;
-                    Viewer.installFont();
+                    view.preview.install();
                 }
                 Connections {
-                    target: Viewer
-                    function onFontInstallFinished(ok) {
+                    target: view.preview
+                    function onInstallFinished(ok) {
                         installButton.enabled = true;
                         const window = view.QQC2.ApplicationWindow.window;
                         if (window) {
@@ -115,7 +118,7 @@ QQC2.ScrollView {
             }
             RowLayout {
                 objectName: "fontInstalled"
-                visible: Viewer.fontInstalled
+                visible: view.preview.installed
                 spacing: Kirigami.Units.smallSpacing
 
                 Kirigami.Icon {
@@ -136,8 +139,8 @@ QQC2.ScrollView {
                 Layout.fillWidth: true
                 Layout.topMargin: Kirigami.Units.largeSpacing
                 placeholderText: i18nc("@info:placeholder", "Type your own text…")
-                text: Viewer.fontSampleText
-                onTextEdited: Viewer.fontSampleText = text
+                text: view.preview.sampleText
+                onTextEdited: view.preview.sampleText = text
             }
 
             // The character set.
@@ -162,7 +165,7 @@ QQC2.ScrollView {
                     display: QQC2.AbstractButton.IconOnly
                     icon.name: "zoom-out"
                     text: i18nc("@action:button font size", "Smaller")
-                    enabled: Viewer.fontSampleSize > 8
+                    enabled: view.preview.sampleSize > 8
                     onClicked: view.stepSize(false)
                     QQC2.ToolTip.text: text
                     QQC2.ToolTip.visible: hovered
@@ -174,7 +177,7 @@ QQC2.ScrollView {
                     horizontalAlignment: Text.AlignHCenter
                     color: Kirigami.Theme.disabledTextColor
                     font.features: { "tnum": 1 }
-                    text: i18nc("@info font size in pixels", "%1 px", Viewer.fontSampleSize)
+                    text: i18nc("@info font size in pixels", "%1 px", view.preview.sampleSize)
 
                     FontMetrics {
                         id: sizeMetrics
@@ -185,7 +188,7 @@ QQC2.ScrollView {
                     display: QQC2.AbstractButton.IconOnly
                     icon.name: "zoom-in"
                     text: i18nc("@action:button font size", "Larger")
-                    enabled: Viewer.fontSampleSize < 288
+                    enabled: view.preview.sampleSize < 288
                     onClicked: view.stepSize(true)
                     QQC2.ToolTip.text: text
                     QQC2.ToolTip.visible: hovered
@@ -194,7 +197,7 @@ QQC2.ScrollView {
             }
             Sample {
                 objectName: "fontSample"
-                font.pixelSize: Viewer.fontSampleSize
+                font.pixelSize: view.preview.sampleSize
                 text: view.sampleText
             }
         }

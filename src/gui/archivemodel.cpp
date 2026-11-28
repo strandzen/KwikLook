@@ -16,7 +16,6 @@
 #include <QMimeDatabase>
 
 #include <algorithm>
-#include <csignal>
 
 using namespace Qt::StringLiterals;
 
@@ -26,23 +25,32 @@ ArchiveModel::ArchiveModel(QObject *parent)
     : QAbstractItemModel(parent)
 {
     m_root.folder = true;
-    m_timeout.setSingleShot(true);
-    m_timeout.setInterval(TimeoutMs);
-    connect(&m_timeout, &QTimer::timeout, this, [this] {
-        qCWarning(lcArchive) << "listing took too long, stopped:" << m_source;
-        stop();
-        beginResetModel();
-        m_root.children.clear();
-        m_status = u"failed"_s;
-        m_summary.clear();
-        endResetModel();
-        Q_EMIT listingChanged();
+    m_run = new SandboxRun(TimeoutMs, this);
+    connect(m_run, &SandboxRun::finished, this, [this](SandboxRun::End end, int exitCode, const QByteArray &output) {
+        switch (end) {
+        case SandboxRun::End::NoSandbox:
+            m_status = u"unsupported"_s;
+            Q_EMIT listingChanged();
+            break;
+        case SandboxRun::End::TimedOut:
+            beginResetModel();
+            m_root.children.clear();
+            m_status = u"failed"_s;
+            m_summary.clear();
+            endResetModel();
+            Q_EMIT listingChanged();
+            break;
+        case SandboxRun::End::Exited:
+        case SandboxRun::End::Failed:
+            finished(exitCode, output); // what could be read, or a note that nothing could
+            break;
+        }
     });
 }
 
 ArchiveModel::~ArchiveModel()
 {
-    stop();
+    m_run->cancel();
 }
 
 QString ArchiveModel::helper()
@@ -67,7 +75,7 @@ void ArchiveModel::setSource(const QUrl &source)
     }
     m_source = source;
     Q_EMIT sourceChanged();
-    stop();
+    m_run->cancel();
     beginResetModel();
     m_root.children.clear();
     endResetModel();
@@ -76,62 +84,23 @@ void ArchiveModel::setSource(const QUrl &source)
     m_summary.clear();
     m_status.clear();
     const QString path = source.isLocalFile() ? source.toLocalFile() : QString();
-    const QString sandbox = Sandbox::binary();
     const QString lister = helper();
     if (path.isEmpty()) {
         Q_EMIT listingChanged();
         return;
     }
-    if (sandbox.isEmpty() || lister.isEmpty() || !Sandbox::supported()) {
+    if (Sandbox::binary().isEmpty() || lister.isEmpty() || !Sandbox::supported()) {
         m_status = u"unsupported"_s;
         Q_EMIT listingChanged();
         return;
     }
     m_status = u"reading"_s;
     Q_EMIT listingChanged();
-    auto *process = new QProcess(this);
-    m_process = process;
-    connect(process, &QProcess::finished, this, [this, process](int exitCode) {
-        if (process == m_process) {
-            finished(exitCode);
-        }
-    });
-    connect(process, &QProcess::errorOccurred, this, [this, process](QProcess::ProcessError error) {
-        if (process == m_process && error == QProcess::FailedToStart) {
-            finished(-1);
-        }
-    });
-    process->start(sandbox, {u"--read"_s, path, u"--read"_s, lister, u"--"_s, lister, path, QString::number(Limit), QString::number(Seconds)});
-    m_timeout.start();
+    m_run->start({u"--read"_s, path, u"--read"_s, lister, u"--"_s, lister, path, QString::number(Limit), QString::number(Seconds)});
 }
 
-void ArchiveModel::stop()
+void ArchiveModel::finished(int exitCode, const QByteArray &output)
 {
-    m_timeout.stop();
-    if (QProcess *process = m_process) {
-        m_process = nullptr;
-        if (process->state() != QProcess::NotRunning && process->processId() > 0) {
-            ::kill(-pid_t(process->processId()), SIGKILL); // the sandbox's own process group
-            process->waitForFinished(1000);
-        }
-        process->deleteLater();
-    }
-}
-
-void ArchiveModel::finished(int exitCode)
-{
-    m_timeout.stop();
-    QProcess *process = m_process;
-    m_process = nullptr;
-    const QByteArray output = process ? process->readAllStandardOutput() : QByteArray();
-    if (process) {
-        process->deleteLater();
-    }
-    if (exitCode == Sandbox::ExitNoSandbox) {
-        m_status = u"unsupported"_s;
-        Q_EMIT listingChanged();
-        return;
-    }
     const ArchiveListing::Listing listing = ArchiveListing::parse(output);
     if (listing.status.isEmpty()) {
         qCWarning(lcArchive) << "the lister ended without a result, exit code" << exitCode << m_source;

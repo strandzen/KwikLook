@@ -9,6 +9,8 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QStandardPaths>
+#include <QSaveFile>
+#include <QDir>
 #include <QTest>
 #include <QWindow>
 
@@ -111,6 +113,95 @@ private Q_SLOTS:
         v.Open({u"/tmp/c"_s}, 0, u"window-2"_s, QString());
         QCOMPARE(closed.size(), 1);
         QCOMPARE(closed.at(0).at(0).toString(), u"window-1"_s);
+    }
+
+    // The shown file going away while the preview is open: currentGone.
+    static void writeFile(const QString &path, const QByteArray &data = "text\n")
+    {
+        QFile f(path);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write(data);
+    }
+    static void openAndRead(Viewer &v, const QStringList &paths)
+    {
+        v.Open(paths, 0, u"s"_s, QString());
+        QTRY_VERIFY(!v.mimeType().isEmpty()); // details read: watched from here
+    }
+
+    void deletedFileIsGone()
+    {
+        QTemporaryDir dir;
+        const QString a = dir.filePath(u"a.txt"_s);
+        const QString b = dir.filePath(u"b.txt"_s);
+        writeFile(a);
+        writeFile(b);
+        Viewer v(nullptr);
+        openAndRead(v, {a, b});
+        QVERIFY(!v.currentGone());
+        QVERIFY(QFile::remove(a));
+        QTRY_VERIFY(v.currentGone());
+        // The next file starts afresh.
+        v.Next();
+        QTRY_COMPARE(v.currentUrl(), QUrl::fromLocalFile(b));
+        QVERIFY(!v.currentGone());
+    }
+
+    void renamedFileIsGone()
+    {
+        QTemporaryDir dir;
+        const QString a = dir.filePath(u"a.txt"_s);
+        writeFile(a);
+        Viewer v(nullptr);
+        openAndRead(v, {a});
+        QVERIFY(QFile::rename(a, dir.filePath(u"renamed.txt"_s)));
+        QTRY_VERIFY(v.currentGone());
+    }
+
+    void savedFileIsNotGone()
+    {
+        QTemporaryDir dir;
+        const QString a = dir.filePath(u"a.txt"_s);
+        writeFile(a);
+        Viewer v(nullptr);
+        QSignalSpy gone(&v, &Viewer::currentGoneChanged);
+        openAndRead(v, {a});
+        // An editor that deletes and writes again ...
+        QVERIFY(QFile::remove(a));
+        writeFile(a, "saved\n");
+        // ... and one that writes a copy and renames it over the file.
+        QSaveFile save(a);
+        QVERIFY(save.open(QIODevice::WriteOnly));
+        save.write("saved again\n");
+        QVERIFY(save.commit());
+        QTest::qWait(800);
+        QVERIFY(!v.currentGone());
+        QCOMPARE(gone.size(), 0);
+    }
+
+    void deletedFolderIsGone()
+    {
+        QTemporaryDir dir;
+        const QString folder = dir.filePath(u"folder"_s);
+        QVERIFY(QDir().mkdir(folder));
+        Viewer v(nullptr);
+        openAndRead(v, {folder});
+        QVERIFY(QDir(folder).removeRecursively());
+        QTRY_VERIFY(v.currentGone());
+    }
+
+    void closedPreviewWatchesNothing()
+    {
+        QTemporaryDir dir;
+        const QString a = dir.filePath(u"a.txt"_s);
+        writeFile(a);
+        Viewer v(nullptr);
+        QSignalSpy gone(&v, &Viewer::currentGoneChanged);
+        openAndRead(v, {a});
+        v.Close();
+        QVERIFY(QFile::remove(a));
+        QTest::qWait(800);
+        QVERIFY(!v.currentGone());
+        QCOMPARE(gone.size(), 0);
     }
 
     void ignoredOpenReportsClosed()

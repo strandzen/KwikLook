@@ -9,11 +9,9 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QLoggingCategory>
-#include <QProcess>
 #include <QStandardPaths>
 
 #include <algorithm>
-#include <csignal>
 
 using namespace Qt::StringLiterals;
 
@@ -22,12 +20,23 @@ Q_LOGGING_CATEGORY(lcOffice, "kwiklook.office")
 OfficeConverter::OfficeConverter(QObject *parent)
     : QObject(parent)
     , m_cacheDir(QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation) + u"/kwiklook/office"_s)
+    , m_run(new SandboxRun(TimeoutMs, this))
 {
-    m_timeout.setSingleShot(true);
-    m_timeout.setInterval(TimeoutMs);
-    connect(&m_timeout, &QTimer::timeout, this, [this] {
-        qCWarning(lcOffice) << "conversion took too long, stopped:" << m_path;
-        finish(-1, true);
+    connect(m_run, &SandboxRun::finished, this, [this](SandboxRun::End end, int exitCode) {
+        switch (end) {
+        case SandboxRun::End::Exited:
+            finish(exitCode, false);
+            break;
+        case SandboxRun::End::NoSandbox:
+            finish(Sandbox::ExitNoSandbox, false);
+            break;
+        case SandboxRun::End::TimedOut:
+            finish(-1, true);
+            break;
+        case SandboxRun::End::Failed:
+            finish(-1, false);
+            break;
+        }
     });
 }
 
@@ -44,11 +53,6 @@ bool OfficeConverter::available()
 void OfficeConverter::setCacheDir(const QString &dir)
 {
     m_cacheDir = dir;
-}
-
-QString OfficeConverter::cacheDir() const
-{
-    return m_cacheDir;
 }
 
 void OfficeConverter::setCacheLimit(qint64 bytes)
@@ -118,25 +122,7 @@ void OfficeConverter::convert(const QString &path)
          << u"-env:UserInstallation=%1"_s.arg(QUrl::fromLocalFile(m_workDir + u"/profile"_s).toString()) << u"--convert-to"_s << u"pdf"_s
          << u"--outdir"_s << m_workDir + u"/out"_s << path;
 
-    auto *process = new QProcess(this);
-    process->setProcessChannelMode(QProcess::ForwardedErrorChannel);
-    process->setStandardOutputFile(QProcess::nullDevice());
-    connect(process, &QProcess::finished, this, [this, process](int exitCode, QProcess::ExitStatus status) {
-        if (process != m_process) {
-            return; // cancelled
-        }
-        finish(status == QProcess::NormalExit ? exitCode : -1, false);
-    });
-    // Couldn't be started at all: no finished() follows, so fail now, not at the timeout.
-    connect(process, &QProcess::errorOccurred, this, [this, process](QProcess::ProcessError error) {
-        if (process == m_process && error == QProcess::FailedToStart) {
-            qCWarning(lcOffice) << "could not start" << process->program() << process->errorString();
-            finish(-1, false);
-        }
-    });
-    m_process = process;
-    m_timeout.start();
-    process->start(sandbox, args);
+    m_run->start(args, false); // the PDF lands in the scratch folder: no output kept
 }
 
 void OfficeConverter::writeProfileSettings(const QString &file)
@@ -180,16 +166,7 @@ bool OfficeConverter::sandboxSupported()
 
 void OfficeConverter::cancel()
 {
-    m_timeout.stop();
-    if (QProcess *process = m_process) {
-        m_process = nullptr;
-        // The sandbox starts its own process group: LibreOffice runs as several processes.
-        if (process->processId() > 0) {
-            ::kill(-pid_t(process->processId()), SIGKILL);
-        }
-        process->waitForFinished(1000);
-        process->deleteLater();
-    }
+    m_run->cancel(); // LibreOffice's processes with it
     if (!m_workDir.isEmpty()) {
         QDir(m_workDir).removeRecursively();
         m_workDir.clear();

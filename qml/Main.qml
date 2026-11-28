@@ -318,6 +318,20 @@ Kirigami.ApplicationWindow {
                         busy: Viewer.switching
                     }
 
+                    // The shown file went away while previewed (moved, renamed or deleted):
+                    // what's on screen stays, with a note over its top.
+                    Kirigami.InlineMessage {
+                        objectName: "goneMessage"
+                        anchors.top: parent.top
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.margins: Kirigami.Units.largeSpacing
+                        z: 2
+                        type: Kirigami.MessageType.Warning
+                        text: i18nc("@info", "This file was moved or deleted.")
+                        visible: Viewer.currentGone
+                    }
+
                     // The index sheet over the view, while open.
                     Loader {
                         anchors.fill: parent

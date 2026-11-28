@@ -5,10 +5,8 @@
 #include "epub.h"
 
 #include <QObject>
-#include <QPointer>
-#include <QTimer>
 
-class QProcess;
+class SandboxRun;
 
 // EPUB books for the preview: kwiklook-archive --files unpacks the book's text and
 // pictures inside kwiklook-sandbox (nothing else is read, nothing written), then
@@ -40,10 +38,9 @@ Q_SIGNALS:
     void failed(const QString &path, BookReader::Failure failure);
 
 private:
-    void stop();
+    void build(const QString &path, const QByteArray &output, int generation);
 
-    QPointer<QProcess> m_process;
-    QString m_path;
+    SandboxRun *m_run = nullptr;
+    QString m_path; // what m_run reads
     int m_generation = 0;
-    QTimer m_timeout;
 };
