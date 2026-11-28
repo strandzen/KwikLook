@@ -9,7 +9,9 @@
 
 #include "dolphinsymbols.h"
 
+#include <QFile>
 #include <QFileInfo>
+#include <QSet>
 #include <QTest>
 
 #include <dlfcn.h>
@@ -71,6 +73,33 @@ private Q_SLOTS:
         QVERIFY2(library, ::dlerror());
         const QStringList missing = missingIn(library);
         QVERIFY2(missing.isEmpty(), qPrintable(u"not in tests/dolphin/mockdolphin: "_s + missing.join(u", ")));
+    }
+
+    // tests/dolphin/dolphin-api.txt (the weekly comparison with Dolphin's development
+    // branch) covers the same functions as the hook's table.
+    void apiFileMatchesTheTable()
+    {
+        QFile file(QStringLiteral(KWIKLOOK_DOLPHIN_API));
+        QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+        QSet<QString> inFile;
+        while (!file.atEnd()) {
+            const QString line = QString::fromUtf8(file.readLine()).trimmed();
+            if (line.isEmpty() || line.startsWith(u'#')) {
+                continue;
+            }
+            const QStringList parts = line.split(u'|');
+            QCOMPARE(parts.size(), 3);
+            if (const QString name = parts.at(1).trimmed(); name != u"enum"_s) {
+                inFile.insert(name);
+            }
+        }
+        QSet<QString> inTable;
+        for (const auto &symbol : DolphinSymbols::All) {
+            if (symbol.need != DolphinSymbols::Need::Older) { // not in today's headers
+                inTable.insert(QString::fromLatin1(symbol.name));
+            }
+        }
+        QCOMPARE(inFile, inTable);
     }
 };
 

@@ -9,6 +9,7 @@ on:
   # without a push (tst_dolphinsymbols against the newest Arch package).
   schedule:
     - cron: "17 5 * * 1"
+  workflow_dispatch: # run by hand from the Actions tab
 
 jobs:
   build-and-test:
@@ -25,7 +26,7 @@ jobs:
             kconfig kcoreaddons kcrash kfilemetadata ki18n kio kirigami kirigami-addons kservice \
             kwindowsystem purpose qqc2-desktop-style syntax-highlighting kcontacts kcalendarcore kimageformats \
             libarchive libseccomp dbus ttf-dejavu appstream \
-            dolphin
+            dolphin python
           mkdir -p -m 0700 "$XDG_RUNTIME_DIR"
 
       - uses: actions/checkout@v5
@@ -45,3 +46,10 @@ jobs:
         env:
           KWIKLOOK_REQUIRE_DOLPHIN: 1
         run: dbus-run-session -- ctest --test-dir build/dev --output-on-failure --repeat until-pass:2
+
+      # Weekly (and by hand) only, so a push never depends on KDE's server: what the hook
+      # relies on in Dolphin's development branch, months before it reaches a release.
+      # On a change: adapt the hook, then update tests/dolphin/dolphin-api.txt.
+      - name: Dolphin's development branch
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: python3 -I tests/dolphin/check-dolphin-api.py

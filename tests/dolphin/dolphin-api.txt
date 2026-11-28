@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: CC0-1.0
+# What the Dolphin hook relies on in Dolphin's headers (src/kitemviews/), as in
+# Dolphin v26.08.3. check-dolphin-api.py compares it with Dolphin's development
+# branch (weekly CI): a mangled name covers neither the return type nor enum
+# values, so those would change unseen otherwise.
+#
+# header | mangled name (src/dolphin/dolphinsymbols.h) or "enum" | declaration
+# Declarations are compared without comments and with whitespace collapsed.
+# After adapting the hook to a change, update the line here.
+
+kfileitemmodel.h | _ZNK14KFileItemModel5countEv | int count() const override;
+kfileitemmodel.h | _ZNK14KFileItemModel8fileItemEi | KFileItem fileItem(int index) const;
+kfileitemmodel.h | _ZNK14KFileItemModel5indexERK4QUrl | int index(const QUrl &url) const;
+
+kitemlistselectionmanager.h | _ZNK25KItemListSelectionManager11currentItemEv | int currentItem() const;
+kitemlistselectionmanager.h | _ZNK25KItemListSelectionManager10isSelectedEi | bool isSelected(int index) const;
+kitemlistselectionmanager.h | _ZNK25KItemListSelectionManager12hasSelectionEv | bool hasSelection() const;
+kitemlistselectionmanager.h | _ZN25KItemListSelectionManager14setCurrentItemEi | void setCurrentItem(int current);
+kitemlistselectionmanager.h | _ZN25KItemListSelectionManager14clearSelectionEv | void clearSelection();
+kitemlistselectionmanager.h | _ZN25KItemListSelectionManager11setSelectedEiiNS_13SelectionModeE | void setSelected(int index, int count = 1, SelectionMode mode = Select);
+kitemlistselectionmanager.h | _ZN25KItemListSelectionManager22beginAnchoredSelectionEi | void beginAnchoredSelection(int anchor);
+kitemlistselectionmanager.h | _ZN25KItemListSelectionManager20endAnchoredSelectionEv | void endAnchoredSelection();
+kitemlistselectionmanager.h | enum | enum SelectionMode { Select, Deselect, Toggle };
+
+kitemlistview.h | _ZN13KItemListView12scrollToItemEiNS_16ViewItemPositionE | void scrollToItem(int index, ViewItemPosition viewItemPosition = ViewItemPosition::Nearest);
+kitemlistview.h | enum | enum ViewItemPosition { Beginning, Middle, End, Nearest };
+
+kitemlistcontroller.h | _ZNK19KItemListController23isSearchAsYouTypeActiveEv | bool isSearchAsYouTypeActive() const;
+kitemlistcontroller.h | _ZNK19KItemListController13selectionModeEv | bool selectionMode() const;

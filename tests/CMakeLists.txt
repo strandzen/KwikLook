@@ -113,7 +113,8 @@ ecm_add_test(tst_dolphinsymbols.cpp
     NAME_PREFIX "kwiklook-"
 )
 target_include_directories(tst_dolphinsymbols PRIVATE ${CMAKE_SOURCE_DIR}/src/dolphin)
-target_compile_definitions(tst_dolphinsymbols PRIVATE KWIKLOOK_MOCK_DOLPHIN="$<TARGET_FILE:mockdolphinprivate>")
+target_compile_definitions(tst_dolphinsymbols PRIVATE KWIKLOOK_MOCK_DOLPHIN="$<TARGET_FILE:mockdolphinprivate>"
+    KWIKLOOK_DOLPHIN_API="${CMAKE_CURRENT_SOURCE_DIR}/dolphin/dolphin-api.txt")
 add_dependencies(tst_dolphinsymbols mockdolphinprivate)
 
 # kwiklook-sandbox: a probe program run inside it tries each thing it must not do.
