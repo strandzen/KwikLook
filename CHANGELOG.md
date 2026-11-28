@@ -4,6 +4,10 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Changed
+
+- KwikLook is now licensed under the GPL-2.0-or-later, like Dolphin. The Dolphin integration stays under the GPL-3.0-or-later. Earlier versions keep their GPL-3.0-or-later license.
+
 ### Fixed
 
 - Space in Dolphin no longer stops working when a preview couldn't be opened (for example when the viewer failed to start); the next Space tries again.

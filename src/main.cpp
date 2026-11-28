@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-2.0-or-later
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
 #include "gui/kwinscript.h"
 #include "gui/offlinenetwork.h"
@@ -94,8 +94,10 @@ int main(int argc, char *argv[])
                      i18n("KwikLook"),
                      QStringLiteral(KWIKLOOK_VERSION_STRING),
                      i18n("Quick previews of files from Dolphin"),
-                     KAboutLicense::GPL_V3,
+                     KAboutLicense::Unknown,
                      i18n("© 2026 strandzen"));
+    // The app; the Dolphin integration (a separate plugin) is GPL-3.0-or-later.
+    about.setLicense(KAboutLicense::GPL_V2, KAboutLicense::OrLaterVersions);
     about.setDesktopFileName(u"io.github.strandzen.KwikLook"_s);
     about.setHomepage(u"https://github.com/strandzen/KwikLook"_s);
     // Not KDE's bug tracker: DrKonqi then points to this address with the backtrace.

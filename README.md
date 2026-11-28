@@ -189,4 +189,4 @@ The Dolphin integration (pressing Space in Dolphin, following its file order and
 
 ## License
 
-GPL-3.0-or-later, see [LICENSE](LICENSE).
+KwikLook is licensed under the GPL-2.0-or-later. The Dolphin integration (`src/dolphin/` and its tests) is based on KDEGlance and stays under the GPL-3.0-or-later. Both texts are in [LICENSES](LICENSES/); each file names its license in its first lines. Versions up to 0.8.2 were released under the GPL-3.0-or-later as a whole.

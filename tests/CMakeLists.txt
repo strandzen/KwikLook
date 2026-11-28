@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: GPL-2.0-or-later
 # SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
 find_package(Qt6 ${QT_MIN_VERSION} REQUIRED COMPONENTS Test)
 include(ECMAddTests)

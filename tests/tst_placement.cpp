@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-2.0-or-later
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
 // The geometry of KwikLook's KWin script (data/kwin/kwiklook-placement.js), run in a
 // QJSEngine: without KWin's `workspace` the script defines its functions and nothing else.

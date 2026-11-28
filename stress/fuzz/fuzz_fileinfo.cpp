@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-2.0-or-later
 // SPDX-FileCopyrightText: 2026 strandzen <strandzen@gmail.com>
 // What reads files inside the viewer itself, not in the sandbox: FileInfo::read (type,
 // KFileMetaData's details, text, fonts, cards) and the picture decode ImageView does.

@@ -12,7 +12,7 @@ something here turns out wrong or a new pitfall is found, update it in the same 
 **Stack:** C++20, Qt 6, KDE Frameworks 6, Kirigami (+ Kirigami Addons if used), QML, CMake with
 ECM. Project version `0.8.2` (single source: `project(... VERSION ...)` in `CMakeLists.txt`).
 **App ID:** `io.github.strandzen.KwikLook` (desktop file, metainfo, D-Bus names). Never `org.kde.*`.
-**Licence:** GPL-3.0-or-later.
+**Licence:** GPL-2.0-or-later (decided 2026-11-28, like Dolphin; releases up to 0.8.2 were GPL-3.0-or-later), except the Dolphin hook: `src/dolphin/`, `tests/dolphin/`, `tst_dolphinsymbols`, `tst_hookguard` and the hook's plugin JSON stay GPL-3.0-or-later (KDEGlance-based). New files: GPL-2.0-or-later, in those places GPL-3.0-or-later. Code shared with the hook (`src/core/openkey.h`, `dbusnames.h`) may go into it as GPL-2.0-or-later; never the other way. Texts in `LICENSES/`.
 **Credit:** the Dolphin hook is based on KDEGlance (`comp/KDEGlance`, GPL-3.0-or-later,
 https://github.com/AlexGraveler/KDEGlance). Ported files keep KDEGlance's
 `SPDX-FileCopyrightText` line next to ours; the README's Credits section names it.
@@ -131,7 +131,7 @@ QT_QPA_PLATFORM=offscreen QML_IMPORT_PATH=build/dev/src timeout 5 qml6 qml/<File
 read it), the version in this file and the README, move CHANGELOG's `[Unreleased]` entries under
 the new version with the date, add a `<release>` entry to the metainfo
 (`appstreamcli validate --pedantic data/io.github.strandzen.KwikLook.metainfo.xml`), then tag and publish.
-Packaging: `packaging/arch/PKGBUILD` and its `.SRCINFO` (builds the GitHub tag tarball; for the AUR package `kwiklook`). On release: bump `pkgver`, reset `pkgrel=1`; after pushing the tag `updpkgsums`; test with `makepkg -f` in a scratch copy, never in `packaging/arch/` (its output once ended up in git; `.gitignore` keeps only the two files now); `makepkg --printsrcinfo > .SRCINFO`; commit both. The AUR: a clone of `ssh://aur@aur.archlinux.org/kwiklook.git` outside this repository gets the same two files, a commit and a push: the user's AUR account and SSH key, so the user pushes (or says so each time). A PKGBUILD-only fix (a dependency) bumps `pkgrel` instead.
+Packaging: `packaging/arch/PKGBUILD` and its `.SRCINFO` (builds the GitHub tag tarball; for the AUR package `kwiklook`). On release: bump `pkgver`, reset `pkgrel=1`; with the first release after 0.8.2 also `license=('GPL-2.0-or-later' 'GPL-3.0-or-later')` (0.8.2 itself is GPL-3.0-or-later, so not before); after pushing the tag `updpkgsums`; test with `makepkg -f` in a scratch copy, never in `packaging/arch/` (its output once ended up in git; `.gitignore` keeps only the two files now); `makepkg --printsrcinfo > .SRCINFO`; commit both. The AUR: a clone of `ssh://aur@aur.archlinux.org/kwiklook.git` outside this repository gets the same two files, a commit and a push: the user's AUR account and SSH key, so the user pushes (or says so each time). A PKGBUILD-only fix (a dependency) bumps `pkgrel` instead.
 
 ---
 
