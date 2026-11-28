@@ -18,6 +18,7 @@
 #include <QApplication>
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
+#include <QDBusContext>
 #include <QDBusMessage>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -31,7 +32,7 @@
 using namespace Qt::StringLiterals;
 
 // Records what the hook asks the viewer to do.
-class FakeViewer : public QObject
+class FakeViewer : public QObject, protected QDBusContext
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "io.github.strandzen.KwikLook.Viewer")
@@ -43,6 +44,7 @@ public:
         QString session;
     };
     QList<Call> calls;
+    bool failOpen = false; // answer Open with an error, like a viewer that couldn't start
 
     // Its own connection, like a separate viewer process.
     static QDBusConnection bus()
@@ -62,6 +64,9 @@ public Q_SLOTS:
     {
         Q_UNUSED(activationToken)
         calls.append({u"Open"_s, urls, index, sessionId});
+        if (failOpen) {
+            sendErrorReply(QDBusError::Failed, u"stand-in failure"_s);
+        }
     }
     Q_SCRIPTABLE void Close()
     {
@@ -337,6 +342,22 @@ private Q_SLOTS:
         QCOMPARE(nextCall().method, u"Open"_s); // not Close
         closeFromViewer();
     }
+
+    void failedOpenEndsTheSession()
+    {
+        // Open fails: no preview, so the next Space opens again instead of
+        // sending Close (which used to leave Space dead in that view).
+        m_view->selectOnly(1);
+        m_viewer.failOpen = true;
+        pressSpace(m_view);
+        QCOMPARE(nextCall().method, u"Open"_s);
+        QTRY_VERIFY(session().isEmpty());
+        m_viewer.failOpen = false;
+        pressSpace(m_view);
+        QCOMPARE(nextCall().method, u"Open"_s);
+        closeFromViewer();
+    }
+
 };
 
 QTEST_MAIN(TstDolphinHook)

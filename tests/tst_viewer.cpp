@@ -113,6 +113,22 @@ private Q_SLOTS:
         QCOMPARE(closed.at(0).at(0).toString(), u"window-1"_s);
     }
 
+    void ignoredOpenReportsClosed()
+    {
+        // Nothing usable to show: the caller must not think a preview is open.
+        Viewer v(nullptr);
+        QSignalSpy closed(&v, &Viewer::Closed);
+        v.Open({QString()}, 0, u"s1"_s, QString());
+        QCOMPARE(closed.size(), 1);
+        QCOMPARE(closed.at(0).at(0).toString(), u"s1"_s);
+        QVERIFY(!v.isOpen());
+        // The same caller's preview already showing stays, and stays reported open.
+        v.Open({u"/tmp/a"_s}, 0, u"s2"_s, QString());
+        v.Open({QString()}, 0, u"s2"_s, QString());
+        QCOMPARE(closed.size(), 1);
+        QVERIFY(v.isOpen());
+    }
+
     void openingTheSameIndexAgainStillSignals()
     {
         // A caller re-opening the same file must learn what is current.

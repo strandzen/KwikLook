@@ -761,6 +761,11 @@ void Viewer::Open(const QStringList &urls, int index, const QString &sessionId, 
     }
     if (parsed.isEmpty()) {
         qCInfo(lcViewer) << "Open() without usable URLs ignored";
+        // The caller counts on a preview now: tell it there is none (unless its
+        // preview is already showing, which stays).
+        if (!sessionId.isEmpty() && !(m_open && sessionId == m_sessionId)) {
+            Q_EMIT Closed(sessionId);
+        }
         return;
     }
     // A different caller takes over: tell the previous one its preview is gone.

@@ -15,6 +15,7 @@
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusPendingCall>
+#include <QDBusPendingCallWatcher>
 #include <QDBusServiceWatcher>
 #include <QFuture>
 #include <QJsonArray>
@@ -279,8 +280,18 @@ void Bridge::callViewer(const QString &method, const QVariantList &args)
                                                       QLatin1String(KwikLookDBus::ViewerInterface),
                                                       method);
     msg.setArguments(args);
-    // Fire and forget: never block Dolphin. Activation starts the viewer if needed.
-    QDBusConnection::sessionBus().asyncCall(msg, 10000);
+    // Never block Dolphin: activation starts the viewer if needed, and the reply
+    // is only looked at for errors.
+    auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(msg, 10000), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, method, session = m_sessionId](QDBusPendingCallWatcher *w) {
+        w->deleteLater();
+        // The viewer never got it (not installed, didn't start, timed out): no
+        // preview is open, so the next Space must open one, not send Close.
+        if (w->isError() && !session.isEmpty() && session == m_sessionId) {
+            qCWarning(lcBridge) << method << "failed, preview ended:" << w->error().name() << w->error().message();
+            endSession();
+        }
+    });
 }
 
 void Bridge::syncSelection(const QString &url)
