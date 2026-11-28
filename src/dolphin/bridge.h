@@ -4,6 +4,8 @@
 // Based on KDEGlance's Dolphin hook (https://github.com/AlexGraveler/KDEGlance).
 #pragma once
 
+#include "dolphinaccess.h"
+
 #include <KConfigWatcher>
 #include <KFileItem>
 #include <KSharedConfig>
@@ -16,6 +18,7 @@
 #include <QSet>
 #include <QUrl>
 
+class QAction;
 class QKeyEvent;
 class QWidget;
 
@@ -56,6 +59,11 @@ public Q_SLOTS:
     Q_SCRIPTABLE QString State();
     Q_SCRIPTABLE bool TriggerFocusedView();
 
+    // “Preview” from the context menu (src/previewaction/, a separate plugin,
+    // calls it by name): opens the preview as Space does, from the first of
+    // `urls`, in the active file view. False if that view doesn't hold it.
+    bool previewFromMenu(const QList<QUrl> &urls);
+
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
@@ -71,6 +79,8 @@ private:
 
     bool canHandleKeyIn(QWidget *view);
     bool trigger(QWidget *view);
+    bool startPreview(QWidget *view, const DolphinAccess::Snapshot &snap);
+    void placeMenuEntry(QObject *watched, QAction *action);
     void open(int index, const QString &activationToken);
     void callViewer(const QString &method, const QVariantList &args);
     void endSession();

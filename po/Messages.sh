@@ -12,6 +12,7 @@ $XGETTEXT \
     src/gui/filemenus.cpp \
     src/gui/autostart.cpp \
     src/gui/archivemodel.cpp \
+    src/previewaction/previewaction.cpp \
     --keyword=i18n:1 \
     --keyword=i18nc:1c,2 \
     --keyword=i18np:1,2 \

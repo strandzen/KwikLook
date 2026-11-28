@@ -10,4 +10,6 @@ constexpr auto ViewerPath = "/Viewer";
 constexpr auto ViewerInterface = "io.github.strandzen.KwikLook.Viewer";
 // Diagnostics of the hook inside each Dolphin process (Dolphin's own bus name).
 constexpr auto BridgePath = "/KwikLookBridge";
+// The hook's object inside Dolphin (a child of qApp), found by the context-menu plugin.
+constexpr auto BridgeObjectName = "KwikLookBridge";
 }

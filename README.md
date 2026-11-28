@@ -98,6 +98,7 @@ After installing, close every Dolphin window (or log out and back in) so Dolphin
 ## Usage
 
 - In Dolphin, select a file and press Space. The preview opens; Dolphin's selection follows it as you go through the folder.
+- Or right-click a file and choose “Preview”, in Dolphin (just below “Open With”) and on the desktop. On the desktop the preview shows the files you clicked; in Dolphin it goes through the folder as with Space. Dolphin's Settings → Context Menu can hide the entry.
 - Drag the preview's bar to move the window, drag an edge or corner to resize it. A size you set yourself stays until the preview closes; pictures then fit into it.
 - (i) shows the file's details; “Open with…” opens the file in another application and closes the preview.
 - To edit a picture or a video, use “Open with…”: for pictures it offers Spectacle's editor.
@@ -154,6 +155,8 @@ A preview reads the file, so a file made to attack a bug in a picture, PDF or ot
 ## Troubleshooting
 
 **Space does nothing in Dolphin.** Close all Dolphin windows and open Dolphin again: it only picks up KwikLook when it starts. Also check the open key in the settings.
+
+**“Preview” is missing from the right-click menu.** Check that “Preview with KwikLook” is ticked in Dolphin's Settings → Context Menu. Folders have no “Preview” entry.
 
 **Space previews only one file and ← → don't go through the folder.** KwikLook reads Dolphin's file list through Dolphin's internals, which a Dolphin update can change. Please report it with your Dolphin version.
 

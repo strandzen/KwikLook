@@ -12,9 +12,14 @@
 #include "hookguard.h"
 #include "mockdolphin.h"
 
+#include <KAbstractFileItemActionPlugin>
 #include <KConfig>
 #include <KConfigGroup>
+#include <KFileItemActions>
+#include <KFileItemListProperties>
 #include <KOverlayIconPlugin>
+#include <KPluginFactory>
+#include <KPluginMetaData>
 #include <KSharedConfig>
 
 #include <QApplication>
@@ -24,7 +29,9 @@
 #include <QDBusMessage>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QMenu>
 #include <QPluginLoader>
+#include <QScopeGuard>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTextEdit>
@@ -105,6 +112,17 @@ private:
     QString guardEntry(const char *key)
     {
         return KConfig(HookGuard::defaultFile(), KConfig::SimpleConfig).group(u"DolphinHook"_s).readEntry(key, QString());
+    }
+    // “Preview” from the context-menu plugin (src/previewaction/) for these items.
+    QAction *previewAction(const KFileItemList &items)
+    {
+        static KAbstractFileItemActionPlugin *plugin =
+            KPluginFactory::instantiatePlugin<KAbstractFileItemActionPlugin>(KPluginMetaData(QStringLiteral(KWIKLOOK_PREVIEWACTION_PLUGIN))).plugin;
+        if (!plugin) {
+            return nullptr;
+        }
+        const QList<QAction *> actions = plugin->actions(KFileItemListProperties(items), m_window.get());
+        return actions.size() == 1 ? actions.first() : nullptr;
     }
     static QString testCase()
     {
@@ -388,6 +406,86 @@ private Q_SLOTS:
         pressSpace(m_view);
         QCOMPARE(nextCall().method, u"Open"_s);
         closeFromViewer();
+    }
+
+    void contextMenuOffersPreviewForFiles()
+    {
+        QAction *action = previewAction({fileItem(u"y2.png"_s)});
+        QVERIFY(action);
+        QCOMPARE(action->text(), u"Preview"_s);
+        QVERIFY(!previewAction({fileItem(u"folder"_s, true)})); // folders: no entry
+        QVERIFY(previewAction({fileItem(u"folder"_s, true), fileItem(u"z1.png"_s)})); // the file among them
+    }
+
+    void contextMenuPreviewOpensLikeSpace()
+    {
+        // Dolphin selects the right-clicked file; the menu's files are the selection.
+        m_view->selectOnly(2);
+        focusView(m_view);
+        previewAction({fileItem(u"y2.png"_s)})->trigger();
+        FakeViewer::Call call = nextCall();
+        QCOMPARE(call.method, u"Open"_s);
+        QCOMPARE(call.urls.size(), 4); // the folder, in Dolphin's order
+        QCOMPARE(call.index, 1);
+        QCOMPARE(call.session, session());
+        // Again while it shows: opens the other file (Space would close instead).
+        m_view->selectOnly(3);
+        previewAction({fileItem(u"x3.png"_s)})->trigger();
+        call = nextCall();
+        QCOMPARE(call.method, u"Open"_s);
+        QCOMPARE(call.index, 2);
+        closeFromViewer();
+    }
+
+    void contextMenuOutsideTheViewOpensDirectly()
+    {
+        // A file the view doesn't hold (as from Plasma's desktop): just that file.
+        focusView(m_view);
+        const QUrl other = url(u"elsewhere.txt"_s);
+        previewAction({KFileItem(other, QString(), S_IFREG)})->trigger();
+        const FakeViewer::Call call = nextCall();
+        QCOMPARE(call.method, u"Open"_s);
+        QCOMPARE(call.urls, QStringList{other.toString()});
+        QCOMPARE(call.index, 0);
+        QVERIFY(call.session.isEmpty());
+        QVERIFY(session().isEmpty()); // no Dolphin session for it
+    }
+
+    void contextMenuPutsPreviewAfterOpenWith()
+    {
+        // Built as Dolphin builds a file's menu, with KIO's own code: “Open With”
+        // (closed by a separator), Dolphin's entries, then the plugins: only the
+        // build's (the installed ones start services such as kdeconnectd).
+        const QStringList libraryPaths = QCoreApplication::libraryPaths();
+        const auto restorePaths = qScopeGuard([&] {
+            QCoreApplication::setLibraryPaths(libraryPaths);
+        });
+        QCoreApplication::setLibraryPaths({QStringLiteral(KWIKLOOK_BUILD_PLUGINS)});
+        QMenu menu(m_window.get());
+        KFileItemActions fileActions;
+        fileActions.setParentWidget(m_window.get());
+        fileActions.setItemListProperties(KFileItemListProperties({fileItem(u"y2.png"_s)}));
+        fileActions.insertOpenWithActionsTo(nullptr, &menu, {});
+        menu.addAction(u"Cut"_s);
+        menu.addAction(u"Copy"_s);
+        fileActions.addActionsTo(&menu, KFileItemActions::MenuActionSource::Plugins);
+        QAction *preview = nullptr;
+        const auto added = menu.actions();
+        for (QAction *a : added) {
+            preview = a->objectName() == u"kwiklook_preview"_s ? a : preview;
+        }
+        QVERIFY2(preview, "KIO didn't offer the plugin's entry for a PNG");
+        QVERIFY(added.indexOf(preview) > added.indexOf(menu.actions().at(0)) + 1);
+
+        Q_EMIT menu.aboutToShow();
+        const auto actions = menu.actions();
+        const qsizetype at = actions.indexOf(preview);
+        QVERIFY(at > 0);
+        QVERIFY(actions.at(at + 1)->isSeparator()); // the one closing “Open With”
+        for (qsizetype i = 0; i < at; ++i) {
+            QVERIFY(!actions.at(i)->isSeparator());
+        }
+        QCOMPARE(actions.at(at + 2)->text(), u"Cut"_s);
     }
 
     // Separate runs (ctest: kwiklook-tst_dolphinhook-garbage / -crashed).

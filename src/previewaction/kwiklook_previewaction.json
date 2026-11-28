@@ -1,0 +1,12 @@
+{
+    "KPlugin": {
+        "Name": "Preview with KwikLook",
+        "Description": "“Preview” in the context menu of files",
+        "Icon": "document-preview",
+        "License": "GPL-2.0-or-later",
+        "MimeTypes": [
+            "application/octet-stream"
+        ]
+    },
+    "X-KDE-Show-In-Submenu": false
+}

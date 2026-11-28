@@ -11,6 +11,8 @@
 #include <KWaylandExtras>
 #include <KWindowSystem>
 
+#include <QAction>
+#include <QActionEvent>
 #include <QApplication>
 #include <QDBusConnection>
 #include <QDBusMessage>
@@ -23,6 +25,7 @@
 #include <QJsonObject>
 #include <QKeyEvent>
 #include <QLoggingCategory>
+#include <QMenu>
 #include <QScopeGuard>
 #include <QWidget>
 #include <QWindow>
@@ -36,6 +39,7 @@ namespace
 QPointer<Bridge> s_bridge;
 constexpr int TypeAheadFallbackMs = 1000; // Dolphin's type-ahead timeout
 constexpr auto AppId = "io.github.strandzen.KwikLook"; // the window to activate
+constexpr auto PreviewActionName = "kwiklook_preview"; // src/previewaction/previewaction.cpp
 
 } // namespace
 
@@ -61,6 +65,7 @@ Bridge *Bridge::ensure()
 Bridge::Bridge(QObject *parent)
     : QObject(parent)
 {
+    setObjectName(QLatin1String(KwikLookDBus::BridgeObjectName)); // the context-menu plugin finds it so
     qApp->installEventFilter(this);
     connect(qApp, &QCoreApplication::aboutToQuit, this, &Bridge::shutdown);
 
@@ -181,6 +186,10 @@ void Bridge::readOpenKey()
 bool Bridge::eventFilter(QObject *watched, QEvent *event)
 {
     const QEvent::Type type = event->type();
+    if (type == QEvent::ActionAdded && !m_down) {
+        placeMenuEntry(watched, static_cast<QActionEvent *>(event)->action());
+        return false;
+    }
     if (m_down || (type != QEvent::KeyPress && type != QEvent::ShortcutOverride)) {
         return false;
     }
@@ -230,29 +239,51 @@ bool Bridge::trigger(QWidget *view)
     }
 
     const DolphinAccess &access = DolphinAccess::instance();
-    QStringList urls;
-    QHash<QString, QUrl> localToModel;
-    int index = 0;
-    bool selectionOnly = false;
     if (auto snap = access.snapshot(view)) {
-        urls.reserve(snap->urls.size());
-        for (int i = 0; i < snap->urls.size(); ++i) {
-            const QString local = snap->urls.at(i).toString();
-            urls << local;
-            localToModel.insert(local, snap->modelUrls.at(i));
-        }
-        index = snap->current;
-        selectionOnly = snap->selectionOnly;
-    } else if (!access.hasModelAccess()) {
+        return startPreview(view, *snap);
+    }
+    if (!access.hasModelAccess()) {
         const KFileItemList selection = m_fallbackSelection.value(view);
         for (const KFileItem &item : selection) {
             if (!item.isDir()) {
-                urls << item.mostLocalUrl().toString();
-                break;
+                return startPreview(view, {{item.mostLocalUrl()}, {item.url()}, 0, false});
             }
         }
     }
-    if (urls.isEmpty()) {
+    return false;
+}
+
+bool Bridge::previewFromMenu(const QList<QUrl> &urls)
+{
+    // The view the context menu came from: Dolphin makes the clicked view active.
+    QWidget *view = activeFileView();
+    if (m_down || !view || urls.isEmpty()) {
+        return false;
+    }
+    // Like Space, from the clicked file (the first of the menu's files); always
+    // opens, also while a preview from this view is showing.
+    const DolphinAccess &access = DolphinAccess::instance();
+    if (auto snap = access.snapshot(view, urls.first())) {
+        return startPreview(view, *snap);
+    }
+    if (!access.hasModelAccess()) {
+        return startPreview(view, {urls, urls, 0, false});
+    }
+    return false; // not in this view: the plugin opens the files itself
+}
+
+bool Bridge::startPreview(QWidget *view, const DolphinAccess::Snapshot &snap)
+{
+    QStringList urls;
+    QHash<QString, QUrl> localToModel;
+    urls.reserve(snap.urls.size());
+    for (int i = 0; i < snap.urls.size(); ++i) {
+        const QString local = snap.urls.at(i).toString();
+        urls << local;
+        localToModel.insert(local, snap.modelUrls.value(i, snap.urls.at(i)));
+    }
+    const int index = snap.current;
+    if (urls.isEmpty() || index < 0) {
         return false;
     }
 
@@ -264,7 +295,7 @@ bool Bridge::trigger(QWidget *view)
     m_sessionUrls = urls;
     m_localToModelUrl = localToModel;
     m_viewerCurrent = urls.value(index);
-    m_selectionOnly = selectionOnly;
+    m_selectionOnly = snap.selectionOnly;
     // If Dolphin keeps the keyboard focus (e.g. the compositor refused to
     // activate the preview), the preview follows Dolphin's selection.
     connect(view, SIGNAL(selectionChanged(KFileItemList)), this, SLOT(onSessionSelectionChanged(KFileItemList)), Qt::UniqueConnection);
@@ -287,6 +318,36 @@ bool Bridge::trigger(QWidget *view)
         open(index, QString());
     }
     return true;
+}
+
+void Bridge::placeMenuEntry(QObject *watched, QAction *action)
+{
+    auto *menu = qobject_cast<QMenu *>(watched);
+    if (!menu || !action || action->objectName() != QLatin1String(PreviewActionName)) {
+        return;
+    }
+    // KIO puts plugin entries low in the menu; just before it shows (before its
+    // size is worked out, so nothing jumps), move “Preview” up to the end of the
+    // “Open With” entries, which KIO closes with a separator.
+    connect(
+        menu,
+        &QMenu::aboutToShow,
+        this,
+        [menu, entry = QPointer<QAction>(action)] {
+            if (!entry || !menu->actions().contains(entry)) {
+                return;
+            }
+            const QList<QAction *> actions = menu->actions();
+            const auto separator = std::find_if(actions.cbegin(), actions.cend(), [&](QAction *a) {
+                return a != entry && a->isSeparator();
+            });
+            if (separator == actions.cend()) {
+                return; // a menu laid out differently: leave it where KIO put it
+            }
+            menu->removeAction(entry);
+            menu->insertAction(*separator, entry);
+        },
+        Qt::SingleShotConnection);
 }
 
 void Bridge::open(int index, const QString &activationToken)

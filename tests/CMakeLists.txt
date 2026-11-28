@@ -87,9 +87,11 @@ target_link_libraries(mockdolphinprivate PUBLIC Qt6::Widgets KF6::KIOCore)
 set_target_properties(mockdolphinprivate PROPERTIES CXX_VISIBILITY_PRESET default VISIBILITY_INLINES_HIDDEN OFF)
 add_executable(tst_dolphinhook dolphin/tst_dolphinhook.cpp ${CMAKE_SOURCE_DIR}/src/dolphin/hookguard.cpp)
 target_include_directories(tst_dolphinhook PRIVATE ${CMAKE_SOURCE_DIR}/src/core ${CMAKE_SOURCE_DIR}/src/dolphin ${CMAKE_BINARY_DIR}/src dolphin)
-target_link_libraries(tst_dolphinhook PRIVATE mockdolphinprivate Qt6::Test Qt6::DBus KF6::KIOCore KF6::ConfigCore)
-target_compile_definitions(tst_dolphinhook PRIVATE KWIKLOOK_HOOK_PLUGIN="$<TARGET_FILE:kwiklook_dolphinhook>")
-add_dependencies(tst_dolphinhook kwiklook_dolphinhook)
+target_link_libraries(tst_dolphinhook PRIVATE mockdolphinprivate Qt6::Test Qt6::DBus KF6::KIOCore KF6::KIOWidgets KF6::ConfigCore)
+target_compile_definitions(tst_dolphinhook PRIVATE KWIKLOOK_HOOK_PLUGIN="$<TARGET_FILE:kwiklook_dolphinhook>"
+    KWIKLOOK_PREVIEWACTION_PLUGIN="$<TARGET_FILE:kwiklook_previewaction>"
+    KWIKLOOK_BUILD_PLUGINS="${CMAKE_BINARY_DIR}/plugins")
+add_dependencies(tst_dolphinhook kwiklook_dolphinhook kwiklook_previewaction)
 add_test(NAME kwiklook-tst_dolphinhook COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run-with-bus.sh $<TARGET_FILE:tst_dolphinhook>)
 # The same with Dolphin's internals answering nonsense, and after a Dolphin that
 # crashed inside the hook's first check (HookGuard): each in a fresh process.

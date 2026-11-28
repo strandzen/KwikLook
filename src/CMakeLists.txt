@@ -171,6 +171,22 @@ set_target_properties(kwiklook_dolphinhook PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugins/kf6/overlayicon")
 install(TARGETS kwiklook_dolphinhook DESTINATION ${KDE_INSTALL_PLUGINDIR}/kf6/overlayicon)
 
+# “Preview” in the context menu of files (Dolphin, Plasma's desktop): see previewaction/previewaction.cpp.
+add_library(kwiklook_previewaction MODULE previewaction/previewaction.cpp)
+target_include_directories(kwiklook_previewaction PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core)
+target_compile_definitions(kwiklook_previewaction PRIVATE TRANSLATION_DOMAIN="kwiklook") # runs inside other applications
+target_link_libraries(kwiklook_previewaction PRIVATE
+    Qt6::Widgets
+    Qt6::DBus
+    KF6::KIOWidgets # KAbstractFileItemActionPlugin
+    KF6::I18n
+    KF6::WindowSystem # activation token for the preview
+)
+set_target_properties(kwiklook_previewaction PROPERTIES
+    PREFIX ""
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugins/kf6/kfileitemaction")
+install(TARGETS kwiklook_previewaction DESTINATION ${KDE_INSTALL_PLUGINDIR}/kf6/kfileitemaction)
+
 # Lists what's inside an archive, run in kwiklook-sandbox: see archive/main.cpp. No Qt.
 add_executable(kwiklook-archive archive/main.cpp)
 target_link_libraries(kwiklook-archive PRIVATE LibArchive::LibArchive)

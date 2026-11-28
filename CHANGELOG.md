@@ -4,6 +4,10 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Added
+
+- “Preview” in the right-click menu of files, in Dolphin (just below “Open With”) and on the desktop.
+
 ### Changed
 
 - KwikLook is now licensed under the GPL-2.0-or-later, like Dolphin. The Dolphin integration stays under the GPL-3.0-or-later. Earlier versions keep their GPL-3.0-or-later license.
