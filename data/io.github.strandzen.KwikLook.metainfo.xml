@@ -18,6 +18,18 @@
   <launchable type="desktop-id">io.github.strandzen.KwikLook.desktop</launchable>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.9.0" date="2026-11-28">
+      <description>
+        <p>“Preview” in the right-click menu, a note when the previewed file goes away, and a sturdier Dolphin integration.</p>
+        <ul>
+          <li>“Preview” in the right-click menu of files, in Dolphin and on the desktop.</li>
+          <li>When the file you're previewing is moved, renamed or deleted, the preview says so.</li>
+          <li>Space in Dolphin no longer stops working after a preview couldn't be opened.</li>
+          <li>If a Dolphin update changes what KwikLook relies on, Space previews the selected file on its own instead of risking a Dolphin crash.</li>
+          <li>KwikLook is now licensed under the GPL-2.0-or-later, like Dolphin; the Dolphin integration stays under the GPL-3.0-or-later.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.8.2" date="2026-11-28">
       <description>
         <p>Less memory while KwikLook waits in the background.</p>

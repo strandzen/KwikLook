@@ -10,7 +10,7 @@ something here turns out wrong or a new pitfall is found, update it in the same 
 **Goal:** look at a file without opening an application: instant, keyboard-driven, looking like a native Breeze window. Done means the common types (pictures, text, PDF, media, office files) preview well and the Dolphin hook survives Dolphin updates.
 **Philosophy:** Simplicity and native Plasma behaviour. Every feature must justify its existence.
 **Stack:** C++20, Qt 6, KDE Frameworks 6, Kirigami (+ Kirigami Addons if used), QML, CMake with
-ECM. Project version `0.8.2` (single source: `project(... VERSION ...)` in `CMakeLists.txt`).
+ECM. Project version `0.9.0` (single source: `project(... VERSION ...)` in `CMakeLists.txt`).
 **App ID:** `io.github.strandzen.KwikLook` (desktop file, metainfo, D-Bus names). Never `org.kde.*`.
 **Licence:** GPL-2.0-or-later (decided 2026-11-28, like Dolphin; releases up to 0.8.2 were GPL-3.0-or-later), except the Dolphin hook: `src/dolphin/`, `tests/dolphin/`, `tst_dolphinsymbols`, `tst_hookguard` and the hook's plugin JSON stay GPL-3.0-or-later (KDEGlance-based). New files: GPL-2.0-or-later, in those places GPL-3.0-or-later. Code shared with the hook (`src/core/openkey.h`, `dbusnames.h`) may go into it as GPL-2.0-or-later; never the other way. Texts in `LICENSES/`.
 **Credit:** the Dolphin hook is based on KDEGlance (`comp/KDEGlance`, GPL-3.0-or-later,

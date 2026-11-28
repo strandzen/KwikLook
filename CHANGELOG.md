@@ -4,6 +4,10 @@ All notable changes to KwikLook. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-28
+
+“Preview” in the right-click menu, a note when the previewed file goes away, and a sturdier Dolphin integration.
+
 ### Added
 
 - “Preview” in the right-click menu of files, in Dolphin (just below “Open With”) and on the desktop.
